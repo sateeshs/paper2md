@@ -1,4 +1,21 @@
+# Core extraction (unchanged)
 pdfminer.six>=20221105
 python-dotenv>=1.0.0
 tqdm>=4.65.0
+
+# LLM via DSPy (replaces direct openai usage)
+# dspy-ai pulls in litellm which provides all provider adapters
+dspy-ai>=2.5.0
+
+# LaTeX parsing
+pylatexenc>=2.10
+
+# ArXiv source download + PDF fallback
+arxiv>=2.1.0
+httpx>=0.27.0
+
+# Supabase push (optional — only needed with --push-supabase)
+supabase>=2.0.0
+
+# Legacy: keep openai for any direct usage / compatibility
 openai>=1.0.0

@@ -1,3 +1,15 @@
 .env
+.env.local
+.env*.local
+web/.env
+web/.env.local
+web/.env*.local
 .venv/
 .paper2md/
+.claude/
+.agents/
+web/node_modules/
+__pycache__/
+lib/__pycache__/
+*.pyc
+web/.next/

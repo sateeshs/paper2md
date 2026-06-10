@@ -1,0 +1,71 @@
+name: Process Pending Papers
+
+on:
+  # Run every 6 hours
+  schedule:
+    - cron: "0 */6 * * *"
+  # Allow manual trigger from GitHub UI (Actions tab → Run workflow)
+  workflow_dispatch:
+    inputs:
+      arxiv_id:
+        description: "Optional: single ArXiv ID to process (e.g. 2301.07984)"
+        required: false
+        type: string
+
+jobs:
+  process:
+    name: Process ArXiv papers
+    runs-on: ubuntu-latest
+    timeout-minutes: 50   # generous — 10 papers × ~5 min each at most
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Process single paper (manual trigger with arxiv_id)
+        if: ${{ github.event.inputs.arxiv_id != '' }}
+        run: |
+          python summarize_papers.py \
+            --arxiv-id "${{ github.event.inputs.arxiv_id }}" \
+            --push-supabase
+        env:
+          PAPER2MD_LLM_PROVIDER:     gemini
+          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY:              ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PAPER2MD_MAX_MATH_BLOCKS:  "50"
+
+      - name: Process all pending papers (scheduled / manual without arxiv_id)
+        if: ${{ github.event.inputs.arxiv_id == '' }}
+        run: |
+          python summarize_papers.py \
+            --process-pending \
+            --push-supabase
+        env:
+          PAPER2MD_LLM_PROVIDER:     gemini
+          GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY:              ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PAPER2MD_MAX_MATH_BLOCKS:  "50"
+
+      - name: Upload failed push journal (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-push-journal
+          path: ~/.paper2md/failed_push.json
+          if-no-files-found: ignore
+          retention-days: 7
