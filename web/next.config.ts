@@ -1,16 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    ppr: false,
-  },
   // pdfjs-dist optionally requires the 'canvas' npm package for Node.js — ignore it in browser bundle
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      canvas: false,
-    };
-    return config;
+  turbopack: {
+    resolveAlias: {
+      canvas: "./lib/empty.js",
+    },
   },
   async headers() {
     return [
