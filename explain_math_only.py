@@ -74,6 +74,7 @@ def run(
     max_blocks: int,
     force: bool,
     min_expr_len: int,
+    paper_type: str,
 ) -> None:
     from lib.dspy_config import configure_dspy
     from lib.dspy_modules import MathExplainer
@@ -119,6 +120,7 @@ def run(
             latex_expr=row["latex_expr"],
             context_before=row.get("context_before") or "",
             context_after=row.get("context_after") or "",
+            paper_type=args.paper_type,
         )
 
         # Skip trivially short inline expressions
@@ -156,6 +158,10 @@ def main() -> int:
                     help="Re-explain blocks that already have explanations")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
+    ap.add_argument("--paper-type",
+                    choices=["research_paper", "textbook", "lecture_notes"],
+                    default="research_paper",
+                    help="Document type for explanation framing (default: research_paper)")
     args = ap.parse_args()
 
     run(
@@ -163,6 +169,7 @@ def main() -> int:
         max_blocks=args.max_blocks,
         force=args.force,
         min_expr_len=args.min_expr_len,
+        paper_type=args.paper_type,
     )
     return 0
 

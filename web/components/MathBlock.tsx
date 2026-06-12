@@ -79,9 +79,20 @@ export function MathBlock({ block }: MathBlockProps) {
   );
 }
 
+type ExplanationV2 = {
+  what_it_computes?: string;
+  symbol_meanings?: string;
+  derivation?: string;
+  intuition?: string;
+  proof_role?: string;
+  prerequisites?: string;
+  mathematical_significance?: string;
+  paper_relevance?: string; // legacy key — kept for backward compat
+};
+
 function ExplanationPanel({ explanation }: { explanation: string }) {
   // Explanation is a JSON string from DSPy structured output
-  let parsed: Record<string, string> | null = null;
+  let parsed: ExplanationV2 | null = null;
   try {
     parsed = JSON.parse(explanation);
   } catch {
@@ -103,8 +114,17 @@ function ExplanationPanel({ explanation }: { explanation: string }) {
         {parsed.intuition && (
           <ExplanationRow label="Intuition" value={parsed.intuition} />
         )}
-        {parsed.paper_relevance && (
-          <ExplanationRow label="Why it matters" value={parsed.paper_relevance} />
+        {parsed.proof_role && (
+          <ExplanationRow label="Role in proof" value={parsed.proof_role} />
+        )}
+        {parsed.prerequisites && (
+          <ExplanationRow label="Prerequisites" value={parsed.prerequisites} />
+        )}
+        {(parsed.mathematical_significance ?? parsed.paper_relevance) && (
+          <ExplanationRow
+            label="Why it matters"
+            value={(parsed.mathematical_significance ?? parsed.paper_relevance)!}
+          />
         )}
       </dl>
     );

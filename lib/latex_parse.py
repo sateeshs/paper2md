@@ -28,7 +28,9 @@ from lib.models import MathBlock, Section
 MIN_INLINE_LEN = 6
 
 # Characters of surrounding plain text to capture as context
-CONTEXT_WINDOW = 300
+# Named display environments get a wider window to capture the full theorem/proof context
+CONTEXT_WINDOW_NAMED = 800    # equation, align, gather, etc.
+CONTEXT_WINDOW_DEFAULT = 300  # display $$, inline $
 
 # Math environment names to extract (with and without *)
 _NAMED_ENVS = (
@@ -177,10 +179,11 @@ def _latex_to_text(latex: str) -> str:
 # Context extraction
 # ---------------------------------------------------------------------------
 
-def _extract_context(full_text: str, match_start: int, match_end: int) -> tuple[str, str]:
+def _extract_context(full_text: str, match_start: int, match_end: int, env_type: str = "inline") -> tuple[str, str]:
     """Return (context_before, context_after) plain-text windows around a match."""
-    before_raw = full_text[max(0, match_start - CONTEXT_WINDOW): match_start]
-    after_raw = full_text[match_end: match_end + CONTEXT_WINDOW]
+    window = CONTEXT_WINDOW_NAMED if env_type not in ("display", "inline") else CONTEXT_WINDOW_DEFAULT
+    before_raw = full_text[max(0, match_start - window): match_start]
+    after_raw = full_text[match_end: match_end + window]
     return (
         _latex_to_text(before_raw).strip(),
         _latex_to_text(after_raw).strip(),
@@ -250,7 +253,7 @@ def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
     blocks: list[MathBlock] = []
 
     for idx, raw in enumerate(raw_matches):
-        ctx_before, ctx_after = _extract_context(clean, raw.start, raw.end)
+        ctx_before, ctx_after = _extract_context(clean, raw.start, raw.end, raw.env_type)
         blocks.append(MathBlock(
             order_idx=idx,
             env_type=raw.env_type,

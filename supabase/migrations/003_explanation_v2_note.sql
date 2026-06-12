@@ -1,0 +1,25 @@
+-- Migration 003: explanation JSON schema v2 (documentation only — no schema changes)
+--
+-- The `explanation` column in math_blocks stores a JSON text blob.
+-- From this migration forward, the JSON uses these keys:
+--
+--   what_it_computes         (unchanged)
+--   symbol_meanings          (unchanged)
+--   intuition                (unchanged)
+--   derivation               (unchanged)
+--   proof_role               (NEW)
+--   prerequisites            (NEW)
+--   mathematical_significance (RENAMED from paper_relevance)
+--
+-- Backward compatibility:
+--   Old rows that still contain `paper_relevance` instead of `mathematical_significance`
+--   are handled gracefully by the frontend (MathBlock.tsx reads
+--   `mathematical_significance ?? paper_relevance`).
+--
+-- To re-explain all rows with the new schema:
+--   python explain_math_only.py --force
+--
+-- To re-explain a single paper as a textbook:
+--   python explain_math_only.py --arxiv-id <id> --paper-type textbook --force
+--
+-- No column-level changes are required.

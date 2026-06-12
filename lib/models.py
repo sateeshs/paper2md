@@ -12,10 +12,11 @@ class MathBlock:
     order_idx: int
     env_type: str          # equation | align | gather | multline | cases | display | inline
     latex_expr: str
-    context_before: str    # up to 300 chars of plain text before the block
-    context_after: str     # up to 300 chars of plain text after the block
+    context_before: str    # up to 800 chars for named envs, 300 for display/inline
+    context_after: str     # up to 800 chars for named envs, 300 for display/inline
     explanation: str | None = None
     explanation_model: str | None = None  # e.g. "gemini-2.0-flash"
+    paper_type: str = "research_paper"    # "research_paper" | "textbook" | "lecture_notes"
 
 
 @dataclass(frozen=True)
