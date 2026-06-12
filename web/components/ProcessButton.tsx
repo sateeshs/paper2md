@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { PaperStatusStream } from "@/components/PaperStatusStream";
 
 interface ProcessButtonProps {
   arxivId: string;
 }
 
 export function ProcessButton({ arxivId }: ProcessButtonProps) {
-  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [message, setMessage] = useState<string>("");
+  const [state, setState] = useState<"idle" | "loading" | "triggered" | "error">("idle");
 
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -20,29 +20,23 @@ export function ProcessButton({ arxivId }: ProcessButtonProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ arxiv_id: arxivId }),
       });
-      const data = await res.json();
-      if (data.dispatch?.triggered) {
-        setState("done");
-        setMessage("Triggered");
+      if (res.ok) {
+        setState("triggered");
       } else {
-        setState("done");
-        setMessage("Queued");
+        setState("error");
       }
     } catch {
       setState("error");
-      setMessage("Failed");
     }
   }
 
-  if (state === "done") {
-    return (
-      <span className="text-xs text-green-600 font-medium shrink-0">{message}</span>
-    );
+  if (state === "triggered") {
+    return <PaperStatusStream arxivId={arxivId} />;
   }
 
   if (state === "error") {
     return (
-      <span className="text-xs text-red-500 font-medium shrink-0">{message}</span>
+      <span className="text-xs text-red-500 font-medium shrink-0">Failed — retry?</span>
     );
   }
 

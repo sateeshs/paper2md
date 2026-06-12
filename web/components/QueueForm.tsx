@@ -3,9 +3,11 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import type { ArxivResult } from "@/app/api/arxiv/route";
 import { extractArxivId } from "@/lib/arxiv-id";
+import { PaperStatusStream } from "@/components/PaperStatusStream";
 
 type Tab = "id" | "title";
 type QueueStatus = "idle" | "ok" | "exists" | "error";
+type StreamingIds = Set<string>;
 
 export function QueueForm() {
   const [tab, setTab] = useState<Tab>("title");
@@ -59,6 +61,7 @@ function TitleSearch() {
   const [results, setResults] = useState<ArxivResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [queueStatus, setQueueStatus] = useState<Record<string, QueueStatus>>({});
+  const [streaming, setStreaming] = useState<StreamingIds>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // If the user pastes a URL/ID, skip ArXiv search
@@ -95,10 +98,11 @@ function TitleSearch() {
         body: JSON.stringify({ arxiv_id: arxivId, title }),
       });
       const json = await res.json();
-      setQueueStatus((s) => ({
-        ...s,
-        [arxivId]: json.existing ? "exists" : res.ok ? "ok" : "error",
-      }));
+      const next: QueueStatus = json.existing ? "exists" : res.ok ? "ok" : "error";
+      setQueueStatus((s) => ({ ...s, [arxivId]: next }));
+      if (next === "ok") {
+        setStreaming((s) => new Set(s).add(arxivId));
+      }
     } catch {
       setQueueStatus((s) => ({ ...s, [arxivId]: "error" }));
     }
@@ -166,6 +170,14 @@ function TitleSearch() {
       {!isUrl && query.trim().length >= 3 && !searching && results.length === 0 && (
         <p className="text-sm text-zinc-400 text-center py-3">No results from ArXiv.</p>
       )}
+
+      {streaming.size > 0 && (
+        <div className="space-y-1">
+          {Array.from(streaming).map((id) => (
+            <PaperStatusStream key={id} arxivId={id} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -208,6 +220,7 @@ function IdForm() {
   const [arxivId, setArxivId] = useState("");
   const [status, setStatus] = useState<QueueStatus>("idle");
   const [message, setMessage] = useState("");
+  const [streamingId, setStreamingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit(e: React.FormEvent) {
@@ -230,7 +243,7 @@ function IdForm() {
         const json = await res.json();
         if (!res.ok) { setStatus("error"); setMessage(json.error ?? "Unknown error"); }
         else if (json.existing) { setStatus("exists"); setMessage(`${id} is already queued.`); }
-        else { setStatus("ok"); setMessage("Queued! Processing takes a few minutes."); setArxivId(""); }
+        else { setStatus("ok"); setMessage(""); setArxivId(""); setStreamingId(id); }
       } catch {
         setStatus("error");
         setMessage("Network error — try again.");
@@ -262,15 +275,17 @@ function IdForm() {
           {isPending ? "…" : "Queue"}
         </button>
       </form>
-      {status !== "idle" && (
-        <p className={`text-xs font-medium px-3 py-2 rounded-lg ${
-          status === "ok" ? "bg-green-50 text-green-700"
-          : status === "exists" ? "bg-zinc-100 text-zinc-500"
-          : "bg-red-50 text-red-600"
-        }`}>
+      {status === "exists" && (
+        <p className="text-xs font-medium px-3 py-2 rounded-lg bg-zinc-100 text-zinc-500">
           {message}
         </p>
       )}
+      {status === "error" && (
+        <p className="text-xs font-medium px-3 py-2 rounded-lg bg-red-50 text-red-600">
+          {message}
+        </p>
+      )}
+      {streamingId && <PaperStatusStream arxivId={streamingId} />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { getRecentPapers, searchPapers } from "@/lib/supabase/queries";
 import { SearchBar } from "@/components/SearchBar";
 import { QueueForm } from "@/components/QueueForm";
 import { ProcessButton } from "@/components/ProcessButton";
+import { LiveStatusBadge } from "@/components/LiveStatusBadge";
 import type { Paper } from "@/lib/supabase/types";
 
 export const metadata: Metadata = { title: "paper2md" };
@@ -68,15 +69,9 @@ export default async function LandingPage({ searchParams }: PageProps) {
   );
 }
 
-const STATUS_BADGE: Record<string, string> = {
-  pending:    "bg-amber-50 text-amber-600",
-  processing: "bg-blue-50 text-blue-600",
-  complete:   "bg-green-50 text-green-700",
-  error:      "bg-red-50 text-red-600",
-};
-
 function PaperRow({ paper }: { paper: Paper }) {
   const isComplete = paper.status === "complete";
+  const isLive = paper.status === "pending" || paper.status === "processing";
   const href = isComplete && paper.arxiv_id ? `/paper/${paper.arxiv_id}` : null;
 
   const inner = (
@@ -86,9 +81,15 @@ function PaperRow({ paper }: { paper: Paper }) {
           <p className={`font-medium line-clamp-1 ${isComplete ? "text-zinc-900 group-hover:text-blue-600 transition-colors" : "text-zinc-500"}`}>
             {paper.title}
           </p>
-          <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_BADGE[paper.status] ?? "bg-zinc-100 text-zinc-500"}`}>
-            {paper.status}
-          </span>
+          {isLive && paper.arxiv_id ? (
+            <LiveStatusBadge arxivId={paper.arxiv_id} initialStatus={paper.status} />
+          ) : (
+            <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+              paper.status === "complete" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+            }`}>
+              {paper.status}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3 mt-1 text-xs text-zinc-400">
           {paper.arxiv_id && <span>arXiv:{paper.arxiv_id}</span>}
