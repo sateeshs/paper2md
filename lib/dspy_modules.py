@@ -29,7 +29,7 @@ from lib.dspy_config import (
     is_provider_exhausted,
     rate_limit_sleep,
 )
-from lib.dspy_signatures import ExplainMathBlock, ReduceToFinalSummary, SummarizeChunk
+from lib.dspy_signatures import ExplainMathBlock, ReduceToFinalSummary, SATTutor, SummarizeChunk
 from lib.models import MathBlock, Paper, Section
 
 
@@ -117,13 +117,16 @@ class MathExplainer(dspy.Module):
                 context_before=block.context_before or "",
                 latex_expr=block.latex_expr,
                 context_after=block.context_after or "",
+                paper_type=block.paper_type,
             )
             explanation = json.dumps({
-                "what_it_computes": pred.what_it_computes,
-                "symbol_meanings":  pred.symbol_meanings,
-                "intuition":        pred.intuition,
-                "derivation":       pred.derivation,
-                "paper_relevance":  pred.paper_relevance,
+                "what_it_computes":        pred.what_it_computes,
+                "symbol_meanings":         pred.symbol_meanings,
+                "intuition":               pred.intuition,
+                "derivation":              pred.derivation,
+                "proof_role":              pred.proof_role,
+                "prerequisites":           pred.prerequisites,
+                "mathematical_significance": pred.mathematical_significance,
             }, ensure_ascii=False)
             return dataclasses.replace(
                 block,
@@ -253,6 +256,43 @@ class PaperSummarizer(dspy.Module):
 
         summary_md = _format_summary(final)
         return dataclasses.replace(paper, summary_md=summary_md)
+
+
+# ---------------------------------------------------------------------------
+# SATTutorModule
+# ---------------------------------------------------------------------------
+
+class SATTutorModule(dspy.Module):
+    """Run the SATTutor signature for a single SAT question session.
+
+    Returns a dict with all 7 response fields ready to write to sat_sessions.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tutor = dspy.ChainOfThought(SATTutor)
+
+    def forward(self, question: str, subject: str, user_context: str = "") -> dict:
+        """Return dict with sat_sessions response fields.
+
+        Raises on unrecoverable LLM error so sat_tutor.py can mark session as error.
+        """
+        pred = _call_with_tracking(
+            self.tutor,
+            question=question,
+            subject=subject,
+            user_context=user_context or "",
+        )
+        return {
+            "explanation":      pred.explanation,
+            "step_by_step":     pred.step_by_step,
+            "key_concepts":     pred.key_concepts,
+            "hints":            pred.hints,
+            "common_mistakes":  pred.common_mistakes,
+            "sat_strategy":     pred.sat_strategy,
+            "answer":           pred.answer,
+            "agent_model":      _active_provider(),
+        }
 
 
 def _format_summary(pred: dspy.Prediction) -> str:

@@ -1,9 +1,10 @@
 """DSPy typed signatures for all LLM calls in paper2md.
 
-Three signatures cover the full pipeline:
-  ExplainMathBlock      — per math block: structured 4-field explanation
+Four signatures cover the full pipeline:
+  ExplainMathBlock      — per math block: structured explanation
   SummarizeChunk        — map step: summarise one text chunk of a paper
   ReduceToFinalSummary  — reduce step: combine chunk bullets into final markdown
+  SATTutor              — SAT question analysis with step-by-step tutoring
 """
 
 from __future__ import annotations
@@ -12,10 +13,13 @@ import dspy
 
 
 class ExplainMathBlock(dspy.Signature):
-    """Explain a mathematical expression from a research paper in thorough, plain English.
+    """Explain a mathematical expression found in an academic document in thorough, plain English.
 
-    The audience is a software engineer with ML knowledge who wants to deeply understand
-    each formula — not just what it says but what it *means* and how it *works*.
+    Adapt your explanation style to the document type provided in `paper_type`:
+    - research_paper: audience is an engineer or researcher; stress what is novel,
+      what the expression contributes, and how it connects to the paper's main idea.
+    - textbook / lecture_notes: audience is a student; stress pedagogical clarity,
+      prerequisite scaffolding, and how this expression fits the learning arc.
 
     Write each field as clear, flowing prose. No bullet points. No LaTeX-only answers —
     always translate notation into words.
@@ -45,6 +49,10 @@ class ExplainMathBlock(dspy.Signature):
     context_after: str = dspy.InputField(
         desc="Plain text immediately after the formula"
     )
+    paper_type: str = dspy.InputField(
+        desc="Type of document: 'research_paper', 'textbook', or 'lecture_notes'. "
+             "Adjust explanation depth and framing accordingly."
+    )
 
     what_it_computes: str = dspy.OutputField(
         desc="In 2-4 plain-English sentences, describe what this expression computes or defines. "
@@ -73,13 +81,110 @@ class ExplainMathBlock(dspy.Signature):
     )
     intuition: str = dspy.OutputField(
         desc="In 3-5 sentences, explain the intuition behind this expression in plain English — "
-             "no math jargon. Imagine explaining it to a curious senior engineer who has never seen "
-             "this paper. Use analogies if helpful. Focus on *why* the formula is structured this way, "
-             "not just what it says."
+             "no math jargon. Imagine explaining it to a curious person who has never seen this material. "
+             "Use analogies if helpful. Focus on *why* the formula is structured this way, not just what it says. "
+             "Where the expression has a geometric or visual interpretation (e.g. it describes a distance, "
+             "a projection, a rotation, an area, or a boundary), explicitly describe that geometric picture."
     )
-    paper_relevance: str = dspy.OutputField(
-        desc="In 2-3 sentences, explain why this specific expression is central to this paper's contribution. "
-             "Connect it to the paper's main idea and explain what breaks if you remove or change it."
+    proof_role: str = dspy.OutputField(
+        desc="In 1-3 sentences, describe the logical role this expression plays within its proof or derivation. "
+             "Is it an intermediate lemma, a key substitution, a boundary condition, a definition being introduced, "
+             "or the conclusion of the argument? "
+             "If the expression is not part of a proof, write: "
+             "'Not part of a proof — this is a [definition / model equation / stated result]'."
+    )
+    prerequisites: str = dspy.OutputField(
+        desc="In 2-4 sentences, list the mathematical concepts and definitions a reader must already know "
+             "to understand this expression. Be specific: name the concepts "
+             "(e.g. 'the Radon–Nikodym theorem', 'basic measure theory', 'the chain rule for matrix calculus') "
+             "rather than vague categories. "
+             "For research_paper documents, also note any paper-specific notation introduced earlier "
+             "that this expression builds on."
+    )
+    mathematical_significance: str = dspy.OutputField(
+        desc="In 2-3 sentences, explain the mathematical or conceptual significance of this expression. "
+             "For research papers: connect it to the paper's core contribution and explain what breaks "
+             "if you remove or change it. "
+             "For textbooks/lecture notes: explain what mathematical insight this expression crystallises "
+             "and why it is a milestone in the exposition."
+    )
+
+
+class SATTutor(dspy.Signature):
+    """You are an expert SAT tutor with deep knowledge of College Board test design.
+
+    A student has pasted an SAT question and optional extra context. Your job is to:
+    1. Identify the exact SAT concept or skill being tested.
+    2. Solve the problem step-by-step with full working shown.
+    3. Give three progressive hints (from gentle to nearly giving it away).
+    4. Flag the most common mistake students make on this type of question.
+    5. Share a concise SAT strategy (pacing, elimination tricks, key formulas).
+    6. State the correct answer with a clear justification.
+
+    Subject-specific guidance:
+    - math: Show all algebraic steps. Wrap every math expression in $...$. Never use
+      Unicode math symbols outside of $...$. Name the formula/rule used at each step.
+    - english: Quote the specific line or phrase from the passage that justifies the answer.
+      Explain why each wrong answer choice fails.
+    - reading: Identify the evidence in the text. Explain what makes the best answer
+      "most supported" and why alternatives are too extreme or off-topic.
+
+    Tone: encouraging, clear, student-friendly. Assume the student is working hard but
+    may have gaps. Never just state the answer — always teach.
+    """
+
+    question: str = dspy.InputField(
+        desc="The full SAT question text, including any answer choices (A/B/C/D)"
+    )
+    subject: str = dspy.InputField(
+        desc="SAT section: 'math', 'english' (Writing and Language), or 'reading'"
+    )
+    user_context: str = dspy.InputField(
+        desc="Optional extra context from the student — passage text, what they tried, "
+             "which answer they chose, or what's confusing them. May be empty."
+    )
+
+    explanation: str = dspy.OutputField(
+        desc="2-4 sentences explaining the core SAT concept or skill this question tests. "
+             "Name the specific concept (e.g. 'linear systems of equations', "
+             "'subject-verb agreement', 'identifying the author's claim'). "
+             "Explain why College Board includes this skill on the SAT."
+    )
+    step_by_step: str = dspy.OutputField(
+        desc="A numbered, step-by-step solution. Each step must state: "
+             "(1) what you are doing and why, (2) the calculation or reasoning, "
+             "(3) the result. For math: show all algebra. "
+             "For reading/english: quote the key passage evidence at each step. "
+             "End with a clear statement of the final answer."
+    )
+    key_concepts: str = dspy.OutputField(
+        desc="Comma-separated list of 3-6 SAT concepts or skills this question tests. "
+             "Be specific: e.g. 'linear equations, substitution method, systems with no solution' "
+             "rather than just 'algebra'. These help the student know what to review."
+    )
+    hints: str = dspy.OutputField(
+        desc="A JSON array of exactly 3 strings: progressive hints from subtle to near-answer. "
+             "Hint 1: a gentle nudge toward the right approach (no spoilers). "
+             "Hint 2: the key insight that unlocks the problem. "
+             "Hint 3: almost the full solution — one step away from the answer. "
+             'Format: ["Hint 1 text", "Hint 2 text", "Hint 3 text"]. '
+             "Valid JSON only — no trailing commas."
+    )
+    common_mistakes: str = dspy.OutputField(
+        desc="2-3 sentences describing the most frequent errors students make on this "
+             "specific question or question type. Include why the wrong answer choices "
+             "are tempting (the 'trap' answers). This helps the student learn from others' errors."
+    )
+    sat_strategy: str = dspy.OutputField(
+        desc="1-3 sentences of concrete SAT test strategy for this question type: "
+             "time management, process of elimination tips, when to plug in numbers, "
+             "key formulas to memorise, or how to quickly identify the question type. "
+             "Be actionable — the student should be able to apply this immediately."
+    )
+    answer: str = dspy.OutputField(
+        desc="State the correct answer choice (e.g. 'Answer: C') followed by 2-3 sentences "
+             "explaining exactly why it is correct and why each incorrect choice is wrong. "
+             "For math: verify numerically if possible."
     )
 
 

@@ -31,9 +31,14 @@ export default function RootLayout({
                 beta
               </span>
             </a>
-            <span className="text-sm text-zinc-400 hidden sm:block">
-              AI-explained equations for ArXiv papers
-            </span>
+            <nav className="flex items-center gap-4">
+              <a href="/sat" className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors">
+                SAT Tutor
+              </a>
+              <span className="text-sm text-zinc-400 hidden sm:block">
+                AI-explained equations
+              </span>
+            </nav>
           </div>
         </header>
         <main className="flex-1 min-h-0">{children}</main>

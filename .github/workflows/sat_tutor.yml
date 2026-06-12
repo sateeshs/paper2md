@@ -1,0 +1,37 @@
+name: SAT Tutor Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_id:
+        description: "UUID of the sat_sessions row to process"
+        required: true
+        type: string
+
+jobs:
+  tutor:
+    name: Run SAT tutor agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 10   # Single DSPy call — well under 10 min on free tier
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run SAT tutor
+        run: |
+          python sat_tutor.py --session-id "${{ github.event.inputs.session_id }}"
+        env:
+          PAPER2MD_LLM_PROVIDER:     openrouter
+          OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
