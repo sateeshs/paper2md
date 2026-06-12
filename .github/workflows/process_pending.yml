@@ -16,7 +16,7 @@ jobs:
   process:
     name: Process ArXiv papers
     runs-on: ubuntu-latest
-    timeout-minutes: 50   # generous — 10 papers × ~5 min each at most
+    timeout-minutes: 20   # 10 math blocks × ~40s on OpenRouter = ~7 min; 20 min is ample
 
     steps:
       - name: Checkout
@@ -44,7 +44,7 @@ jobs:
           OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PAPER2MD_MAX_MATH_BLOCKS:  "50"
+          PAPER2MD_MAX_MATH_BLOCKS:  "10"
 
       - name: Process all pending papers (scheduled / manual without arxiv_id)
         if: ${{ github.event.inputs.arxiv_id == '' }}
@@ -59,7 +59,7 @@ jobs:
           OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
           SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PAPER2MD_MAX_MATH_BLOCKS:  "50"
+          PAPER2MD_MAX_MATH_BLOCKS:  "10"
 
       - name: Upload failed push journal (if any)
         if: always()
