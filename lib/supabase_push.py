@@ -28,6 +28,13 @@ from lib.models import MathBlock, Paper, Section
 _supabase_client = None
 
 
+def _s(value: str | None) -> str | None:
+    """Strip null bytes from a string — PostgreSQL rejects \\u0000 in text columns."""
+    if value is None:
+        return None
+    return value.replace("\x00", "")
+
+
 # ---------------------------------------------------------------------------
 # Client
 # ---------------------------------------------------------------------------
@@ -137,7 +144,7 @@ def push_paper(paper: Paper) -> None:
 
     # ── 1. Upsert paper ────────────────────────────────────────────────────
     paper_row: dict[str, Any] = {
-        "title":       paper.title,
+        "title":       _s(paper.title),
         "source_type": paper.source_type,
         "status":      "processing",
     }
@@ -163,9 +170,9 @@ def push_paper(paper: Paper) -> None:
         {
             "paper_id":   paper_id,
             "order_idx":  s.order_idx,
-            "title":      s.title,
-            "plain_text": s.plain_text,
-            "raw_latex":  s.raw_latex,
+            "title":      _s(s.title),
+            "plain_text": _s(s.plain_text),
+            "raw_latex":  _s(s.raw_latex),
             "has_math":   len(s.math_blocks) > 0,
         }
         for s in paper.sections
@@ -187,11 +194,11 @@ def push_paper(paper: Paper) -> None:
                 "section_id":        section_db_id,
                 "order_idx":         block.order_idx,
                 "env_type":          block.env_type,
-                "latex_expr":        block.latex_expr,
-                "context_before":    block.context_before,
-                "context_after":     block.context_after,
-                "explanation":       block.explanation,
-                "explanation_model": block.explanation_model,
+                "latex_expr":        _s(block.latex_expr),
+                "context_before":    _s(block.context_before),
+                "context_after":     _s(block.context_after),
+                "explanation":       _s(block.explanation),
+                "explanation_model": _s(block.explanation_model),
             })
 
     for batch in _batches(math_rows, 100):
