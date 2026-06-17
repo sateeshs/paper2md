@@ -264,11 +264,14 @@ function SectionBody({
   mathBlocks: Array<import("@/lib/supabase/types").MathBlock>;
 }) {
   const plain = cleanPlainText(section.plain_text ?? "");
-  // Only show display-mode environments (equation, align, …) as cards.
-  // Inline $...$ blocks are already embedded in plain_text and rendered
-  // by ProseWithMath — showing them again as cards breaks prose flow.
+  // Show display-mode blocks always, and inline blocks when they have an explanation.
+  // Display blocks (equation, align, …) are interleaved in the prose.
+  // Inline blocks with explanations appear as cards too — the formula shows inline
+  // via ProseWithMath AND as a card with the expandable explanation.
   const meaningfulBlocks = mathBlocks.filter(
-    (b) => !isTrivialBlock(b) && DISPLAY_ENV_TYPES.has(b.env_type)
+    (b) =>
+      !isTrivialBlock(b) &&
+      (DISPLAY_ENV_TYPES.has(b.env_type) || !!b.explanation)
   );
 
   if (meaningfulBlocks.length === 0 && !plain) {
