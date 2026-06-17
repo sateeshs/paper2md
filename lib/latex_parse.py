@@ -194,12 +194,28 @@ def _preprocess_for_text(latex: str) -> str:
     # 7. Strip cross-reference and citation commands (avoids empty parens)
     latex = re.sub(r"\\(?:Cref|cref|ref|eqref|autoref|pageref)\s*\{[^}]*\}", "", latex)
     latex = re.sub(r"\\(?:citep|citet|cite[a-zA-Z]*)\s*(?:\[[^\]]*\])?\s*\{[^}]*\}", "", latex)
+    # Remove empty parentheses left behind after stripping refs/citations
+    latex = re.sub(r"\(\s*\)", "", latex)
+    # Remove empty brackets left behind similarly
+    latex = re.sub(r"\[\s*\]", "", latex)
 
-    # 8. Remove spacing/layout commands that turn into bracketed artifacts
+    # 8. Convert LaTeX special characters that pylatexenc fallback misses
+    latex = re.sub(r"\\%", "%", latex)          # \% → %
+    latex = re.sub(r"\\_", "_", latex)          # \_ → _
+    latex = re.sub(r"\\&", "and", latex)        # \& → and
+    latex = re.sub(r"\\#", "#", latex)          # \# → #
+    latex = re.sub(r"(?<!\\)~", " ", latex)     # ~ (non-breaking space) → space
+    latex = re.sub(r"\\[,;:! ]", " ", latex)    # thin/medium/thick/forced spaces → space
+    latex = re.sub(r"---", "—", latex)          # em dash
+    latex = re.sub(r"--", "–", latex)           # en dash
+    latex = re.sub(r"``", "\u201c", latex)       # opening double quote
+    latex = re.sub(r"''", "\u201d", latex)       # closing double quote
+
+    # 9. Remove spacing/layout commands that turn into bracketed artifacts
     latex = re.sub(r"\\(vskip|hskip|vspace\*?|hspace\*?)\s*[{\[]?[\d.]+\s*(?:pt|mm|cm|in|em|ex|bp|pc|dd|cc|sp)?[}\]]?", " ", latex)
-    # 9. Remove \hline / \toprule / \midrule / \bottomrule / \cline
+    # 10. Remove \hline / \toprule / \midrule / \bottomrule / \cline
     latex = re.sub(r"\\(hline|toprule|midrule|bottomrule|cline\{[^}]*\})", " ", latex)
-    # 10. Collapse leftover table separators
+    # 11. Collapse leftover table separators
     latex = re.sub(r"\s*&\s*", " ", latex)
     latex = re.sub(r"\\\\", "\n", latex)
     return latex
