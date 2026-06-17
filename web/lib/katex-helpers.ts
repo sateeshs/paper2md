@@ -34,6 +34,12 @@ export const KATEX_OPTIONS: KatexOptions = {
     "\\sigmoid": "\\operatorname{sigmoid}",
     // Misc
     "\\given": "\\mid",
+    // Transformer / attention paper macros (Attention is All You Need)
+    "\\dmodel": "d_{\\mathrm{model}}",
+    "\\dk": "d_k",
+    "\\dv": "d_v",
+    "\\dff": "d_{\\mathrm{ff}}",
+    "\\heads": "h",
   },
 };
 
