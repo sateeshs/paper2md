@@ -199,12 +199,26 @@ def _preprocess_for_text(latex: str) -> str:
     # Remove empty brackets left behind similarly
     latex = re.sub(r"\[\s*\]", "", latex)
 
-    # 8. Convert LaTeX special characters that pylatexenc fallback misses
-    latex = re.sub(r"\\%", "%", latex)          # \% → %
-    latex = re.sub(r"\\_", "_", latex)          # \_ → _
-    latex = re.sub(r"\\&", "and", latex)        # \& → and
-    latex = re.sub(r"\\#", "#", latex)          # \# → #
-    latex = re.sub(r"(?<!\\)~", " ", latex)     # ~ (non-breaking space) → space
+    # 8. Convert LaTeX special characters that pylatexenc fallback misses.
+    # \_ must NOT be converted inside inline $...$ math — KaTeX needs \_ to
+    # render a literal underscore (plain _ is a subscript operator in math mode).
+    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n]|\\.)+?\$')
+
+    def _sub_outside_math(text: str, pat: str, repl: str) -> str:
+        parts: list[str] = []
+        last = 0
+        for m in _INLINE_MATH_RE.finditer(text):
+            parts.append(re.sub(pat, repl, text[last:m.start()]))
+            parts.append(m.group(0))  # preserve inline math verbatim
+            last = m.end()
+        parts.append(re.sub(pat, repl, text[last:]))
+        return "".join(parts)
+
+    latex = re.sub(r"\\%", "%", latex)                      # \% → %
+    latex = _sub_outside_math(latex, r"\\_", "_")           # \_ → _ (plain text only)
+    latex = re.sub(r"\\&", "and", latex)                    # \& → and
+    latex = re.sub(r"\\#", "#", latex)                      # \# → #
+    latex = re.sub(r"(?<!\\)~", " ", latex)                 # ~ (non-breaking space) → space
     latex = re.sub(r"\\[,;:! ]", " ", latex)    # thin/medium/thick/forced spaces → space
     latex = re.sub(r"---", "—", latex)          # em dash
     latex = re.sub(r"--", "–", latex)           # en dash
