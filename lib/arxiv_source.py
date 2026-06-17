@@ -166,32 +166,52 @@ def _read_tex_file(path: Path) -> str:
 # Resolve \input{} and \include{}
 # ---------------------------------------------------------------------------
 
-def _resolve_includes(content: str, base_dir: Path, depth: int = 0) -> str:
+def _resolve_includes(
+    content: str,
+    base_dir: Path,
+    root_dir: Path | None = None,
+    depth: int = 0,
+) -> str:
     """Recursively inline \\input{file} and \\include{file} directives.
 
     Args:
         content:  LaTeX source string to process.
-        base_dir: Directory to resolve relative paths against.
+        base_dir: Directory to resolve relative paths against (changes as we recurse).
+        root_dir: Top-level extraction directory (constant across recursion).
+                  Used as a fallback when a path resolves relative to root, not base_dir.
         depth:    Current recursion depth (capped at _MAX_INCLUDE_DEPTH).
     """
+    if root_dir is None:
+        root_dir = base_dir
     if depth >= _MAX_INCLUDE_DEPTH:
         return content
 
-    def replacer(m: re.Match) -> str:
+    def replacer(m: re.Match) -> str:  # type: ignore[type-arg]
         ref = m.group(1).strip()
         # Add .tex extension if missing
         if not ref.endswith(".tex"):
             ref += ".tex"
-        target = base_dir / ref
-        if not target.exists():
-            # Try searching subdirectories
-            found = list(base_dir.rglob(ref))
+
+        # Resolution order:
+        #   1. relative to current base_dir  (most common)
+        #   2. relative to root_dir          (paths in nested files that point to root)
+        #   3. rglob by filename from root   (last resort)
+        target: Path | None = None
+        for search_base in (base_dir, root_dir):
+            candidate = search_base / ref
+            if candidate.exists():
+                target = candidate
+                break
+
+        if target is None:
+            found = list(root_dir.rglob(Path(ref).name))
             if not found:
                 return m.group(0)  # leave directive unchanged
             target = found[0]
+
         try:
             sub_content = _read_tex_file(target)
-            return _resolve_includes(sub_content, target.parent, depth + 1)
+            return _resolve_includes(sub_content, target.parent, root_dir, depth + 1)
         except OSError:
             return m.group(0)
 
@@ -250,7 +270,7 @@ def fetch_arxiv_latex_full(arxiv_id: str) -> tuple[str, str] | None:
             return None
 
         content = _read_tex_file(main_tex)
-        content = _resolve_includes(content, main_tex.parent)
+        content = _resolve_includes(content, main_tex.parent, root_dir=tmp_dir)
         full_source = content
         body = _strip_preamble(content).strip()
         return (body, full_source) if body else None

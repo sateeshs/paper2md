@@ -102,7 +102,7 @@ function PaperRow({ paper }: { paper: Paper }) {
       {isComplete && (
         <span className="text-zinc-300 group-hover:text-blue-400 transition-colors shrink-0 text-lg">→</span>
       )}
-      {(paper.status === "pending" || paper.status === "error") && paper.arxiv_id && (
+      {(paper.status === "pending" || paper.status === "processing" || paper.status === "error") && paper.arxiv_id && (
         <ProcessButton arxivId={paper.arxiv_id} />
       )}
     </>

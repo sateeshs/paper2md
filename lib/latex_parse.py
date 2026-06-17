@@ -47,6 +47,12 @@ _SECTION_CMDS = (
     r"\subsubsection",
 )
 
+# Commands used for *splitting* the document — subsections stay inside their parent
+_SPLIT_CMDS = (
+    r"\chapter",
+    r"\section",
+)
+
 
 # ---------------------------------------------------------------------------
 # Regex patterns
@@ -72,16 +78,26 @@ def _display_bracket_pattern() -> re.Pattern[str]:
 
 
 def _inline_dollar_pattern() -> re.Pattern[str]:
-    r"""Match $...$ (single dollar, non-greedy). Avoids matching $$."""
-    # Negative lookbehind/lookahead for $ to avoid matching $$
-    return re.compile(r"(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)", re.DOTALL)
+    r"""Match $...$ (single dollar, non-greedy). Avoids matching $$.
+
+    Intentionally no re.DOTALL — inline math must not span blank lines.
+    A single \n is allowed (soft wrap), but two or more consecutive
+    newlines signal a paragraph break and end the match.
+    """
+    return re.compile(r"(?<!\$)\$(?!\$)([^\n$]{1,200})(?<!\$)\$(?!\$)")
 
 
-def _section_pattern() -> re.Pattern[str]:
-    """Match any section-level command and capture its title argument."""
-    cmds = "|".join(re.escape(c) for c in _SECTION_CMDS)
+def _section_pattern(cmds: tuple[str, ...] = _SPLIT_CMDS) -> re.Pattern[str]:
+    """Match section-level commands and capture their title argument.
+
+    Handles one level of nested braces inside the title, e.g.:
+        \\section{\\macro{}: Some title}  →  title = "\\macro{}: Some title"
+    """
+    cmd_pat = "|".join(re.escape(c) for c in cmds)
+    # Title group: any mix of non-brace chars and single-level {…} pairs
+    title_group = r"((?:[^{}]|\{[^{}]*\})*)"
     return re.compile(
-        r"(" + cmds + r")\*?\s*\{([^}]*)\}",
+        r"(" + cmd_pat + r")\*?\s*\{" + title_group + r"\}",
         re.MULTILINE,
     )
 
@@ -127,9 +143,11 @@ def _preprocess_for_text(latex: str) -> str:
     latex = _NAMED_ENV_RE.sub(" ", latex)
     latex = _DISPLAY_DOLLAR_RE.sub(" ", latex)
     latex = _DISPLAY_BRACKET_RE.sub(" ", latex)
-    # 4. Remove \hline / \toprule / \midrule / \bottomrule / \cline
+    # 4. Remove spacing/layout commands that turn into bracketed artifacts
+    latex = re.sub(r"\\(vskip|hskip|vspace\*?|hspace\*?)\s*[{\[]?[\d.]+\s*(?:pt|mm|cm|in|em|ex|bp|pc|dd|cc|sp)?[}\]]?", " ", latex)
+    # 5. Remove \hline / \toprule / \midrule / \bottomrule / \cline
     latex = re.sub(r"\\(hline|toprule|midrule|bottomrule|cline\{[^}]*\})", " ", latex)
-    # 5. Collapse leftover table separators
+    # 6. Collapse leftover table separators
     latex = re.sub(r"\s*&\s*", " ", latex)
     latex = re.sub(r"\\\\", "\n", latex)
     return latex
@@ -289,7 +307,13 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
         result.append(("", pre))
 
     for i, m in enumerate(section_matches):
-        title = m.group(2).strip()
+        # group(2) is the title; clean up residual LaTeX macros
+        raw_title = m.group(2).strip()
+        title = _latex_to_text(raw_title).strip().lstrip(":–—,; ")
+        if not title:
+            # Unknown macro (e.g. \planbench{}) — extract macro name as fallback
+            mac = re.match(r"\\([A-Za-z]+)", raw_title)
+            title = mac.group(1).capitalize() if mac else raw_title
         body_start = m.end()
         body_end = (
             section_matches[i + 1].start()
@@ -324,6 +348,8 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
             continue
 
         plain_text = _latex_to_text(body)
+        # Strip leading bracket artifacts left by \twocolumn[...] optional args
+        plain_text = re.sub(r"^\s*\[\s*\]\s*", "", plain_text)
         if len(plain_text.strip()) < 50:
             continue   # skip near-empty sections
 
@@ -331,7 +357,7 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
 
         sections.append(Section(
             order_idx=idx,
-            title=title or _infer_section_title(idx, plain_text),
+            title=title or _infer_section_title(idx, plain_text, raw_latex=body),
             plain_text=plain_text,
             raw_latex=body,
             math_blocks=math_blocks,
@@ -340,11 +366,10 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
     return tuple(sections)
 
 
-def _infer_section_title(idx: int, plain_text: str) -> str:
+def _infer_section_title(idx: int, plain_text: str, raw_latex: str = "") -> str:
     """Heuristic title for an unnamed pre-section block (abstract, intro preamble)."""
-    first_line = plain_text.strip().splitlines()[0][:60] if plain_text.strip() else ""
-    lower = first_line.lower()
-    if "abstract" in lower:
+    # Check raw LaTeX first — most reliable signal for abstract detection
+    if r"\begin{abstract}" in raw_latex or "abstract" in plain_text[:800].lower():
         return "Abstract"
     if idx == 0:
         return "Preamble"

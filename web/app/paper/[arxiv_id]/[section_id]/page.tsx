@@ -5,6 +5,7 @@ import { getSectionWithMath, getPaperByArxivId } from "@/lib/supabase/queries";
 import { MathBlock } from "@/components/MathBlock";
 import { PdfSectionPane } from "@/components/PdfSectionPane";
 import { ProseWithMath } from "@/components/ProseWithMath";
+import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
 
 export const revalidate = 3600;
 
@@ -192,7 +193,12 @@ function SectionBody({
   mathBlocks: Array<import("@/lib/supabase/types").MathBlock>;
 }) {
   const plain = cleanPlainText(section.plain_text ?? "");
-  const meaningfulBlocks = mathBlocks.filter((b) => !isTrivialBlock(b));
+  // Only show display-mode environments (equation, align, …) as cards.
+  // Inline $...$ blocks are already embedded in plain_text and rendered
+  // by ProseWithMath — showing them again as cards breaks prose flow.
+  const meaningfulBlocks = mathBlocks.filter(
+    (b) => !isTrivialBlock(b) && DISPLAY_ENV_TYPES.has(b.env_type)
+  );
 
   if (meaningfulBlocks.length === 0 && !plain) {
     return (

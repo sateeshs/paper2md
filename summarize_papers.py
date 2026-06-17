@@ -275,8 +275,9 @@ def process_arxiv_id(
 
     # Build Paper object from LaTeX path
     if latex:
-        # Derive title + plain text from sections
-        title = _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
+        # For arXiv papers prefer the API title (authoritative, avoids template placeholders).
+        # Fall back to LaTeX \title{} extraction if the API call fails.
+        title = _arxiv_api_title(arxiv_id) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
         full_text = "\n\n".join(s.plain_text for s in sections)
         paper = Paper(
             title=title,
@@ -326,21 +327,50 @@ def process_arxiv_id(
     return paper
 
 
-def _title_from_latex(latex: str, fallback: str, full_source: str | None = None) -> str:
-    """Extract paper title from \\title{...} command.
+def _arxiv_api_title(arxiv_id: str) -> str | None:
+    """Fetch the canonical title from the ArXiv Atom API. Returns None on failure."""
+    try:
+        import urllib.request
+        import xml.etree.ElementTree as ET
+        url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
+        with urllib.request.urlopen(url, timeout=10) as r:
+            root = ET.fromstring(r.read().decode())
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        entry = root.find("a:entry", ns)
+        if entry is not None:
+            t = entry.find("a:title", ns)
+            if t is not None and t.text:
+                return re.sub(r"\s+", " ", t.text.strip()).strip()
+    except Exception:
+        pass
+    return None
 
-    Searches `full_source` first (pre-preamble-strip), then `latex` (body only).
-    Falls back to arxiv_id if not found.
+
+def _title_from_latex(latex: str, fallback: str, full_source: str | None = None) -> str:
+    """Extract paper title from LaTeX source.
+
+    Tries common title commands (\\title, \\icmltitle, \\Title) in order.
+    Handles one level of nested braces (e.g. \\title{\\textbf{...}}).
+    Falls back to ArXiv API if arxiv_id is available, then to `fallback`.
     """
+    # Title commands to try, in priority order
+    _TITLE_CMDS = (r"\\title", r"\\icmltitle", r"\\Title")
+    # Pattern for content with one level of nested braces
+    _brace_content = r"((?:[^{}]|\{[^{}]*\})+)"
+
     for src in filter(None, [full_source, latex]):
-        # Match \title{...} — simple brace-balanced, no optional arg confusion
-        m = re.search(r"\\title\s*\{([^}]+)\}", src)
-        if m:
-            raw = m.group(1)
-            title = re.sub(r"\\[a-zA-Z]+\s*", "", raw)
-            title = re.sub(r"\s+", " ", title).strip()
-            if title and len(title) > 3:
-                return title
+        for cmd in _TITLE_CMDS:
+            m = re.search(cmd + r"\s*\{" + _brace_content + r"\}", src)
+            if m:
+                raw = m.group(1)
+                # Strip LaTeX commands and line-break markers, keep text args
+                title = re.sub(r"\\\\", " ", raw)           # \\ line breaks → space
+                title = re.sub(r"\\[a-zA-Z]+\s*", "", title)
+                title = re.sub(r"[{}]", "", title)
+                title = re.sub(r"\s+", " ", title).strip()
+                if title and len(title) > 3:
+                    return title
+
     return fallback
 
 

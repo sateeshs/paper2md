@@ -11,20 +11,40 @@ interface SectionStub {
   order_idx: number;
 }
 
-function normalize(text: string): string {
+function normalizeLine(text: string): string {
   return text
     .toLowerCase()
-    .replace(/^[\d.]+\s+/, "")          // strip leading "1 " / "2.3 "
-    .replace(/^[ivxlcdmIVXLCDM]+\.\s+/, "") // strip roman numerals
     .replace(/[^a-z0-9\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function normalizeTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/^[\d.]+\s+/, "")
+    .replace(/^[ivxlcdmIVXLCDM]+\.\s+/i, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True if rawLine is a heading for this title (strips section numbers, rejects TOC). */
+function isHeadingLine(rawLine: string, normTitle: string): boolean {
+  // Reject TOC dot-leader entries: ". . . . ." pattern
+  if (/\.\s+\.\s+\./.test(rawLine)) return false;
+  // Reject bullet items (·, •, -, *)
+  if (/^[\s·•\-\*]/.test(rawLine.trim())) return false;
+  const stripped = rawLine.trim()
+    .replace(/^\d+(\.\d+)*\.?\s+/, "")
+    .replace(/^[ivxlcdmIVXLCDM]+\.\s+/i, "");
+  return normalizeLine(stripped) === normTitle;
+}
+
 function titleInPage(title: string, pageText: string): boolean {
-  const norm = normalize(title);
+  const norm = normalizeTitle(title);
   if (!norm || norm.length < 3) return false;
-  return normalize(pageText).includes(norm);
+  return pageText.split("\n").some((line) => isHeadingLine(line, norm));
 }
 
 /**

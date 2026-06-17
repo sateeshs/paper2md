@@ -12,6 +12,7 @@ export const KATEX_OPTIONS: KatexOptions = {
   displayMode: false,       // caller sets per-block
   trust: false,
   strict: "ignore",
+  errorColor: "currentColor", // unknown macros render in normal text color, not red
   macros: {
     // Number sets
     "\\R": "\\mathbb{R}",
