@@ -120,7 +120,7 @@ def run(
             latex_expr=row["latex_expr"],
             context_before=row.get("context_before") or "",
             context_after=row.get("context_after") or "",
-            paper_type=args.paper_type,
+            paper_type=paper_type,
         )
 
         # Skip trivially short inline expressions

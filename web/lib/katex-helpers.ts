@@ -49,6 +49,8 @@ export const DISPLAY_ENV_TYPES = new Set([
   "multline*",
   "cases",
   "display",
+  "eqnarray",
+  "eqnarray*",
 ]);
 
 export function isDisplayMode(envType: string): boolean {
