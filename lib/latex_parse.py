@@ -133,21 +133,71 @@ _NON_TEXT_ENV_RE = re.compile(
 
 
 def _preprocess_for_text(latex: str) -> str:
-    """Strip constructs that produce garbage when converted to plain text."""
+    """Strip constructs that produce garbage when converted to plain text.
+
+    Also converts structural LaTeX (subsections, lists, inline formatting) to
+    markdown syntax so the frontend can render them with proper visual hierarchy.
+    """
     # 1. Remove % comments (everything from % to end of line, not inside math)
     latex = re.sub(r"%[^\n]*", "", latex)
     # 2. Remove non-prose environments (tables, figures, algorithms, …)
     latex = _NON_TEXT_ENV_RE.sub(" ", latex)
-    # 3. Remove display math environments — these are rendered as MathBlock by the
-    #    frontend; leaving them in causes pylatexenc to garble them into prose.
+    # 3. Remove display math environments — rendered as MathBlock by the frontend
     latex = _NAMED_ENV_RE.sub(" ", latex)
     latex = _DISPLAY_DOLLAR_RE.sub(" ", latex)
     latex = _DISPLAY_BRACKET_RE.sub(" ", latex)
-    # 4. Remove spacing/layout commands that turn into bracketed artifacts
+
+    # 4. Convert inline formatting to markdown BEFORE pylatexenc sees them.
+    #    One level of brace nesting is sufficient for all common cases.
+    _grp = r"((?:[^{}]|\{[^{}]*\})*)"
+    # \texttt, \code, \func, \file, \textsc → `code`
+    latex = re.sub(r"\\(?:texttt|code|func|file|textsc)\s*\{" + _grp + r"\}", r"`\1`", latex)
+    # \textbf → **bold**
+    latex = re.sub(r"\\textbf\s*\{" + _grp + r"\}", r"**\1**", latex)
+    # \emph, \textit → *italic*
+    latex = re.sub(r"\\(?:emph|textit)\s*\{" + _grp + r"\}", r"*\1*", latex)
+
+    # 5. Convert subsections/subsubsections to markdown headings
+    def _to_h3(m: re.Match) -> str:  # type: ignore[type-arg]
+        return f"\n\n### {m.group(1).strip()}\n\n"
+
+    def _to_h4(m: re.Match) -> str:  # type: ignore[type-arg]
+        return f"\n\n#### {m.group(1).strip()}\n\n"
+
+    latex = re.sub(r"\\subsection\*?\s*\{" + _grp + r"\}", _to_h3, latex)
+    latex = re.sub(r"\\subsubsection\*?\s*\{" + _grp + r"\}", _to_h4, latex)
+
+    # 6. Convert list environments to markdown (up to 3 passes for nesting)
+    def _convert_enumerate(m: re.Match) -> str:  # type: ignore[type-arg]
+        raw_items = re.split(r"\\item\b(?:\[[^\]]*\])?", m.group(1))
+        filtered = [it.strip() for it in raw_items if it.strip()]
+        lines = [f"{i}. {it}" for i, it in enumerate(filtered, 1)]
+        return ("\n\n" + "\n".join(lines) + "\n\n") if lines else " "
+
+    def _convert_itemize(m: re.Match) -> str:  # type: ignore[type-arg]
+        items = re.split(r"\\item\b(?:\[[^\]]*\])?", m.group(1))
+        lines = [f"- {it.strip()}" for it in items if it.strip()]
+        return ("\n\n" + "\n".join(lines) + "\n\n") if lines else " "
+
+    for _ in range(3):
+        latex = re.sub(
+            r"\\begin\{itemize\}(?:\[[^\]]*\])?\s*(.*?)\s*\\end\{itemize\}",
+            _convert_itemize, latex, flags=re.DOTALL,
+        )
+        latex = re.sub(
+            r"\\begin\{enumerate\}(?:\[[^\]]*\])?\s*(.*?)\s*\\end\{enumerate\}",
+            _convert_enumerate, latex, flags=re.DOTALL,
+        )
+
+    # 7. Strip cross-reference and citation commands (avoids empty parens)
+    latex = re.sub(r"\\(?:Cref|cref|ref|eqref|autoref|pageref)\s*\{[^}]*\}", "", latex)
+    latex = re.sub(r"\\(?:citep|citet|cite[a-zA-Z]*)\s*(?:\[[^\]]*\])?\s*\{[^}]*\}", "", latex)
+
+    # 8. Remove spacing/layout commands that turn into bracketed artifacts
     latex = re.sub(r"\\(vskip|hskip|vspace\*?|hspace\*?)\s*[{\[]?[\d.]+\s*(?:pt|mm|cm|in|em|ex|bp|pc|dd|cc|sp)?[}\]]?", " ", latex)
-    # 5. Remove \hline / \toprule / \midrule / \bottomrule / \cline
+    # 9. Remove \hline / \toprule / \midrule / \bottomrule / \cline
     latex = re.sub(r"\\(hline|toprule|midrule|bottomrule|cline\{[^}]*\})", " ", latex)
-    # 6. Collapse leftover table separators
+    # 10. Collapse leftover table separators
     latex = re.sub(r"\s*&\s*", " ", latex)
     latex = re.sub(r"\\\\", "\n", latex)
     return latex

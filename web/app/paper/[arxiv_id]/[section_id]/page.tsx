@@ -1,3 +1,4 @@
+import type React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -100,7 +101,8 @@ function cleanPlainText(text: string): string {
     })
     .filter((line) => {
       const t = line.trim();
-      if (!t) return false;
+      // Keep blank lines — they are paragraph/section separators
+      if (!t) return true;
       // Drop lines that look like table rows (3+ & separators)
       if ((t.match(/&/g) ?? []).length >= 3) return false;
       // Drop lines that are only backslash commands / column specs
@@ -111,7 +113,7 @@ function cleanPlainText(text: string): string {
     .join("\n")
     .replace(/\s*&\s*/g, " ")   // remaining & → space
     .replace(/\\\\/g, "\n")      // \\ → newline
-    .replace(/\n{3,}/g, "\n\n") // collapse blank lines
+    .replace(/\n{3,}/g, "\n\n") // collapse 3+ blank lines → paragraph break
     .trim();
 }
 
@@ -184,6 +186,75 @@ function buildSegments(
 // ---------------------------------------------------------------------------
 // SectionBody
 // ---------------------------------------------------------------------------
+// Markdown-aware block renderer
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders a single text chunk (split on double newlines) as the appropriate
+ * HTML element: heading, ordered/unordered list, or paragraph.
+ */
+function renderTextChunk(chunk: string, key: string | number): React.ReactNode {
+  const trimmed = chunk.trim();
+  if (!trimmed) return null;
+
+  // H3 heading
+  if (trimmed.startsWith("### ")) {
+    return (
+      <h3 key={key} className="text-base font-semibold mt-5 mb-2 text-zinc-800 dark:text-zinc-100">
+        <ProseWithMath text={trimmed.slice(4)} />
+      </h3>
+    );
+  }
+
+  // H4 heading
+  if (trimmed.startsWith("#### ")) {
+    return (
+      <h4 key={key} className="text-sm font-semibold mt-4 mb-1 text-zinc-700 dark:text-zinc-200">
+        <ProseWithMath text={trimmed.slice(5)} />
+      </h4>
+    );
+  }
+
+  // Ordered list: every non-empty line starts with `N. `
+  const lines = trimmed.split("\n").filter((l) => l.trim());
+  const isOrderedList = lines.length > 0 && lines.every((l) => /^\d+\.\s/.test(l.trim()));
+  if (isOrderedList) {
+    return (
+      <ol key={key} className="list-decimal list-outside ml-6 space-y-1.5 my-2">
+        {lines.map((l, j) => (
+          <li key={j} className="text-[15px] leading-relaxed pl-1">
+            <ProseWithMath text={l.trim().replace(/^\d+\.\s+/, "")} />
+          </li>
+        ))}
+      </ol>
+    );
+  }
+
+  // Unordered list: every non-empty line starts with `- `
+  const isBulletList = lines.length > 0 && lines.every((l) => /^-\s/.test(l.trim()));
+  if (isBulletList) {
+    return (
+      <ul key={key} className="list-disc list-outside ml-6 space-y-1.5 my-2">
+        {lines.map((l, j) => (
+          <li key={j} className="text-[15px] leading-relaxed pl-1">
+            <ProseWithMath text={l.trim().replace(/^-\s+/, "")} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // Regular paragraph
+  return (
+    <p key={key} className="mb-3 last:mb-0 text-[15px] leading-relaxed">
+      <ProseWithMath text={trimmed} />
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SectionBody
+// ---------------------------------------------------------------------------
 
 function SectionBody({
   section,
@@ -211,9 +282,7 @@ function SectionBody({
   if (meaningfulBlocks.length === 0) {
     return (
       <div className="prose prose-zinc dark:prose-invert max-w-none">
-        {plain.split(/\n{2,}/).map((para, i) => (
-          <p key={i}><ProseWithMath text={para.trim()} /></p>
-        ))}
+        {plain.split(/\n{2,}/).map((para, i) => renderTextChunk(para, i))}
       </div>
     );
   }
@@ -221,15 +290,11 @@ function SectionBody({
   const segments = buildSegments(plain, meaningfulBlocks);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {segments.map((seg, i) =>
         seg.type === "text" ? (
-          <div key={i} className="prose prose-zinc dark:prose-invert max-w-none text-[15px] leading-relaxed">
-            {seg.content.split(/\n{2,}/).map((para, j) => (
-              <p key={j} className="mb-3 last:mb-0">
-                <ProseWithMath text={para.trim()} />
-              </p>
-            ))}
+          <div key={i} className="prose prose-zinc dark:prose-invert max-w-none">
+            {seg.content.split(/\n{2,}/).map((para, j) => renderTextChunk(para, j))}
           </div>
         ) : (
           <MathBlock key={seg.block.id} block={seg.block} />

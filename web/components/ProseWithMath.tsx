@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { prepareLatex, KATEX_OPTIONS } from "@/lib/katex-helpers";
 
 // Matches display math: \[...\] or $$...$$ — must come before inline patterns
@@ -69,6 +69,36 @@ function MathChunk({ expr, display }: { expr: string; display: boolean }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inline markdown: **bold**, *italic*, `code`
+// ---------------------------------------------------------------------------
+const INLINE_MD_RE = /(\*\*(?:[^*]|\*(?!\*))+\*\*|\*(?:[^*\n])+\*|`[^`\n]+`)/g;
+
+function parseInlineMarkdown(text: string): ReactNode {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(INLINE_MD_RE)) {
+    if (m.index! > last) parts.push(text.slice(last, m.index));
+    const token = m[0];
+    if (token.startsWith("**")) {
+      parts.push(<strong key={m.index}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("`")) {
+      parts.push(
+        <code key={m.index} className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-[0.85em] font-mono text-zinc-800 dark:text-zinc-200">
+          {token.slice(1, -1)}
+        </code>
+      );
+    } else {
+      parts.push(<em key={m.index}>{token.slice(1, -1)}</em>);
+    }
+    last = m.index! + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  if (parts.length === 0) return text;
+  if (parts.length === 1 && typeof parts[0] === "string") return parts[0];
+  return <>{parts}</>;
+}
+
 interface ProseWithMathProps {
   text: string;
   className?: string;
@@ -107,7 +137,7 @@ export function ProseWithMath({ text, className }: ProseWithMathProps) {
         p.type === "math" ? (
           <MathChunk key={i} expr={p.content} display={p.display} />
         ) : (
-          <span key={i}>{p.content}</span>
+          <span key={i}>{parseInlineMarkdown(p.content)}</span>
         )
       )}
     </span>
