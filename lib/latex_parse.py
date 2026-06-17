@@ -157,27 +157,29 @@ def _preprocess_for_text(latex: str) -> str:
     # \emph, \textit → *italic*
     latex = re.sub(r"\\(?:emph|textit)\s*\{" + _grp + r"\}", r"*\1*", latex)
 
-    # 5. Convert subsections/subsubsections to markdown headings
+    # 5. Convert subsections/subsubsections to placeholder tokens.
+    #    We use \x02 control chars because pylatexenc passes them through
+    #    unchanged — using \n here would get collapsed by pylatexenc.
+    #    _latex_to_text() restores these to proper \n\n markdown after conversion.
     def _to_h3(m: re.Match) -> str:  # type: ignore[type-arg]
-        return f"\n\n### {m.group(1).strip()}\n\n"
+        return f"\x02H3\x02{m.group(1).strip()}\x02/H3\x02"
 
     def _to_h4(m: re.Match) -> str:  # type: ignore[type-arg]
-        return f"\n\n#### {m.group(1).strip()}\n\n"
+        return f"\x02H4\x02{m.group(1).strip()}\x02/H4\x02"
 
     latex = re.sub(r"\\subsection\*?\s*\{" + _grp + r"\}", _to_h3, latex)
     latex = re.sub(r"\\subsubsection\*?\s*\{" + _grp + r"\}", _to_h4, latex)
 
-    # 6. Convert list environments to markdown (up to 3 passes for nesting)
+    # 6. Convert list environments to placeholder tokens (same reason as above).
     def _convert_enumerate(m: re.Match) -> str:  # type: ignore[type-arg]
         raw_items = re.split(r"\\item\b(?:\[[^\]]*\])?", m.group(1))
         filtered = [it.strip() for it in raw_items if it.strip()]
-        lines = [f"{i}. {it}" for i, it in enumerate(filtered, 1)]
-        return ("\n\n" + "\n".join(lines) + "\n\n") if lines else " "
+        return ("\x02OL\x02" + "\x02LI\x02".join(filtered) + "\x02/OL\x02") if filtered else " "
 
     def _convert_itemize(m: re.Match) -> str:  # type: ignore[type-arg]
-        items = re.split(r"\\item\b(?:\[[^\]]*\])?", m.group(1))
-        lines = [f"- {it.strip()}" for it in items if it.strip()]
-        return ("\n\n" + "\n".join(lines) + "\n\n") if lines else " "
+        raw_items = re.split(r"\\item\b(?:\[[^\]]*\])?", m.group(1))
+        filtered = [it.strip() for it in raw_items if it.strip()]
+        return ("\x02UL\x02" + "\x02LI\x02".join(filtered) + "\x02/UL\x02") if filtered else " "
 
     for _ in range(3):
         latex = re.sub(
@@ -239,6 +241,32 @@ def _latex_to_text(latex: str) -> str:
     # Restore original inline math expressions
     for i, expr in enumerate(placeholders):
         text = text.replace(f"\x00MATH{i}\x00", expr)
+
+    # Restore structural placeholders to proper markdown with paragraph breaks.
+    # These were inserted as \x02 tokens to survive pylatexenc's whitespace collapsing.
+
+    # Headings
+    text = re.sub(r"\x02H3\x02(.*?)\x02/H3\x02", lambda m: f"\n\n### {m.group(1).strip()}\n\n", text)
+    text = re.sub(r"\x02H4\x02(.*?)\x02/H4\x02", lambda m: f"\n\n#### {m.group(1).strip()}\n\n", text)
+
+    # Ordered list: \x02OL\x02item1\x02LI\x02item2\x02/OL\x02
+    def _restore_ol(m: re.Match) -> str:  # type: ignore[type-arg]
+        items = [it.strip() for it in m.group(1).split("\x02LI\x02") if it.strip()]
+        lines = "\n".join(f"{i}. {it}" for i, it in enumerate(items, 1))
+        return f"\n\n{lines}\n\n"
+
+    text = re.sub(r"\x02OL\x02(.*?)\x02/OL\x02", _restore_ol, text, flags=re.DOTALL)
+
+    # Unordered list: \x02UL\x02item1\x02LI\x02item2\x02/UL\x02
+    def _restore_ul(m: re.Match) -> str:  # type: ignore[type-arg]
+        items = [it.strip() for it in m.group(1).split("\x02LI\x02") if it.strip()]
+        lines = "\n".join(f"- {it}" for it in items)
+        return f"\n\n{lines}\n\n"
+
+    text = re.sub(r"\x02UL\x02(.*?)\x02/UL\x02", _restore_ul, text, flags=re.DOTALL)
+
+    # Clean up any stray \x02 bytes that escaped the above patterns
+    text = text.replace("\x02", " ")
 
     return text
 
