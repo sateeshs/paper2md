@@ -42,7 +42,23 @@ def fetch_unexplained_blocks(
     Return rows joined across math_blocks → sections → papers.
     Each row has the fields MathExplainer needs.
     """
-    # Build base query: math_blocks joined to sections and papers
+    # Resolve section IDs for the given arxiv_id first (nested filter
+    # in the Supabase Python client doesn't work as an inner-join filter).
+    section_ids: list[str] | None = None
+    paper_meta: dict | None = None
+    if arxiv_id:
+        paper_resp = client.table("papers").select("id, arxiv_id, title").eq("arxiv_id", arxiv_id).single().execute()
+        if not paper_resp.data:
+            tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
+            return []
+        paper_meta = paper_resp.data
+        secs_resp = client.table("sections").select("id, title, paper_id").eq("paper_id", paper_meta["id"]).execute()
+        section_ids = [s["id"] for s in (secs_resp.data or [])]
+        if not section_ids:
+            tqdm.write(f"[WARN] No sections found for {arxiv_id}.")
+            return []
+
+    # Build base query
     query = (
         client.table("math_blocks")
         .select(
@@ -54,17 +70,20 @@ def fetch_unexplained_blocks(
     if not force:
         query = query.is_("explanation", "null")
 
-    if arxiv_id:
-        # Filter via nested relation: sections.papers.arxiv_id
-        # Supabase JS SDK supports this; Python SDK uses the same syntax
-        query = query.eq("sections.papers.arxiv_id", arxiv_id)
+    if section_ids is not None:
+        query = query.in_("section_id", section_ids)
 
     resp = query.execute()
     rows = resp.data or []
 
-    # Filter out rows where the join didn't resolve (no matching arxiv_id)
-    if arxiv_id:
-        rows = [r for r in rows if r.get("sections") and r["sections"].get("papers")]
+    # Attach paper_meta to rows where join might be null (single-paper mode)
+    if arxiv_id and paper_meta:
+        for r in rows:
+            if r.get("sections") and not r["sections"].get("papers"):
+                r["sections"]["papers"] = paper_meta
+
+    # Filter out rows where the join didn't resolve
+    rows = [r for r in rows if r.get("sections") and r["sections"].get("papers")]
 
     return rows
 
