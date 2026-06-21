@@ -86,6 +86,12 @@ def _get_explainer():
     return MathExplainer()
 
 
+def _get_algorithm_explainer():
+    """Lazy-load DSPy algorithm explainer."""
+    from lib.dspy_modules import AlgorithmExplainer
+    return AlgorithmExplainer()
+
+
 # ---------------------------------------------------------------------------
 # PDF pipeline (existing behaviour, unchanged)
 # ---------------------------------------------------------------------------
@@ -199,6 +205,7 @@ def process_arxiv_id(
     arxiv_id: str,
     no_math_explain: bool = False,
     max_math_blocks: int | None = None,
+    no_algo_explain: bool = False,
     push_supabase: bool = False,
     force: bool = False,
 ) -> Paper | None:
@@ -233,6 +240,17 @@ def process_arxiv_id(
 
     latex = latex_result[0] if latex_result else None
     full_latex_source = latex_result[1] if latex_result else None
+
+    # Extract citations from bibliography (cheap — pure regex, no LLM)
+    citations = ()
+    if full_latex_source:
+        try:
+            from lib.citation_extract import extract_citations
+            citations = extract_citations(full_latex_source)
+            arxiv_count = sum(1 for c in citations if c.arxiv_id)
+            tqdm.write(f"[INFO] {label}: {len(citations)} citations ({arxiv_count} with ArXiv IDs)")
+        except Exception as e:
+            _report_error("citation_extract", label, e)
 
     source_type = "arxiv_latex"
     sections = ()
@@ -285,6 +303,7 @@ def process_arxiv_id(
             arxiv_id=arxiv_id,
             source_type=source_type,
             sections=sections,
+            citations=citations,
         )
     else:
         # Already set from PDF fallback above
@@ -311,6 +330,17 @@ def process_arxiv_id(
             paper = explainer(paper, max_blocks=cap)
         except Exception as e:
             _report_error("math_explain", label, e)
+
+    # Explain algorithm blocks
+    if not no_algo_explain and paper.sections:
+        algo_count = sum(len(s.algorithm_blocks) for s in paper.sections)
+        if algo_count > 0:
+            tqdm.write(f"[INFO] {label}: {algo_count} algorithm block(s) found — explaining")
+            try:
+                algo_explainer = _get_algorithm_explainer()
+                paper = algo_explainer(paper)
+            except Exception as e:
+                _report_error("algo_explain", label, e)
 
     # Push to Supabase
     if push_supabase:
@@ -411,6 +441,8 @@ def main() -> int:
                     help="Skip math explanation step (faster)")
     ap.add_argument("--max-math-blocks", type=int, default=None,
                     help="Cap math blocks explained per paper (default: 50)")
+    ap.add_argument("--no-algo-explain", action="store_true",
+                    help="Skip algorithm explanation step")
 
     # ── Supabase ───────────────────────────────────────────────────────────
     ap.add_argument("--push-supabase", action="store_true",
@@ -451,6 +483,7 @@ def main() -> int:
                 arxiv_id=arxiv_id,
                 no_math_explain=args.no_math_explain,
                 max_math_blocks=args.max_math_blocks,
+                no_algo_explain=args.no_algo_explain,
                 push_supabase=args.push_supabase,
                 force=args.force,
             )

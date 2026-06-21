@@ -4,9 +4,13 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getSectionWithMath, getPaperByArxivId } from "@/lib/supabase/queries";
 import { MathBlock } from "@/components/MathBlock";
+import { AlgorithmBlock } from "@/components/AlgorithmBlock";
+import type { AlgorithmBlock as AlgorithmBlockRow } from "@/lib/supabase/types";
+import { PrerequisitesPanel } from "@/components/PrerequisitesPanel";
 import { PdfSectionPane } from "@/components/PdfSectionPane";
 import { ProseWithMath } from "@/components/ProseWithMath";
 import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
+import { aggregatePrerequisites } from "@/lib/prerequisites";
 
 export const revalidate = 3600;
 
@@ -37,6 +41,9 @@ export default async function SectionPage({ params }: PageProps) {
   if (!section || !paper) notFound();
 
   const mathBlocks = section.math_blocks ?? [];
+  // algorithm_blocks are included via the extended getSectionWithMath query
+  const algorithmBlocks = ((section as unknown as { algorithm_blocks?: AlgorithmBlockRow[] }).algorithm_blocks ?? []);
+  const prerequisites = aggregatePrerequisites(mathBlocks);
 
   return (
     <div className="flex h-full min-h-0">
@@ -64,8 +71,25 @@ export default async function SectionPage({ params }: PageProps) {
           {section.title ?? `Section ${section.order_idx + 1}`}
         </h1>
 
+        {/* Prerequisites panel — shown when math blocks have prerequisite data */}
+        <PrerequisitesPanel prerequisites={prerequisites} />
+
         {/* Section body — interleave text + math */}
         <SectionBody section={section} mathBlocks={mathBlocks} />
+
+        {/* Algorithm blocks */}
+        {algorithmBlocks.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold mb-4 text-zinc-800 dark:text-zinc-100">
+              Algorithms
+            </h2>
+            <div className="space-y-4">
+              {algorithmBlocks.map((block) => (
+                <AlgorithmBlock key={block.id} block={block} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">

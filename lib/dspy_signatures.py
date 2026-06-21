@@ -110,6 +110,60 @@ class ExplainMathBlock(dspy.Signature):
     )
 
 
+class ExplainAlgorithmBlock(dspy.Signature):
+    """Explain a pseudocode algorithm found in an academic paper in clear, plain English.
+
+    The pseudocode may use LaTeX algorithmic commands (\\State, \\If, \\For, \\While,
+    \\Procedure, \\Return, etc.) or algorithm2e commands (\\KwIn, \\KwOut, \\ForEach).
+    Treat these as structured control flow — not as LaTeX artifacts.
+
+    Write each field as clear, flowing prose. No bullet points inside fields.
+    When referencing variable names or expressions from the pseudocode, wrap them
+    in backticks (e.g. `x`, `best_score`).
+
+    CRITICAL — math formatting rules:
+    - Wrap every math expression in $...$
+    - NEVER use Unicode Greek letters outside of $...$
+    """
+
+    paper_title: str = dspy.InputField(desc="Full title of the research paper")
+    section_title: str = dspy.InputField(desc="Title of the section containing this algorithm")
+    algorithm_caption: str = dspy.InputField(
+        desc="The \\caption{} text of the algorithm float, or 'Unnamed Algorithm' if absent"
+    )
+    pseudocode_text: str = dspy.InputField(
+        desc="Plain-text pseudocode with LaTeX command prefixes stripped"
+    )
+    context_before: str = dspy.InputField(desc="Prose immediately before the algorithm block")
+    context_after: str = dspy.InputField(desc="Prose immediately after the algorithm block")
+
+    purpose: str = dspy.OutputField(
+        desc="2-3 sentences describing what problem this algorithm solves in the context of the paper. "
+             "Be specific about what it computes and why it is needed."
+    )
+    inputs_outputs: str = dspy.OutputField(
+        desc="Describe what the algorithm takes as input and what it produces as output. "
+             "Name the key variables. If complexity is stated or obvious, include it here."
+    )
+    step_by_step: str = dspy.OutputField(
+        desc="A plain-English walkthrough of each major step, loop, or branch in the algorithm. "
+             "Describe what each major block does and why. Keep it concrete and sequential."
+    )
+    complexity: str = dspy.OutputField(
+        desc="Time and/or space complexity if stated in the paper or directly derivable from the pseudocode. "
+             "Write 'Not stated' if neither is available."
+    )
+    key_insight: str = dspy.OutputField(
+        desc="In 1-3 sentences, describe the core algorithmic idea or design choice that makes this "
+             "algorithm work. For example: 'This is a greedy sweep because...', "
+             "'The key trick is that by sorting first, each lookup becomes O(1)...'"
+    )
+    prerequisites: str = dspy.OutputField(
+        desc="List the algorithmic concepts, data structures, or prior paper-specific notation "
+             "a reader must already understand to follow this algorithm."
+    )
+
+
 class SATTutor(dspy.Signature):
     """You are an expert SAT tutor with deep knowledge of College Board test design.
 

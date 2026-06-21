@@ -4,6 +4,7 @@ import { createClient, createStaticClient } from "@/lib/supabase/server";
 import {
   getPaperWithSections,
   getAllCompletePaperIds,
+  getCitationsForPaper,
 } from "@/lib/supabase/queries";
 import { PaperSplitView } from "@/components/PaperSplitView";
 
@@ -34,5 +35,8 @@ export default async function PaperPage({ params }: PageProps) {
 
   if (!paper) notFound();
 
-  return <PaperSplitView paper={paper} arxivId={arxiv_id} />;
+  // Citations need paper.id — fetch sequentially after paper is known
+  const citations = await getCitationsForPaper(client, paper.id);
+
+  return <PaperSplitView paper={paper} arxivId={arxiv_id} citations={citations} />;
 }
