@@ -511,40 +511,65 @@ def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
 # Section splitting
 # ---------------------------------------------------------------------------
 
-def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
-    """Split a LaTeX document body into (title, body) pairs.
+# Bodies larger than this get re-split on \subsection (survey / book-style papers)
+_MAX_SECTION_CHARS = 30_000
 
-    Returns a list of (section_title, raw_latex_body) where the first
-    entry may be ('', preamble_text) for content before the first section.
+_SUBSECTION_RE = _section_pattern((r"\subsection",))
+
+
+def _split_on(latex_doc: str, pat: re.Pattern[str]) -> list[tuple[str, str]]:
+    """Core splitter — split *latex_doc* on the given compiled pattern.
+
+    Returns a list of (title, body) pairs where the first entry may be
+    ('', preamble) for content appearing before the first match.
     """
-    section_matches = list(_SECTION_RE.finditer(latex_doc))
+    matches = list(pat.finditer(latex_doc))
 
-    if not section_matches:
-        # No sections found — treat entire document as one unnamed section
+    if not matches:
         return [("", latex_doc)]
 
     result: list[tuple[str, str]] = []
 
-    # Content before first section
-    pre = latex_doc[: section_matches[0].start()].strip()
+    pre = latex_doc[: matches[0].start()].strip()
     if pre:
         result.append(("", pre))
 
-    for i, m in enumerate(section_matches):
-        # group(2) is the title; clean up residual LaTeX macros
+    for i, m in enumerate(matches):
         raw_title = m.group(2).strip()
         title = _latex_to_text(raw_title).strip().lstrip(":–—,; ")
         if not title:
-            # Unknown macro (e.g. \planbench{}) — extract macro name as fallback
             mac = re.match(r"\\([A-Za-z]+)", raw_title)
             title = mac.group(1).capitalize() if mac else raw_title
         body_start = m.end()
-        body_end = (
-            section_matches[i + 1].start()
-            if i + 1 < len(section_matches)
-            else len(latex_doc)
-        )
-        body = latex_doc[body_start:body_end].strip()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(latex_doc)
+        result.append((title, latex_doc[body_start:body_end].strip()))
+
+    return result
+
+
+def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
+    """Split a LaTeX document body into (title, body) pairs.
+
+    First splits on \\chapter / \\section.  For any section whose body
+    exceeds _MAX_SECTION_CHARS (survey / textbook papers), re-splits that
+    section on \\subsection to expose finer-grained structure.  The
+    pre-subsection text (if any) is kept under the original section title.
+    """
+    coarse = _split_on(latex_doc, _SECTION_RE)
+
+    result: list[tuple[str, str]] = []
+    for title, body in coarse:
+        if len(body) > _MAX_SECTION_CHARS:
+            sub_splits = _split_on(body, _SUBSECTION_RE)
+            if len(sub_splits) > 1:
+                # First element is text before the first \subsection — keep
+                # under the parent section title.
+                pre_title, pre_body = sub_splits[0]
+                if pre_body.strip():
+                    result.append((title, pre_body))
+                for sub_title, sub_body in sub_splits[1:]:
+                    result.append((sub_title, sub_body))
+                continue
         result.append((title, body))
 
     return result
