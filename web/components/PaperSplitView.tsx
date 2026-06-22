@@ -1,17 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import type { PaperWithSections, SectionWithMath } from "@/lib/supabase/types";
+import type { PaperCitation, PaperWithSections, SectionWithMath } from "@/lib/supabase/types";
 import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
+import { CitationsPanel } from "@/components/CitationsPanel";
 import { useSectionPageMap } from "@/hooks/useSectionPageMap";
 
 interface PaperSplitViewProps {
   paper: PaperWithSections;
   arxivId: string;
+  citations?: PaperCitation[];
 }
 
-export function PaperSplitView({ paper, arxivId }: PaperSplitViewProps) {
+export function PaperSplitView({ paper, arxivId, citations = [] }: PaperSplitViewProps) {
   const sections = paper.sections ?? [];
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const { pageMap, scanning } = useSectionPageMap(arxivId, sections);
@@ -66,6 +68,8 @@ export function PaperSplitView({ paper, arxivId }: PaperSplitViewProps) {
               ))}
             </ul>
           )}
+
+          <CitationsPanel citations={citations} />
         </div>
       </div>
 

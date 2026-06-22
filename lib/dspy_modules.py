@@ -29,8 +29,8 @@ from lib.dspy_config import (
     is_provider_exhausted,
     rate_limit_sleep,
 )
-from lib.dspy_signatures import ExplainMathBlock, ReduceToFinalSummary, SATTutor, SummarizeChunk
-from lib.models import MathBlock, Paper, Section
+from lib.dspy_signatures import ExplainAlgorithmBlock, ExplainMathBlock, ReduceToFinalSummary, SATTutor, SummarizeChunk
+from lib.models import AlgorithmBlock, MathBlock, Paper, Section
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +187,96 @@ class MathExplainer(dspy.Module):
                 overrides.get(b.order_idx, b) for b in section.math_blocks
             )
             new_sections.append(dataclasses.replace(section, math_blocks=new_blocks))
+
+        return dataclasses.replace(paper, sections=tuple(new_sections))
+
+
+# ---------------------------------------------------------------------------
+# AlgorithmExplainer
+# ---------------------------------------------------------------------------
+
+class AlgorithmExplainer(dspy.Module):
+    """Explain every algorithm block in a paper using ExplainAlgorithmBlock signature.
+
+    Capped at PAPER2MD_MAX_ALGORITHM_BLOCKS (default 10) since pseudocode
+    explanations are LLM-expensive and most papers have 1-3 algorithms.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.explain = dspy.ChainOfThought(ExplainAlgorithmBlock)
+
+    def explain_block(
+        self,
+        block: AlgorithmBlock,
+        paper_title: str,
+        section_title: str,
+    ) -> AlgorithmBlock:
+        """Return a new AlgorithmBlock with explanation filled in."""
+        try:
+            pred = _call_with_tracking(
+                self.explain,
+                paper_title=paper_title,
+                section_title=section_title or "Unknown Section",
+                algorithm_caption=block.caption or "Unnamed Algorithm",
+                pseudocode_text=block.pseudocode_text or block.raw_pseudocode[:1000],
+                context_before=block.context_before or "",
+                context_after=block.context_after or "",
+            )
+            explanation = json.dumps({
+                "purpose":        pred.purpose,
+                "inputs_outputs": pred.inputs_outputs,
+                "step_by_step":   pred.step_by_step,
+                "complexity":     pred.complexity,
+                "key_insight":    pred.key_insight,
+                "prerequisites":  pred.prerequisites,
+            }, ensure_ascii=False)
+            return dataclasses.replace(
+                block,
+                explanation=explanation,
+                explanation_model=_active_provider(),
+            )
+        except Exception as e:
+            tqdm.write(f"[WARN] AlgorithmExplainer failed for block {block.order_idx}: {e}")
+            return block
+
+    def forward(self, paper: Paper, max_blocks: int | None = None) -> Paper:
+        """Return Paper with explanations filled into all algorithm blocks across sections."""
+        limit = max_blocks or int(os.environ.get("PAPER2MD_MAX_ALGORITHM_BLOCKS", 10))
+
+        # Collect (section_idx, block) pairs
+        candidates: list[tuple[int, AlgorithmBlock]] = []
+        for s_idx, section in enumerate(paper.sections):
+            for block in section.algorithm_blocks:
+                candidates.append((s_idx, block))
+                if len(candidates) >= limit:
+                    break
+            if len(candidates) >= limit:
+                break
+
+        total = len(candidates)
+        if total == 0:
+            return paper
+
+        explained_map: dict[int, dict[int, AlgorithmBlock]] = {}
+
+        with tqdm(total=total, desc="Explaining algorithms", unit="block") as pbar:
+            for s_idx, block in candidates:
+                section = paper.sections[s_idx]
+                explained = self.explain_block(block, paper.title, section.title)
+                explained_map.setdefault(s_idx, {})[block.order_idx] = explained
+                pbar.update(1)
+
+        new_sections: list[Section] = []
+        for s_idx, section in enumerate(paper.sections):
+            if s_idx not in explained_map:
+                new_sections.append(section)
+                continue
+            overrides = explained_map[s_idx]
+            new_blocks = tuple(
+                overrides.get(b.order_idx, b) for b in section.algorithm_blocks
+            )
+            new_sections.append(dataclasses.replace(section, algorithm_blocks=new_blocks))
 
         return dataclasses.replace(paper, sections=tuple(new_sections))
 

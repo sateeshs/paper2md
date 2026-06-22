@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from lib.models import MathBlock, Paper, Section
+from lib.models import MathBlock, Paper, Section, Citation
 
 # Lazy import — only needed when --push-supabase is used
 _supabase_client = None
@@ -203,6 +203,51 @@ def push_paper(paper: Paper) -> None:
 
     for batch in _batches(math_rows, 100):
         client.table("math_blocks").insert(batch).execute()
+
+    # ── 4.5. Insert algorithm_blocks ───────────────────────────────────────
+    # Sections were deleted+reinserted above, so algorithm_blocks are already
+    # cascade-deleted. Just insert fresh rows.
+    algorithm_rows: list[dict[str, Any]] = []
+    for section in paper.sections:
+        section_db_id = section_id_map.get(section.order_idx)
+        if not section_db_id:
+            continue
+        for block in section.algorithm_blocks:
+            algorithm_rows.append({
+                "section_id":        section_db_id,
+                "order_idx":         block.order_idx,
+                "caption":           _s(block.caption),
+                "raw_pseudocode":    _s(block.raw_pseudocode),
+                "pseudocode_text":   _s(block.pseudocode_text),
+                "context_before":    _s(block.context_before),
+                "context_after":     _s(block.context_after),
+                "explanation":       _s(block.explanation),
+                "explanation_model": _s(block.explanation_model),
+            })
+
+    for batch in _batches(algorithm_rows, 100):
+        client.table("algorithm_blocks").insert(batch).execute()
+
+    # ── 4.7. Insert paper_citations ───────────────────────────────────────
+    # Citations belong to paper_id (not section_id), so they are NOT
+    # cascade-deleted when sections are deleted above. Explicit delete first.
+    if paper.citations:
+        client.table("paper_citations").delete().eq("paper_id", paper_id).execute()
+        citation_rows: list[dict[str, Any]] = [
+            {
+                "paper_id":      paper_id,
+                "order_idx":     c.order_idx,
+                "cite_key":      _s(c.cite_key),
+                "raw_bib_entry": _s(c.raw_bib_entry),
+                "arxiv_id":      _s(c.arxiv_id),
+                "title":         _s(c.title),
+                "url":           _s(c.url),
+            }
+            for c in paper.citations
+            if c.arxiv_id != paper.arxiv_id   # skip self-citations
+        ]
+        for batch in _batches(citation_rows, 100):
+            client.table("paper_citations").insert(batch).execute()
 
     # ── 5. Mark complete ───────────────────────────────────────────────────
     client.table("papers").update(

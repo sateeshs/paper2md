@@ -1,9 +1,9 @@
 name: Process Pending Papers
 
 on:
-  # Run every 6 hours
+  # Run every 30 minutes
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "*/30 * * * *"
   # Allow manual trigger from GitHub UI (Actions tab → Run workflow)
   workflow_dispatch:
     inputs:
