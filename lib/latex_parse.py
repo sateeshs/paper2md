@@ -97,7 +97,7 @@ def _section_pattern(cmds: tuple[str, ...] = _SPLIT_CMDS) -> re.Pattern[str]:
     # Title group: any mix of non-brace chars and single-level {…} pairs
     title_group = r"((?:[^{}]|\{[^{}]*\})*)"
     return re.compile(
-        r"(" + cmd_pat + r")\*?\s*\{" + title_group + r"\}",
+        r"(" + cmd_pat + r")\*?\s*(?:\[[^\]]*\])?\s*\{" + title_group + r"\}",
         re.MULTILINE,
     )
 
@@ -283,8 +283,8 @@ def _preprocess_for_text(latex: str) -> str:
     def _to_h4(m: re.Match) -> str:  # type: ignore[type-arg]
         return f"\x02H4\x02{m.group(1).strip()}\x02/H4\x02"
 
-    latex = re.sub(r"\\subsection\*?\s*\{" + _grp + r"\}", _to_h3, latex)
-    latex = re.sub(r"\\subsubsection\*?\s*\{" + _grp + r"\}", _to_h4, latex)
+    latex = re.sub(r"\\subsection\*?\s*(?:\[[^\]]*\])?\s*\{" + _grp + r"\}", _to_h3, latex)
+    latex = re.sub(r"\\subsubsection\*?\s*(?:\[[^\]]*\])?\s*\{" + _grp + r"\}", _to_h4, latex)
 
     # 6. Convert list environments to placeholder tokens (same reason as above).
     def _convert_enumerate(m: re.Match) -> str:  # type: ignore[type-arg]
