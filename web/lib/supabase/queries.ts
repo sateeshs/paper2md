@@ -9,6 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
   Paper,
+  PaperCitation,
   PaperWithSections,
   SectionWithMath,
 } from "./types";
@@ -69,7 +70,7 @@ export async function getPaperWithSections(
   return data as PaperWithSections | null;
 }
 
-/** Return a single section with all its math blocks for the section detail page. */
+/** Return a single section with all its math and algorithm blocks for the section detail page. */
 export async function getSectionWithMath(
   client: Client,
   sectionId: string
@@ -79,11 +80,13 @@ export async function getSectionWithMath(
     .select(
       `
       *,
-      math_blocks (*)
+      math_blocks (*),
+      algorithm_blocks (*)
     `
     )
     .eq("id", sectionId)
     .order("order_idx", { referencedTable: "math_blocks" })
+    .order("order_idx", { referencedTable: "algorithm_blocks" })
     .maybeSingle();
 
   if (error) throw new Error(`getSectionWithMath: ${error.message}`);
@@ -118,6 +121,21 @@ export async function getAllCompletePaperIds(
 
   if (error) throw new Error(`getAllCompletePaperIds: ${error.message}`);
   return (data ?? []).map((r) => r.arxiv_id!);
+}
+
+/** Return all citations for a paper, ordered by bibliography position. */
+export async function getCitationsForPaper(
+  client: Client,
+  paperId: string
+): Promise<PaperCitation[]> {
+  const { data, error } = await client
+    .from("paper_citations")
+    .select("*")
+    .eq("paper_id", paperId)
+    .order("order_idx", { ascending: true });
+
+  if (error) throw new Error(`getCitationsForPaper: ${error.message}`);
+  return data ?? [];
 }
 
 /** Queue a new paper for processing (INSERT with status=pending). */

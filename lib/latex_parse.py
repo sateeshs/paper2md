@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
-from lib.models import MathBlock, Section
+from lib.models import AlgorithmBlock, MathBlock, Section
 
 
 # ---------------------------------------------------------------------------
@@ -107,6 +107,122 @@ _DISPLAY_DOLLAR_RE = _display_dollar_pattern()
 _DISPLAY_BRACKET_RE = _display_bracket_pattern()
 _INLINE_DOLLAR_RE = _inline_dollar_pattern()
 _SECTION_RE = _section_pattern()
+
+# Algorithm environments — outermost float first, standalone algorithmic second
+_ALGORITHM_FLOAT_RE = re.compile(
+    r"\\begin\{(algorithm\*?|algorithm2e)\}(.*?)\\end\{\1\}",
+    re.DOTALL,
+)
+_ALGORITHM_STANDALONE_RE = re.compile(
+    r"\\begin\{(algorithmic)\}(.*?)\\end\{\1\}",
+    re.DOTALL,
+)
+
+
+# ---------------------------------------------------------------------------
+# Algorithm block extraction
+# ---------------------------------------------------------------------------
+
+# algorithm2e command names (KwIn, KwOut, KwRet, ForEach, etc.)
+_ALGO_CMD_RE = re.compile(
+    r"\\(State|If|ElsIf|Else|EndIf|For|ForEach|EndFor|While|EndWhile|"
+    r"Procedure|EndProcedure|Function|EndFunction|Return|Require|Ensure|"
+    r"KwIn|KwOut|KwRet|KwData|KwResult|algorithmicindent|"
+    r"tcp|tcc)\b\s*"
+)
+_ALGO_COMMENT_RE = re.compile(r"\\(?:COMMENT|Comment|tcp\*?|tcc\*?)\{([^}]*)\}")
+_CAPTION_RE = re.compile(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", re.DOTALL)
+
+
+def _extract_algorithm_caption(block_src: str) -> str | None:
+    """Extract \\caption{} text from an algorithm block, or None if absent."""
+    m = _CAPTION_RE.search(block_src)
+    if not m:
+        return None
+    text = re.sub(r"\\[a-zA-Z]+\s*", "", m.group(1))
+    text = re.sub(r"[{}]", "", text)
+    return text.strip() or None
+
+
+def _pseudocode_to_text(src: str) -> str:
+    """Convert pseudocode LaTeX source to readable plain text.
+
+    Strips algorithmic command prefixes (\\State, \\If, etc.) while
+    preserving indentation structure implied by nested environments.
+    Converts comments to // style.
+    """
+    # Convert comment commands to // notation
+    text = _ALGO_COMMENT_RE.sub(lambda m: f"  // {m.group(1)}", src)
+    # Remove caption lines (already extracted separately)
+    text = _CAPTION_RE.sub("", text)
+    # Remove algorithmic command prefixes — keep their argument/body text
+    text = _ALGO_CMD_RE.sub("", text)
+    # Strip remaining LaTeX commands but keep their brace content
+    text = re.sub(r"\\[a-zA-Z]+\*?\s*\{([^}]*)\}", r"\1", text)
+    text = re.sub(r"\\[a-zA-Z]+\*?\s*", " ", text)
+    text = re.sub(r"[{}]", "", text)
+    # Collapse excessive blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _build_algorithm_blocks(latex_body: str) -> tuple[AlgorithmBlock, ...]:
+    """Extract algorithm/pseudocode blocks from a raw LaTeX section body.
+
+    Must be called on the *raw* body before _NON_TEXT_ENV_RE strips
+    algorithm environments from the text.
+
+    Strategy: match outermost algorithm/algorithm2e floats first.
+    Only match standalone algorithmic environments that are NOT already
+    contained inside a matched float span.
+    """
+    blocks: list[AlgorithmBlock] = []
+    float_spans: list[tuple[int, int]] = []
+
+    for m in _ALGORITHM_FLOAT_RE.finditer(latex_body):
+        caption = _extract_algorithm_caption(m.group(2))
+        pseudocode_text = _pseudocode_to_text(m.group(2))
+        cb_raw = latex_body[max(0, m.start() - CONTEXT_WINDOW_DEFAULT): m.start()]
+        ca_raw = latex_body[m.end(): m.end() + CONTEXT_WINDOW_DEFAULT]
+        blocks.append(AlgorithmBlock(
+            order_idx=len(blocks),
+            caption=caption,
+            raw_pseudocode=m.group(0),
+            pseudocode_text=pseudocode_text,
+            context_before=_latex_to_text(cb_raw).strip(),
+            context_after=_latex_to_text(ca_raw).strip(),
+        ))
+        float_spans.append((m.start(), m.end()))
+
+    # Match standalone \begin{algorithmic} only when not inside a float
+    for m in _ALGORITHM_STANDALONE_RE.finditer(latex_body):
+        inside_float = any(s <= m.start() and m.end() <= e for s, e in float_spans)
+        if inside_float:
+            continue
+        pseudocode_text = _pseudocode_to_text(m.group(2))
+        cb_raw = latex_body[max(0, m.start() - CONTEXT_WINDOW_DEFAULT): m.start()]
+        ca_raw = latex_body[m.end(): m.end() + CONTEXT_WINDOW_DEFAULT]
+        blocks.append(AlgorithmBlock(
+            order_idx=len(blocks),
+            caption=None,
+            raw_pseudocode=m.group(0),
+            pseudocode_text=pseudocode_text,
+            context_before=_latex_to_text(cb_raw).strip(),
+            context_after=_latex_to_text(ca_raw).strip(),
+        ))
+
+    # Re-index order_idx to be sequential after sorting by position
+    return tuple(
+        AlgorithmBlock(
+            order_idx=i,
+            caption=b.caption,
+            raw_pseudocode=b.raw_pseudocode,
+            pseudocode_text=b.pseudocode_text,
+            context_before=b.context_before,
+            context_after=b.context_after,
+        )
+        for i, b in enumerate(blocks)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -461,6 +577,8 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
         if len(plain_text.strip()) < 50:
             continue   # skip near-empty sections
 
+        # Extract algorithm blocks on raw body BEFORE math extraction strips envs
+        algorithm_blocks = _build_algorithm_blocks(body)
         math_blocks = _build_math_blocks(body)
 
         sections.append(Section(
@@ -469,6 +587,7 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
             plain_text=plain_text,
             raw_latex=body,
             math_blocks=math_blocks,
+            algorithm_blocks=algorithm_blocks,
         ))
 
     return tuple(sections)

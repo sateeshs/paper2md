@@ -66,12 +66,12 @@ export function PaperStatusStream({ arxivId }: PaperStatusStreamProps) {
   // pending or processing
   return (
     <div className="mt-3 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2.5 text-sm text-blue-600">
-      <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-blue-300 border-t-blue-600 rounded-full" />
+      <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-blue-300 border-t-blue-600 rounded-full shrink-0" />
       <span>
         {status === "processing" ? (
           <>Processing <span className="font-mono">{arxivId}</span>…</>
         ) : (
-          <>Queued — waiting for worker…</>
+          <>Queued — worker runs every 30 min, check back soon.</>
         )}
       </span>
     </div>
