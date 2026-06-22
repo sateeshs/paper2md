@@ -61,6 +61,24 @@ python summarize_papers.py --clear-cache   # wipe cache then run
 
 Set `PAPER2MD_DEBUG_TRACE=1` for full tracebacks on failures.
 
+### Debugging section count issues
+
+If a paper shows fewer sections than expected, run the diagnostic script:
+
+```bash
+python debug_sections.py <arxiv_id>
+```
+
+This prints:
+- Raw `\section` / `\subsection` counts in the LaTeX source
+- Every match found by `_SECTION_RE`
+- Raw `_split_sections()` output with body sizes
+- Final `parse_latex_sections()` output with plain text lengths
+
+**Adaptive splitting**: `latex_parse.py` automatically re-splits any section
+body > 30 000 chars on `\subsection` commands. This handles survey/textbook
+papers that have few top-level `\section{}` blocks with enormous bodies.
+
 ### Pipeline (per paper)
 
 ```
