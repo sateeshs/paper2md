@@ -49,17 +49,35 @@ async function findPage(arxivId: string, title: string): Promise<number> {
   if (!normTitle || normTitle.length < 3) return 1;
 
   const texts = await extractPageTexts(arxivId);
+  const totalPages = texts.length - 1;
 
-  // Pass 1: find a heading line (strips leading section number, rejects TOC entries)
-  for (let p = 1; p < texts.length; p++) {
+  // Pass 1: collect ALL heading-line matches (strips leading section number, rejects dot-leader TOC entries)
+  const matches: number[] = [];
+  for (let p = 1; p <= totalPages; p++) {
     if (texts[p].split("\n").some((line) => isHeadingLine(line, normTitle))) {
-      return p;
+      matches.push(p);
     }
   }
 
-  // Pass 2: substring fallback (last resort — less accurate)
-  for (let p = 1; p < texts.length; p++) {
-    if (normalizeLine(texts[p]).includes(normTitle)) return p;
+  if (matches.length > 0) {
+    // Papers with a TOC have the title on an early page (TOC) AND later (body).
+    // PDF.js often puts the page number on a separate line so the TOC entry passes
+    // isHeadingLine. Heuristic: skip matches in the first ~10 % of the doc
+    // (min 3 pages) when a later match also exists.
+    const tocZone = Math.max(3, Math.ceil(totalPages * 0.1));
+    const bodyMatches = matches.filter((p) => p > tocZone);
+    return bodyMatches.length > 0 ? bodyMatches[0] : matches[0];
+  }
+
+  // Pass 2: substring fallback (last resort — less accurate, same TOC-skip logic)
+  const fallbacks: number[] = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (normalizeLine(texts[p]).includes(normTitle)) fallbacks.push(p);
+  }
+  if (fallbacks.length > 0) {
+    const tocZone = Math.max(3, Math.ceil(totalPages * 0.1));
+    const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
+    return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
   }
 
   return 1;

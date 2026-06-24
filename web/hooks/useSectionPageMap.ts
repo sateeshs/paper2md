@@ -71,16 +71,26 @@ export function useSectionPageMap(
         const totalPages = pageTexts.length - 1; // texts[0] is placeholder
         const map = new Map<string, number>();
 
-        // For each section, find the first page whose text contains the title
+        // TOC zone: skip the first ~10% of the document (min 3 pages)
+        // Section titles appear in the TOC on early pages; PDF.js often puts
+        // the page-number on a separate line so they pass the heading check.
+        const tocZone = Math.max(3, Math.ceil(totalPages * 0.1));
+
+        // For each section, find the best page whose text contains the title
         for (const section of sections) {
           const title = section.title ?? "";
           let found = 0;
 
+          // Collect all matching pages
+          const matches: number[] = [];
           for (let p = 1; p <= totalPages; p++) {
-            if (titleInPage(title, pageTexts[p])) {
-              found = p;
-              break;
-            }
+            if (titleInPage(title, pageTexts[p])) matches.push(p);
+          }
+
+          if (matches.length > 0) {
+            // Prefer body pages over TOC-zone pages
+            const bodyMatches = matches.filter((p) => p > tocZone);
+            found = bodyMatches.length > 0 ? bodyMatches[0] : matches[0];
           }
 
           if (!found) {
