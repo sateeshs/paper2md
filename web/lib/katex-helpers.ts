@@ -43,20 +43,26 @@ export const KATEX_OPTIONS: KatexOptions = {
   },
 };
 
-/** Env types that should render in display (block) mode. */
+/**
+ * Env types that should render in display (block) mode.
+ *
+ * NOTE: Python's latex_parse.py strips the "*" suffix before storing
+ * (e.g. "equation*" → "equation"), so starred variants never appear in the DB.
+ * The set below matches what is actually stored.
+ */
 export const DISPLAY_ENV_TYPES = new Set([
   "equation",
-  "equation*",
   "align",
-  "align*",
   "gather",
-  "gather*",
   "multline",
-  "multline*",
-  "cases",
-  "display",
   "eqnarray",
-  "eqnarray*",
+  "cases",
+  "display",      // $$...$$ and \[...\] blocks
+  // Previously missing — Python extracts these but frontend was silently dropping them:
+  "split",        // \begin{split} (always inside another display env)
+  "subequations", // \begin{subequations} wrapper
+  "flalign",      // \begin{flalign}
+  "alignat",      // \begin{alignat}{n}
 ]);
 
 export function isDisplayMode(envType: string): boolean {
@@ -80,6 +86,12 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
       .replace(/^\\begin\{subequations\}/, "")
       .replace(/\\end\{subequations\}$/, "")
       .trim();
+    // eqnarray / eqnarray* are not supported by KaTeX — rewrite to align / align*
+    s = s
+      .replace(/\\begin\{eqnarray\*\}/g, "\\begin{align*}")
+      .replace(/\\end\{eqnarray\*\}/g,   "\\end{align*}")
+      .replace(/\\begin\{eqnarray\}/g,   "\\begin{align}")
+      .replace(/\\end\{eqnarray\}/g,     "\\end{align}");
   }
 
   // Strip LaTeX % comments (everything from % to end of line)
