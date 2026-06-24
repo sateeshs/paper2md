@@ -118,58 +118,80 @@ export interface PaperWithSections extends Paper {
 // Database shape (used by Supabase client generics)
 // ---------------------------------------------------------------------------
 
+// Helper to satisfy supabase-js 2.105+ GenericTable constraint (Row must extend Record<string, unknown>)
+type AsRow<T> = T & Record<string, unknown>;
+
 export type Database = {
   public: {
     Tables: {
       papers: {
-        Row: Paper;
-        Insert: Omit<Paper, "id" | "created_at" | "updated_at"> & {
+        Row: AsRow<Paper>;
+        // Nullable fields are optional on insert (supabase allows NULL defaults)
+        Insert: AsRow<{
           id?: string;
+          arxiv_id?: string | null;
+          title: string;
+          abstract?: string | null;
+          authors?: string[] | null;
+          source_type: string;
+          pdf_filename?: string | null;
+          status?: "pending" | "processing" | "complete" | "error";
+          error_msg?: string | null;
+          liked?: boolean | null;
+          liked_at?: string | null;
+          github_md_url?: string | null;
+          summary_md?: string | null;
           created_at?: string;
           updated_at?: string;
-        };
-        Update: Partial<Omit<Paper, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<Paper, "id">>>;
+        Relationships: [];
       };
       sections: {
-        Row: Section;
-        Insert: Omit<Section, "id" | "created_at"> & {
+        Row: AsRow<Section>;
+        Insert: AsRow<Omit<Section, "id" | "created_at"> & {
           id?: string;
           created_at?: string;
-        };
-        Update: Partial<Omit<Section, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<Section, "id">>>;
+        Relationships: [];
       };
       math_blocks: {
-        Row: MathBlock;
-        Insert: Omit<MathBlock, "id" | "created_at"> & {
+        Row: AsRow<MathBlock>;
+        Insert: AsRow<Omit<MathBlock, "id" | "created_at"> & {
           id?: string;
           created_at?: string;
-        };
-        Update: Partial<Omit<MathBlock, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<MathBlock, "id">>>;
+        Relationships: [];
       };
       algorithm_blocks: {
-        Row: AlgorithmBlock;
-        Insert: Omit<AlgorithmBlock, "id" | "created_at"> & {
+        Row: AsRow<AlgorithmBlock>;
+        Insert: AsRow<Omit<AlgorithmBlock, "id" | "created_at"> & {
           id?: string;
           created_at?: string;
-        };
-        Update: Partial<Omit<AlgorithmBlock, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<AlgorithmBlock, "id">>>;
+        Relationships: [];
       };
       paper_citations: {
-        Row: PaperCitation;
-        Insert: Omit<PaperCitation, "id" | "created_at"> & {
+        Row: AsRow<PaperCitation>;
+        Insert: AsRow<Omit<PaperCitation, "id" | "created_at"> & {
           id?: string;
           created_at?: string;
-        };
-        Update: Partial<Omit<PaperCitation, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<PaperCitation, "id">>>;
+        Relationships: [];
       };
       sat_sessions: {
-        Row: SatSession;
-        Insert: Omit<SatSession, "id" | "created_at" | "updated_at"> & {
+        Row: AsRow<SatSession>;
+        Insert: AsRow<Omit<SatSession, "id" | "created_at" | "updated_at"> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
-        };
-        Update: Partial<Omit<SatSession, "id">>;
+        }>;
+        Update: AsRow<Partial<Omit<SatSession, "id">>>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
