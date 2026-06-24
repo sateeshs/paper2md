@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PaperCitation, PaperWithSections, SectionWithMath } from "@/lib/supabase/types";
+import type { PaperCitation, PaperWithSections, SectionWithMath, SectionWithMathCount } from "@/lib/supabase/types";
 import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
 import { CitationsPanel } from "@/components/CitationsPanel";
@@ -88,7 +88,7 @@ function SectionRow({
   pdfPage,
   onHover,
 }: {
-  section: SectionWithMath;
+  section: SectionWithMathCount;
   arxivId: string;
   active: boolean;
   pdfPage: number | undefined;
