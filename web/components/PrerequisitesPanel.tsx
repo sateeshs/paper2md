@@ -1,11 +1,16 @@
+"use client";
+
 /**
- * PrerequisitesPanel — Server Component.
+ * PrerequisitesPanel — Client Component.
  *
  * Displays a collapsible badge grid of prerequisite concepts aggregated
  * from all math block explanations in a section.
  *
- * Uses native <details>/<summary> for zero-JS toggle — no client bundle cost.
+ * Uses native <details>/<summary> for toggle; 'use client' required for
+ * ProseWithMath (KaTeX) to render LaTeX in concept names.
  */
+
+import { ProseWithMath } from "@/components/ProseWithMath";
 
 interface PrerequisitesPanelProps {
   prerequisites: string[];
@@ -47,7 +52,7 @@ export function PrerequisitesPanel({ prerequisites }: PrerequisitesPanelProps) {
               key={concept}
               className="inline-flex items-center rounded-full border border-blue-200 dark:border-blue-700 bg-white dark:bg-blue-900/50 px-3 py-1 text-xs font-medium text-blue-700 dark:text-blue-300"
             >
-              {concept}
+              <ProseWithMath text={concept} />
             </span>
           ))}
         </div>
