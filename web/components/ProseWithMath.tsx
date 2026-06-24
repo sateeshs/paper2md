@@ -58,14 +58,12 @@ function MathChunk({ expr, display }: { expr: string; display: boolean }) {
     });
   }, [expr, display]);
 
-  // Placeholder text until KaTeX hydrates
+  // Empty span — no children so React never overwrites KaTeX's innerHTML on re-render
   return (
     <span
       ref={ref}
       className={display ? "block overflow-x-auto py-1 text-center" : "inline"}
-    >
-      {display ? `\\[${expr}\\]` : `$${expr}$`}
-    </span>
+    />
   );
 }
 
