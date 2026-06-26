@@ -11,16 +11,30 @@ import type { Paper } from "@/lib/supabase/types";
 export const metadata: Metadata = { title: "paper2md" };
 export const revalidate = 3600;
 
+const PAGE_SIZE = 20;
+
 interface PageProps {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }
 
 export default async function LandingPage({ searchParams }: PageProps) {
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const client = await createClient();
-  const papers = q
-    ? await searchPapers(client, q)
-    : await getRecentPapers(client);
+
+  let papers: import("@/lib/supabase/types").Paper[];
+  let total = 0;
+
+  if (q) {
+    papers = await searchPapers(client, q);
+    total = papers.length;
+  } else {
+    const result = await getRecentPapers(client, page);
+    papers = result.papers;
+    total = result.total;
+  }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -48,9 +62,17 @@ export default async function LandingPage({ searchParams }: PageProps) {
 
       {/* Papers list */}
       <section>
-        <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-4">
-          {q ? `Results for "${q}"` : "Recent papers"}
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
+            {q ? `Results for "${q}"` : "Recent papers"}
+          </h2>
+          {!q && total > 0 && (
+            <span className="text-xs text-zinc-400">
+              {total} paper{total !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
         {papers.length === 0 ? (
           <div className="text-center py-16 text-zinc-400">
             <p className="text-4xl mb-3">📄</p>
@@ -62,6 +84,41 @@ export default async function LandingPage({ searchParams }: PageProps) {
               <PaperRow key={paper.id} paper={paper} />
             ))}
           </ul>
+        )}
+
+        {/* Pagination — only shown for non-search listing */}
+        {!q && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-6">
+            {page > 1 ? (
+              <a
+                href={`/?page=${page - 1}`}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                ← Previous
+              </a>
+            ) : (
+              <span className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-300 cursor-not-allowed">
+                ← Previous
+              </span>
+            )}
+
+            <span className="text-sm text-zinc-500">
+              Page {page} of {totalPages}
+            </span>
+
+            {page < totalPages ? (
+              <a
+                href={`/?page=${page + 1}`}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                Next →
+              </a>
+            ) : (
+              <span className="px-4 py-2 text-sm font-medium rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-300 cursor-not-allowed">
+                Next →
+              </span>
+            )}
+          </div>
         )}
       </section>
     </div>

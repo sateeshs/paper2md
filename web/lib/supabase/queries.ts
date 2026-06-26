@@ -18,16 +18,24 @@ type Client = SupabaseClient<Database>;
 
 // ── Papers ────────────────────────────────────────────────────────────────────
 
-/** Return the 20 most recently completed papers for the landing page. */
-export async function getRecentPapers(client: Client): Promise<Paper[]> {
-  const { data, error } = await client
+const PAGE_SIZE = 20;
+
+/** Return a page of papers for the landing page, plus the total count. */
+export async function getRecentPapers(
+  client: Client,
+  page = 1
+): Promise<{ papers: Paper[]; total: number }> {
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
+  const { data, error, count } = await client
     .from("papers")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("updated_at", { ascending: false })
-    .limit(20);
+    .range(from, to);
 
   if (error) throw new Error(`getRecentPapers: ${error.message}`);
-  return data ?? [];
+  return { papers: data ?? [], total: count ?? 0 };
 }
 
 /** Return a single paper by ArXiv ID. */
