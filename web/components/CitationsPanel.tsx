@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { PaperCitation } from "@/lib/supabase/types";
 
 interface CitationsPanelProps {
@@ -14,6 +14,28 @@ export function CitationsPanel({ citations }: CitationsPanelProps) {
   const [queueState, setQueueState] = useState<
     Record<string, "idle" | "loading" | "queued" | "exists" | "error">
   >({});
+
+  // On mount: check which cited papers are already in the DB
+  useEffect(() => {
+    const arxivIds = citations
+      .map((c) => c.arxiv_id)
+      .filter((id): id is string => !!id);
+    if (arxivIds.length === 0) return;
+
+    fetch(`/api/status/batch?ids=${arxivIds.join(",")}`)
+      .then((r) => r.json())
+      .then((statusMap: Record<string, string>) => {
+        const initial: Record<string, "idle" | "loading" | "queued" | "exists" | "error"> = {};
+        for (const [id, status] of Object.entries(statusMap)) {
+          if (status === "complete") initial[id] = "exists";
+          else if (status === "pending" || status === "processing") initial[id] = "queued";
+          // "error" stays "idle" — allow re-queue
+        }
+        setQueueState((prev) => ({ ...initial, ...prev }));
+      })
+      .catch(() => { /* silently ignore — buttons still work */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (citations.length === 0) return null;
 
