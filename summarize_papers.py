@@ -205,6 +205,7 @@ def process_arxiv_id(
     arxiv_id: str,
     no_math_explain: bool = False,
     max_math_blocks: int | None = None,
+    max_blocks_per_section: int | None = None,
     no_algo_explain: bool = False,
     push_supabase: bool = False,
     force: bool = False,
@@ -327,7 +328,7 @@ def process_arxiv_id(
         try:
             explainer = _get_explainer()
             cap = max_math_blocks or int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS", 50))
-            paper = explainer(paper, max_blocks=cap)
+            paper = explainer(paper, max_blocks=cap, max_blocks_per_section=max_blocks_per_section)
         except Exception as e:
             _report_error("math_explain", label, e)
 
@@ -440,7 +441,9 @@ def main() -> int:
     ap.add_argument("--no-math-explain", action="store_true",
                     help="Skip math explanation step (faster)")
     ap.add_argument("--max-math-blocks", type=int, default=None,
-                    help="Cap math blocks explained per paper (default: 50)")
+                    help="Global cap on math blocks explained per paper (default: PAPER2MD_MAX_MATH_BLOCKS env or 50)")
+    ap.add_argument("--max-blocks-per-section", type=int, default=None,
+                    help="Max math blocks explained per section; ensures coverage across all sections in large papers")
     ap.add_argument("--no-algo-explain", action="store_true",
                     help="Skip algorithm explanation step")
 
@@ -483,6 +486,7 @@ def main() -> int:
                 arxiv_id=arxiv_id,
                 no_math_explain=args.no_math_explain,
                 max_math_blocks=args.max_math_blocks,
+                max_blocks_per_section=args.max_blocks_per_section,
                 no_algo_explain=args.no_algo_explain,
                 push_supabase=args.push_supabase,
                 force=args.force,
