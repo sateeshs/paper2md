@@ -138,15 +138,26 @@ class MathExplainer(dspy.Module):
             tqdm.write(f"[WARN] MathExplainer failed for block {block.order_idx}: {e}")
             return block
 
-    def forward(self, paper: Paper, max_blocks: int | None = None) -> Paper:
+    def forward(
+        self,
+        paper: Paper,
+        max_blocks: int | None = None,
+        max_blocks_per_section: int | None = None,
+    ) -> Paper:
         """Return Paper with explanations filled into all math blocks across all sections.
 
         Args:
-            paper:      Paper object with sections + math_blocks already populated.
-            max_blocks: Cap on total blocks to explain (cost control).
-                        Prioritises named environments (equation/align) over inline.
+            paper:                  Paper object with sections + math_blocks already populated.
+            max_blocks:             Global cap on total blocks to explain (cost control).
+                                    Prioritises named environments (equation/align) over inline.
+            max_blocks_per_section: If set, take at most this many named-env blocks + this many
+                                    inline blocks per section before applying the global cap.
+                                    Ensures every section gets some coverage on large papers.
         """
         limit = max_blocks or int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS", 50))
+        per_section = max_blocks_per_section or (
+            int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS_PER_SECTION", 0)) or None
+        )
 
         # Collect (section_idx, block) pairs sorted by priority
         # Named envs first, then inline
@@ -154,11 +165,18 @@ class MathExplainer(dspy.Module):
         inline_queue: list[tuple[int, MathBlock]] = []
 
         for s_idx, section in enumerate(paper.sections):
-            for block in section.math_blocks:
-                if block.env_type == "inline":
-                    inline_queue.append((s_idx, block))
-                else:
-                    prioritised.append((s_idx, block))
+            if per_section is not None:
+                # Section-aware: take up to per_section named-env + per_section inline
+                named = [b for b in section.math_blocks if b.env_type != "inline"][:per_section]
+                inline = [b for b in section.math_blocks if b.env_type == "inline"][:per_section]
+                prioritised.extend((s_idx, b) for b in named)
+                inline_queue.extend((s_idx, b) for b in inline)
+            else:
+                for block in section.math_blocks:
+                    if block.env_type == "inline":
+                        inline_queue.append((s_idx, block))
+                    else:
+                        prioritised.append((s_idx, block))
 
         candidates = (prioritised + inline_queue)[:limit]
         total = len(candidates)
