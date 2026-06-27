@@ -94,6 +94,7 @@ def run(
     force: bool,
     min_expr_len: int,
     paper_type: str,
+    max_blocks_per_section: int | None = None,
 ) -> None:
     from lib.dspy_config import configure_dspy
     from lib.dspy_modules import MathExplainer
@@ -110,13 +111,30 @@ def run(
         tqdm.write("[INFO] No unexplained blocks found.")
         return
 
+    # Section-aware cap: limit blocks per section before applying global cap
+    if max_blocks_per_section:
+        from collections import defaultdict
+        by_section: dict[str, list[dict]] = defaultdict(list)
+        for r in rows:
+            sid = (r.get("sections") or {}).get("id") or ""
+            by_section[sid].append(r)
+
+        filtered: list[dict] = []
+        for sec_rows in by_section.values():
+            named = [r for r in sec_rows if r["env_type"] != "inline"][:max_blocks_per_section]
+            inline_r = [r for r in sec_rows if r["env_type"] == "inline"][:max_blocks_per_section]
+            filtered.extend(named)
+            filtered.extend(inline_r)
+        rows = filtered
+        tqdm.write(f"[INFO] After per-section cap ({max_blocks_per_section}/section): {len(rows)} candidates")
+
     # Prioritise named envs (equation/align) over inline
     def priority(r: dict) -> int:
         return 0 if r["env_type"] != "inline" else 1
 
     rows.sort(key=priority)
 
-    # Apply cap
+    # Apply global cap
     if len(rows) > max_blocks:
         tqdm.write(f"[INFO] {len(rows)} blocks found — capping at {max_blocks}")
         rows = rows[:max_blocks]
@@ -171,8 +189,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Fill missing math explanations in Supabase")
     ap.add_argument("--arxiv-id", metavar="ID", help="Limit to one paper")
     ap.add_argument("--max-blocks", type=int,
-                    default=int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS", 80)),
-                    help="Cap on blocks to explain (default: 80)")
+                    default=int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS", 200)),
+                    help="Global cap on blocks to explain (default: 200)")
+    ap.add_argument("--max-blocks-per-section", type=int, default=None,
+                    help="Max blocks per section before global cap; ensures all sections covered")
     ap.add_argument("--force", action="store_true",
                     help="Re-explain blocks that already have explanations")
     ap.add_argument("--min-expr-len", type=int, default=6,
@@ -189,6 +209,7 @@ def main() -> int:
         force=args.force,
         min_expr_len=args.min_expr_len,
         paper_type=args.paper_type,
+        max_blocks_per_section=args.max_blocks_per_section,
     )
     return 0
 
