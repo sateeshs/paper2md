@@ -74,7 +74,7 @@ export function MathBlock({ block }: MathBlockProps) {
           </>
         ) : (
           <p className="px-4 py-2 text-xs text-zinc-400 dark:text-zinc-600 italic">
-            Explanation pending — re-run explain_math_only.py to generate
+            Explanation not yet available
           </p>
         )}
       </div>
