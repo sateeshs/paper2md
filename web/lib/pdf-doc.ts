@@ -31,11 +31,24 @@ export async function getPdfDocument(arxivId: string) {
   return doc;
 }
 
-/** Extract plain text for every page. Returns array indexed by pageNum (1-based). */
-export async function extractPageTexts(arxivId: string): Promise<string[]> {
+/**
+ * Maximum pages to scan for section-title mapping.
+ * 600-page PDFs crash the browser tab if we extract all pages — cap here.
+ */
+const MAX_SCAN_PAGES = 150;
+
+/**
+ * Extract plain text page-by-page up to maxPages.
+ * Returns array indexed by pageNum (1-based); entries beyond maxPages are "".
+ */
+export async function extractPageTexts(
+  arxivId: string,
+  maxPages = MAX_SCAN_PAGES
+): Promise<string[]> {
   const doc = await getPdfDocument(arxivId);
+  const limit = Math.min(doc.numPages, maxPages);
   const texts: string[] = [""];          // index 0 unused so texts[pageNum] works
-  for (let i = 1; i <= doc.numPages; i++) {
+  for (let i = 1; i <= limit; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     const text = content.items

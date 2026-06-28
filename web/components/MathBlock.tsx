@@ -53,9 +53,9 @@ export function MathBlock({ block }: MathBlockProps) {
       </div>
 
       {/* Explanation toggle */}
-      {block.explanation && (
-        <>
-          <div className="border-t border-zinc-200 dark:border-zinc-700">
+      <div className="border-t border-zinc-200 dark:border-zinc-700">
+        {block.explanation ? (
+          <>
             <button
               onClick={() => setShowExplanation((v) => !v)}
               className="w-full px-4 py-2 text-left text-sm text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
@@ -68,13 +68,16 @@ export function MathBlock({ block }: MathBlockProps) {
                 </span>
               )}
             </button>
-          </div>
-
-          {showExplanation && (
-            <ExplanationPanel explanation={block.explanation} />
-          )}
-        </>
-      )}
+            {showExplanation && (
+              <ExplanationPanel explanation={block.explanation} />
+            )}
+          </>
+        ) : (
+          <p className="px-4 py-2 text-xs text-zinc-400 dark:text-zinc-600 italic">
+            Explanation pending — re-run explain_math_only.py to generate
+          </p>
+        )}
+      </div>
     </div>
   );
 }
