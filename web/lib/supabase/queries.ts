@@ -12,6 +12,7 @@ import type {
   PaperCitation,
   PaperWithSections,
   SectionWithMath,
+  SectionWithMathCount,
 } from "./types";
 
 type Client = SupabaseClient<Database>;
@@ -19,6 +20,40 @@ type Client = SupabaseClient<Database>;
 // ── Papers ────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
+const SECTIONS_PAGE = 20;
+
+/** Paper metadata only — no sections. Fast, safe for any paper size. */
+export async function getPaperMeta(
+  client: Client,
+  arxivId: string
+): Promise<Paper | null> {
+  const { data, error } = await client
+    .from("papers")
+    .select("*")
+    .eq("arxiv_id", arxivId)
+    .eq("status", "complete")
+    .maybeSingle();
+  if (error) throw new Error(`getPaperMeta: ${error.message}`);
+  return data;
+}
+
+/** One page of sections with math block counts. */
+export async function getSectionsPaged(
+  client: Client,
+  paperId: string,
+  page: number
+): Promise<{ sections: SectionWithMathCount[]; total: number }> {
+  const from = (page - 1) * SECTIONS_PAGE;
+  const to = from + SECTIONS_PAGE - 1;
+  const { data, error, count } = await client
+    .from("sections")
+    .select("*, math_blocks(id)", { count: "exact" })
+    .eq("paper_id", paperId)
+    .order("order_idx", { ascending: true })
+    .range(from, to);
+  if (error) throw new Error(`getSectionsPaged: ${error.message}`);
+  return { sections: (data ?? []) as SectionWithMathCount[], total: count ?? 0 };
+}
 
 /** Return a page of papers for the landing page, plus the total count. */
 export async function getRecentPapers(
