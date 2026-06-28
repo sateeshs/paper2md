@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { PaperCitation, PaperWithSections, SectionWithMath, SectionWithMathCount } from "@/lib/supabase/types";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { PaperCitation, PaperWithSections, SectionWithMathCount } from "@/lib/supabase/types";
 import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
 import { CitationsPanel } from "@/components/CitationsPanel";
@@ -11,14 +11,57 @@ interface PaperSplitViewProps {
   paper: PaperWithSections;
   arxivId: string;
   citations?: PaperCitation[];
+  totalSections: number;
 }
 
-export function PaperSplitView({ paper, arxivId, citations = [] }: PaperSplitViewProps) {
-  const sections = paper.sections ?? [];
+export function PaperSplitView({ paper, arxivId, citations = [], totalSections }: PaperSplitViewProps) {
+  const [sections, setSections] = useState<SectionWithMathCount[]>(paper.sections ?? []);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [hasMore, setHasMore] = useState((paper.sections ?? []).length < totalSections);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const { pageMap, scanning } = useSectionPageMap(arxivId, sections);
 
   const targetPage = activeSectionId ? (pageMap.get(activeSectionId) ?? 1) : 1;
+
+  const loadMore = useCallback(async (): Promise<void> => {
+    if (loading || !hasMore) return;
+    setLoading(true);
+    try {
+      const nextPage = page + 1;
+      const res = await fetch(`/api/papers/${arxivId}/sections?page=${nextPage}`);
+      if (!res.ok) return;
+      const { sections: newSections, total } = (await res.json()) as {
+        sections: SectionWithMathCount[];
+        total: number;
+      };
+      setSections((prev) => {
+        const existingIds = new Set(prev.map((s) => s.id));
+        const deduped = newSections.filter((s) => !existingIds.has(s.id));
+        const merged = [...prev, ...deduped];
+        setHasMore(merged.length < total);
+        return merged;
+      });
+      setPage(nextPage);
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, hasMore, page, arxivId]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMore();
+      },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   return (
     <div className="flex h-full min-h-0">
@@ -68,6 +111,24 @@ export function PaperSplitView({ paper, arxivId, citations = [] }: PaperSplitVie
               ))}
             </ul>
           )}
+
+          {/* Infinite scroll loading indicator */}
+          {loading && (
+            <div className="flex justify-center py-6">
+              <span className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    className="h-2 w-2 rounded-full bg-zinc-300 dark:bg-zinc-600 animate-bounce"
+                    style={{ animationDelay: `${i * 0.15}s` }}
+                  />
+                ))}
+              </span>
+            </div>
+          )}
+
+          {/* Sentinel — triggers next page load when scrolled into view */}
+          {hasMore && !loading && <div ref={sentinelRef} className="h-4" />}
 
           <CitationsPanel citations={citations} />
         </div>
