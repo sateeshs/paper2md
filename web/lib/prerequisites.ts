@@ -15,17 +15,13 @@ const NOISE_PHRASES = [
   "none needed",
   "not required",
   "no prerequisites",
-  "standard undergraduate",
-  "basic calculus",
-  "high school",
   "not part of a proof",
   "no specific",
   "no particular",
-  "elementary",
 ];
 
-// Minimum token length to keep (filters out "a", "of", "the", etc.)
-const MIN_TOKEN_LEN = 4;
+// Minimum token length to keep (filters out "a", "of", "the" etc. but keeps "ODE", "PDE")
+const MIN_TOKEN_LEN = 3;
 
 // Maximum prerequisites to show per section
 const MAX_PREREQUISITES = 30;
