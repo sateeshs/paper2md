@@ -118,7 +118,7 @@ def _make_lm(provider: str) -> dspy.LM | None:
 
     kwargs: dict[str, Any] = {
         "api_key":    api_key,
-        "max_tokens": 4000,
+        "max_tokens": 8000,
         "temperature": 0.2,
     }
 
