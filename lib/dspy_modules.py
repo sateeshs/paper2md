@@ -91,7 +91,10 @@ class MathExplainer(dspy.Module):
 
     def __init__(self) -> None:
         super().__init__()
-        self.explain = dspy.ChainOfThought(ExplainMathBlock)
+        # Use Predict (not ChainOfThought) — CoT reasoning burns 2000-4000 tokens
+        # of invisible internal monologue, causing truncation before all 7 output
+        # fields are written even at max_tokens=8000 on Gemini Flash.
+        self.explain = dspy.Predict(ExplainMathBlock)
 
     def _should_skip(self, block: MathBlock) -> bool:
         """Skip trivially short inline expressions like $n$, $x$, $i$."""
