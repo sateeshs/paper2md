@@ -94,12 +94,12 @@ class ExplainMathBlock(dspy.Signature):
              "'Not part of a proof — this is a [definition / model equation / stated result]'."
     )
     prerequisites: str = dspy.OutputField(
-        desc="In 2-4 sentences, list the mathematical concepts and definitions a reader must already know "
-             "to understand this expression. Be specific: name the concepts "
-             "(e.g. 'the Radon–Nikodym theorem', 'basic measure theory', 'the chain rule for matrix calculus') "
-             "rather than vague categories. "
-             "For research_paper documents, also note any paper-specific notation introduced earlier "
-             "that this expression builds on."
+        desc="A comma-separated list of the mathematical concepts a reader must already know to understand "
+             "this expression. Name specific concepts, not vague categories. "
+             "Examples of the expected format: "
+             "'measure theory, Radon-Nikodym theorem, chain rule for matrix calculus' or "
+             "'variational inference, evidence lower bound (ELBO), normalizing flows'. "
+             "If there are no specific prerequisites beyond standard undergraduate math, write: 'none'."
     )
     mathematical_significance: str = dspy.OutputField(
         desc="In 2-3 sentences, explain the mathematical or conceptual significance of this expression. "
