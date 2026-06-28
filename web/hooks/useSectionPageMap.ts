@@ -68,7 +68,8 @@ export function useSectionPageMap(
         const pageTexts = await extractPageTexts(arxivId);
         if (cancelled) return;
 
-        const totalPages = pageTexts.length - 1; // texts[0] is placeholder
+        const doc = await (await import("@/lib/pdf-doc")).getPdfDocument(arxivId);
+        const totalPages = doc.numPages; // actual total, may be > scanned pages
         const map = new Map<string, number>();
 
         // TOC zone: skip the first ~10% of the document (min 3 pages)
@@ -76,14 +77,18 @@ export function useSectionPageMap(
         // the page-number on a separate line so they pass the heading check.
         const tocZone = Math.max(3, Math.ceil(totalPages * 0.1));
 
+        // Build a per-page index once so we don't re-scan for every section
+        const scannedPages = pageTexts.length - 1; // texts[0] is placeholder
+
         // For each section, find the best page whose text contains the title
+        let unmapped = 0;
         for (const section of sections) {
           const title = section.title ?? "";
           let found = 0;
 
-          // Collect all matching pages
+          // Collect all matching pages within the scanned range
           const matches: number[] = [];
-          for (let p = 1; p <= totalPages; p++) {
+          for (let p = 1; p <= scannedPages; p++) {
             if (titleInPage(title, pageTexts[p])) matches.push(p);
           }
 
@@ -94,14 +99,19 @@ export function useSectionPageMap(
           }
 
           if (!found) {
-            // Fallback: distribute evenly across pages
+            // Fallback: distribute evenly across total (possibly uncapped) pages
             found = Math.max(
               1,
               Math.round((section.order_idx / sections.length) * totalPages)
             );
+            unmapped++;
           }
 
           map.set(section.id, found);
+        }
+
+        if (unmapped > 0) {
+          console.debug(`[useSectionPageMap] ${unmapped}/${sections.length} sections used fallback (PDF scan capped at ${scannedPages} pages)`);
         }
 
         setPageMap(map);

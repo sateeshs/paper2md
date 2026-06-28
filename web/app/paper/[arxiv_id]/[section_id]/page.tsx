@@ -11,6 +11,7 @@ import { PdfSectionPane } from "@/components/PdfSectionPane";
 import { ProseWithMath } from "@/components/ProseWithMath";
 import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
 import { aggregatePrerequisites } from "@/lib/prerequisites";
+import { BackButton } from "@/components/BackButton";
 
 export const revalidate = 3600;
 
@@ -55,12 +56,11 @@ export default async function SectionPage({ params }: PageProps) {
             Home
           </a>
           <span>/</span>
-          <a
-            href={`/paper/${arxiv_id}`}
+          <BackButton
+            fallbackHref={`/paper/${arxiv_id}`}
+            label={paper.title}
             className="hover:text-zinc-700 dark:hover:text-zinc-300 truncate max-w-xs"
-          >
-            {paper.title}
-          </a>
+          />
           <span>/</span>
           <span className="text-zinc-700 dark:text-zinc-300 truncate">
             {section.title ?? `Section ${section.order_idx + 1}`}
@@ -93,12 +93,11 @@ export default async function SectionPage({ params }: PageProps) {
 
         {/* Navigation */}
         <div className="mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">
-          <a
-            href={`/paper/${arxiv_id}`}
+          <BackButton
+            fallbackHref={`/paper/${arxiv_id}`}
+            label={`← Back to ${paper.title}`}
             className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          >
-            ← Back to {paper.title}
-          </a>
+          />
         </div>
       </div>
 
