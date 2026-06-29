@@ -19,3 +19,7 @@ supabase>=2.0.0
 
 # Legacy: keep openai for any direct usage / compatibility
 openai>=1.0.0
+
+# EPUB extraction (summarize_local_pdf.py)
+ebooklib>=0.18
+beautifulsoup4>=4.12

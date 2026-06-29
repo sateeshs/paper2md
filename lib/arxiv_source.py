@@ -258,9 +258,14 @@ def fetch_arxiv_latex_full(arxiv_id: str) -> tuple[str, str] | None:
 
     Returns:
         (preamble_stripped_body, full_merged_source) or None.
+        Returns None for PDF-only submissions (no LaTeX source).
     """
     raw = _download_source(arxiv_id)
     if raw is None:
+        return None
+
+    # PDF-only submission: ArXiv /src/ endpoint returned raw PDF bytes
+    if raw[:4] == b"%PDF":
         return None
 
     tmp_dir = _unpack_to_temp(raw)
@@ -270,6 +275,12 @@ def fetch_arxiv_latex_full(arxiv_id: str) -> tuple[str, str] | None:
             return None
 
         content = _read_tex_file(main_tex)
+
+        # Tarball contained a PDF file mislabelled as .tex (e.g. PDF-only papers
+        # where the submission has a .tex extension but is actually the compiled PDF)
+        if content.lstrip()[:4] == "%PDF":
+            return None
+
         content = _resolve_includes(content, main_tex.parent, root_dir=tmp_dir)
         full_source = content
         body = _strip_preamble(content).strip()

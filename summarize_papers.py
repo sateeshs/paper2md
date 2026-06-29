@@ -268,22 +268,21 @@ def process_arxiv_id(
             _report_error("latex_parse", label, e)
             sections = ()
     else:
-        # Fall back to arxiv PDF download via arxiv package
+        # Fall back to direct PDF download (no API call — avoids rate limits)
         tqdm.write(f"[WARN] {label}: no LaTeX source — falling back to PDF")
         try:
-            import arxiv as arxiv_pkg  # type: ignore
-            search = arxiv_pkg.Search(id_list=[arxiv_id])
-            result = next(arxiv_pkg.Client().results(search), None)
-            if result is None:
-                tqdm.write(f"[ERROR] {label}: paper not found on arXiv")
-                if push_supabase:
-                    mark_error(arxiv_id, "Paper not found on arXiv")
-                return None
-
             import tempfile
+            import time
+            import httpx
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
+            tqdm.write(f"[INFO] {label}: downloading PDF from {pdf_url}")
+            time.sleep(3)  # polite delay
+            resp = httpx.get(pdf_url, follow_redirects=True, timeout=120)
+            resp.raise_for_status()
             with tempfile.TemporaryDirectory() as tmp:
-                pdf_path = result.download_pdf(dirpath=tmp)
-                paper_pdf = extract_paper_from_pdf(Path(pdf_path))
+                pdf_path = Path(tmp) / f"{arxiv_id}.pdf"
+                pdf_path.write_bytes(resp.content)
+                paper_pdf = extract_paper_from_pdf(pdf_path)
                 paper = paper_pdf
                 source_type = "pdf"
         except Exception as e:
