@@ -364,92 +364,86 @@ def process_arxiv_id(
 def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
     """Heuristically split plain PDF text into Section objects.
 
-    Strategy:
-    1. Skip the table-of-contents zone at the document start (lines that look
-       like "Title ......... N" or "Title  N").
-    2. Split only on top-level headings — single-number or keyword-prefixed:
-         "1 Introduction", "12. Nash Equilibrium", "Chapter 3 Games"
-       Subsection headings like "1.2 Background" are intentionally excluded so
-       each section captures a full chapter's worth of content.
-    3. Merge any section body shorter than MIN_BODY chars into the previous one.
+    Tries three strategies in order, returning as soon as one yields ≥ 2 sections:
 
-    Falls back to a single "Content" section if no chapter headings are found.
+    1. Multi-line chapter marker (pdfminer artefact for stylised chapter headings):
+          \\nChapter\\n\\n<N>\\n\\n<Title>
+       Reliable when the PDF was typeset with a prominent chapter title design.
+
+    2. Inline chapter keyword heading (single line):
+          "Chapter 3 Nash Equilibrium"  or  "CHAPTER 3"
+       Common in textbooks with simpler layouts.
+
+    3. Paragraph chunking — no heading detection at all.
+       Splits on double newlines into chunks of ~CHUNK_CHARS chars.
+       Used as a guaranteed fallback; section title = first 80 chars of chunk.
+
+    Sections shorter than MIN_BODY chars are merged into the previous one.
     """
+    from lib.content_analysis import chunk_text_for_llm
     from lib.models import Section
 
-    # Matches top-level chapter headings only (NOT subsections like "1.2 Title")
-    _CHAPTER_RE = re.compile(
-        r"^(?:"
-        # Single integer heading: "1 Title" or "12. Title"
-        # The negative lookahead (?!\.\d) ensures we don't match "1.2 Title"
-        r"(?:\d+(?!\.\d)\.?\s+[A-Z][^\n]{2,80})"
-        r"|"
-        # Keyword prefix: "Chapter 3 Games", "Part II", "Appendix A"
-        r"(?:(?:Chapter|Part|Appendix)\s+[\dA-Z]+(?:\s+[A-Z][^\n]{0,70})?)"
-        r")$",
-        re.MULTILINE,
+    MIN_BODY = 500   # chars — merge stubs into previous section
+    CHUNK_CHARS = 20_000  # target chars per chunk in fallback mode
+
+    def _build_from_positions(
+        full_text: str, positions: list[tuple[int, str]]
+    ) -> list[Section]:
+        """Given (char_offset, title) pairs, slice full_text into sections."""
+        result: list[Section] = []
+        for i, (pos, title) in enumerate(positions):
+            next_pos = positions[i + 1][0] if i + 1 < len(positions) else len(full_text)
+            content = full_text[pos:next_pos].strip()
+            # Drop the heading line itself from the body
+            nl = content.find("\n")
+            content = content[nl:].strip() if nl != -1 else ""
+            if len(content) < MIN_BODY:
+                if result:
+                    result[-1] = dataclasses.replace(
+                        result[-1],
+                        plain_text=result[-1].plain_text + "\n\n" + content,
+                    )
+                continue
+            result.append(Section(order_idx=len(result), title=title, plain_text=content))
+        return result
+
+    # ── Strategy 1: multi-line "Chapter\n\nN\n\nTitle" (pdfminer artefact) ──
+    _MULTILINE_CH = re.compile(r"\nChapter\n\n(\d+)\n\n([^\n]+)")
+    matches = list(_MULTILINE_CH.finditer(text))
+    if len(matches) >= 2:
+        positions = [(m.start(), f"Chapter {m.group(1)}: {m.group(2).strip()}") for m in matches]
+        sections = _build_from_positions(text, positions)
+        if len(sections) >= 2:
+            return tuple(sections)
+
+    # ── Strategy 2: inline chapter keyword heading ────────────────────────────
+    _INLINE_CH = re.compile(
+        r"^(?:Chapter|CHAPTER)\s+\d+(?:\s+[A-Z][^\n]{0,80})?$", re.MULTILINE
     )
+    inline_matches = list(_INLINE_CH.finditer(text))
+    if len(inline_matches) >= 2:
+        positions = [(m.start(), m.group(0).strip()) for m in inline_matches]
+        sections = _build_from_positions(text, positions)
+        if len(sections) >= 2:
+            return tuple(sections)
 
-    # TOC line: text followed by dots/spaces and a page number, e.g.
-    # "1.2 Background .............. 42"  or  "Nash Equilibrium  12"
-    _TOC_LINE_RE = re.compile(r"[.\s]{4,}\d+\s*$")
-
-    MIN_BODY = 300  # chars — skip near-empty sections (TOC artefacts)
-
-    # ── 1. Detect and skip the TOC zone ──────────────────────────────────────
-    lines = text.splitlines()
-    toc_end_line = 0
-    consecutive_toc = 0
-    for i, line in enumerate(lines):
-        if _TOC_LINE_RE.search(line.strip()):
-            consecutive_toc += 1
-            if consecutive_toc >= 3:
-                toc_end_line = i + 1  # keep extending as long as TOC runs
-        else:
-            if consecutive_toc >= 3:
-                break  # first non-TOC line after a real TOC block
-            consecutive_toc = 0
-
-    # Reconstruct text starting after the TOC zone
-    body_text = "\n".join(lines[toc_end_line:])
-
-    # ── 2. Find chapter headings ──────────────────────────────────────────────
-    heading_positions: list[tuple[int, str]] = []
-    char_offset = 0
-    for line in body_text.splitlines():
-        stripped = line.strip()
-        if stripped and _CHAPTER_RE.match(stripped):
-            heading_positions.append((char_offset, stripped))
-        char_offset += len(line) + 1
-
-    if len(heading_positions) < 2:
-        return (Section(order_idx=0, title="Content", plain_text=body_text.strip()),)
-
-    # ── 3. Build sections from heading boundaries ─────────────────────────────
-    sections: list[Section] = []
-    for i, (pos, title) in enumerate(heading_positions):
-        next_pos = (
-            heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(body_text)
-        )
-        content = body_text[pos:next_pos].strip()
-        # Strip the heading line itself from the body
-        nl = content.find("\n")
-        content = content[nl:].strip() if nl != -1 else ""
-
-        if len(content) < MIN_BODY:
-            # Merge short sections (likely TOC echoes) into the previous one
-            if sections:
-                prev = sections[-1]
-                sections[-1] = dataclasses.replace(
-                    prev, plain_text=prev.plain_text + "\n\n" + content
+    # ── Strategy 3: paragraph-aware chunking (guaranteed fallback) ────────────
+    chunks = chunk_text_for_llm(text, max_chars=CHUNK_CHARS)
+    result: list[Section] = []
+    for chunk in chunks:
+        if len(chunk.strip()) < MIN_BODY:
+            if result:
+                result[-1] = dataclasses.replace(
+                    result[-1], plain_text=result[-1].plain_text + "\n\n" + chunk
                 )
             continue
-        sections.append(Section(order_idx=len(sections), title=title, plain_text=content))
-
-    if not sections:
-        return (Section(order_idx=0, title="Content", plain_text=body_text.strip()),)
-
-    return tuple(sections)
+        # Title = first meaningful non-whitespace line, truncated
+        first_line = next(
+            (ln.strip() for ln in chunk.splitlines() if ln.strip()), "Section"
+        )
+        title = first_line[:80] + ("…" if len(first_line) > 80 else "")
+        result.append(Section(order_idx=len(result), title=title, plain_text=chunk.strip()))
+    return tuple(result) if result else (Section(order_idx=0, title="Content", plain_text=text.strip()),)
 
 
 def _arxiv_api_title(arxiv_id: str) -> str | None:
