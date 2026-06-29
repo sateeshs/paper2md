@@ -41,10 +41,24 @@ function isHeadingLine(rawLine: string, normTitle: string): boolean {
   return normalizeLine(stripped) === normTitle;
 }
 
+function titleVariants(title: string): string[] {
+  const full = normalizeTitle(title);
+  const variants: string[] = [];
+  if (full) variants.push(full);
+  // "Chapter N: Subtitle" → also try the subtitle alone
+  const chapterMatch = /^chapter\s+\d+[:\s]\s*(.+)/i.exec(title);
+  if (chapterMatch) {
+    const sub = normalizeTitle(chapterMatch[1].trim());
+    if (sub && sub.length >= 4 && sub !== full) variants.push(sub);
+  }
+  return variants;
+}
+
 function titleInPage(title: string, pageText: string): boolean {
-  const norm = normalizeTitle(title);
-  if (!norm || norm.length < 3) return false;
-  return pageText.split("\n").some((line) => isHeadingLine(line, norm));
+  const lines = pageText.split("\n");
+  return titleVariants(title).some((norm) =>
+    norm.length >= 3 && lines.some((line) => isHeadingLine(line, norm))
+  );
 }
 
 /**

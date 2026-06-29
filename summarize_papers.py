@@ -386,6 +386,40 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
     MIN_BODY = 500   # chars — merge stubs into previous section
     CHUNK_CHARS = 20_000  # target chars per chunk in fallback mode
 
+    def _clean_pdf_body(body: str) -> str:
+        """Strip common pdfminer artefacts from a PDF section body.
+
+        Removes:
+        - Standalone page numbers (digit-only lines)
+        - Standalone roman numeral page numbers (≤ 6 chars)
+        - Running headers/footers: short lines (< 80 chars) that appear 4+ times
+        Collapses runs of 3+ blank lines to two.
+        """
+        raw_lines = body.split("\n")
+
+        # Count frequency of short lines to detect running headers
+        freq: dict[str, int] = {}
+        for ln in raw_lines:
+            t = ln.strip()
+            if t and len(t) < 80:
+                freq[t] = freq.get(t, 0) + 1
+        repeated = {t for t, cnt in freq.items() if cnt >= 4}
+
+        kept: list[str] = []
+        for ln in raw_lines:
+            t = ln.strip()
+            if re.match(r"^\d+$", t):           # standalone page number
+                continue
+            if re.match(r"^[ivxlcdmIVXLCDM]+$", t, re.IGNORECASE) and len(t) <= 6:
+                continue                         # roman numeral page number
+            if t in repeated:                    # running header / footer
+                continue
+            kept.append(ln)
+
+        result = "\n".join(kept)
+        result = re.sub(r"\n{3,}", "\n\n", result)
+        return result.strip()
+
     def _build_from_positions(
         full_text: str, positions: list[tuple[int, str]]
     ) -> list[Section]:
@@ -397,6 +431,7 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
             # Drop the heading line itself from the body
             nl = content.find("\n")
             content = content[nl:].strip() if nl != -1 else ""
+            content = _clean_pdf_body(content)
             if len(content) < MIN_BODY:
                 if result:
                     result[-1] = dataclasses.replace(
