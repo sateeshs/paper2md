@@ -386,6 +386,13 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
     MIN_BODY = 500   # chars — merge stubs into previous section
     CHUNK_CHARS = 20_000  # target chars per chunk in fallback mode
 
+    # Pattern: pdfminer often inserts 2–3 extra spaces inside justified-text words
+    _MULTI_SPACE = re.compile(r"  +")
+    # Orphaned math symbol lines: ≤20 chars containing mostly symbols/brackets/operators
+    _MATH_ORPHAN = re.compile(
+        r"^[\s\d\W\\{}\[\]().,;:!?=<>≤≥≠±∓∈∉⊂⊃⊆⊇∪∩∅→←↔↑↓⇒⇔∀∃∑∏∫∂∇∞√·×÷αβγδεζηθιλμνξπρστυφχψωΑΒΓΔΕΖΗΘΙΛΜΝΞΠΡΣΤΥΦΧΨΩ]+$"
+    )
+
     def _clean_pdf_body(body: str) -> str:
         """Strip common pdfminer artefacts from a PDF section body.
 
@@ -393,6 +400,8 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
         - Standalone page numbers (digit-only lines)
         - Standalone roman numeral page numbers (≤ 6 chars)
         - Running headers/footers: short lines (< 80 chars) that appear 4+ times
+        - Orphaned math-symbol lines (≤ 20 chars, only operators/Greek/brackets)
+        Fixes justified-text double-spacing.
         Collapses runs of 3+ blank lines to two.
         """
         raw_lines = body.split("\n")
@@ -414,6 +423,10 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
                 continue                         # roman numeral page number
             if t in repeated:                    # running header / footer
                 continue
+            if t and len(t) <= 20 and _MATH_ORPHAN.match(t):
+                continue                         # orphaned math-symbol fragment
+            # Fix justified-text multiple spaces between words
+            ln = _MULTI_SPACE.sub(" ", ln)
             kept.append(ln)
 
         result = "\n".join(kept)

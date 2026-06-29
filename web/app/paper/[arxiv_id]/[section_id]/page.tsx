@@ -73,6 +73,18 @@ export default async function SectionPage({ params }: PageProps) {
           {section.title ?? `Section ${section.order_idx + 1}`}
         </h1>
 
+        {/* PDF-sourced notice — shown when paper has no LaTeX source */}
+        {paper.source_type === "pdf" && (
+          <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-300">
+            <span className="mt-0.5 shrink-0">⚠</span>
+            <span>
+              This paper has no LaTeX source — text was extracted from the PDF.
+              Mathematical notation may appear incomplete or garbled.{" "}
+              <strong>Use the PDF viewer on the right</strong> for accurate formulas.
+            </span>
+          </div>
+        )}
+
         {/* Prerequisites panel — shown when math blocks have prerequisite data */}
         <PrerequisitesPanel prerequisites={prerequisites} />
 
@@ -104,7 +116,7 @@ export default async function SectionPage({ params }: PageProps) {
       </div>
 
       {/* Right pane — PDF at the section's page */}
-      <div className="hidden lg:flex flex-col w-[48%] shrink-0 border-l border-zinc-200 dark:border-zinc-700">
+      <div className={`${paper.source_type === "pdf" ? "hidden md:flex" : "hidden lg:flex"} flex-col w-[48%] shrink-0 border-l border-zinc-200 dark:border-zinc-700`}>
         <PdfSectionPane
           arxivId={arxiv_id}
           sectionTitle={section.title ?? ""}
