@@ -23,3 +23,6 @@ openai>=1.0.0
 # EPUB extraction (summarize_local_pdf.py)
 ebooklib>=0.18
 beautifulsoup4>=4.12
+
+# Vision math extraction for PDF-only papers (--vision-math flag)
+pymupdf>=1.24.0
