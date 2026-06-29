@@ -32,6 +32,7 @@ Optional env vars:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import re
 import traceback
@@ -306,13 +307,16 @@ def process_arxiv_id(
             citations=citations,
         )
     else:
-        # Already set from PDF fallback above
+        # PDF fallback — split plain text into sections heuristically
+        pdf_sections = _split_pdf_into_sections(paper.text)
+        tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
         paper = Paper(
             title=paper.title,
             text=paper.text,
             pdf_path=paper.pdf_path,
             arxiv_id=arxiv_id,
             source_type=source_type,
+            sections=pdf_sections,
         )
 
     # Summarise
@@ -355,6 +359,71 @@ def process_arxiv_id(
             mark_error(arxiv_id, _format_exc(e))
 
     return paper
+
+
+def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
+    """Heuristically split plain PDF text into Section objects.
+
+    Looks for common heading patterns found in academic PDFs and textbooks:
+      - "1 Introduction" / "1.2 Background"  (numbered with space)
+      - "1. Introduction" / "1.2. Method"    (numbered with period)
+      - "Chapter 1 Title" / "Part II"         (keyword prefix)
+      - "INTRODUCTION" / "RELATED WORK"       (ALL-CAPS short line ≤ 6 words)
+
+    Falls back to a single section containing all text if no headings found.
+    """
+    from lib.models import Section
+
+    _HEADING_RE = re.compile(
+        r"^(?:"
+        # Numbered: "1 Title", "1. Title", "1.2 Title", "1.2. Title"
+        r"(?:\d+(?:\.\d+)*\.?\s+[A-Z][^\n]{2,70})"
+        r"|"
+        # Keyword prefix: "Chapter 1", "Part 2", "Appendix A"
+        r"(?:(?:Chapter|Part|Section|Appendix)\s+[\dA-Z]+(?:\s+[A-Z][^\n]{0,60})?)"
+        r"|"
+        # ALL-CAPS heading (2-6 words, no digits in middle)
+        r"(?:[A-Z][A-Z\s\-]{4,50}[A-Z])"
+        r")$",
+        re.MULTILINE,
+    )
+
+    lines = text.splitlines()
+    # Find candidate heading lines + their char offsets in the original text
+    heading_positions: list[tuple[int, str]] = []  # (char_offset, heading_text)
+    char_offset = 0
+    for line in lines:
+        stripped = line.strip()
+        if stripped and _HEADING_RE.match(stripped):
+            heading_positions.append((char_offset, stripped))
+        char_offset += len(line) + 1  # +1 for the newline
+
+    # Need at least 2 headings to bother splitting
+    if len(heading_positions) < 2:
+        return (Section(order_idx=0, title="Content", plain_text=text.strip()),)
+
+    # Build sections from heading boundaries
+    sections: list[Section] = []
+    for i, (pos, title) in enumerate(heading_positions):
+        next_pos = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(text)
+        body = text[pos:next_pos].strip()
+        # Strip the heading line itself from the body
+        first_newline = body.find("\n")
+        body = body[first_newline:].strip() if first_newline != -1 else ""
+        if len(body) < 50:
+            # Too short — merge into previous section or skip
+            if sections:
+                prev = sections[-1]
+                sections[-1] = dataclasses.replace(
+                    prev, plain_text=prev.plain_text + "\n\n" + body
+                )
+            continue
+        sections.append(Section(order_idx=len(sections), title=title, plain_text=body))
+
+    if not sections:
+        return (Section(order_idx=0, title="Content", plain_text=text.strip()),)
+
+    return tuple(sections)
 
 
 def _arxiv_api_title(arxiv_id: str) -> str | None:
