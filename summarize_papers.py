@@ -210,6 +210,8 @@ def process_arxiv_id(
     no_algo_explain: bool = False,
     push_supabase: bool = False,
     force: bool = False,
+    vision_math: bool = False,
+    vision_pages: int = 5,
 ) -> Paper | None:
     """
     Full pipeline for a single ArXiv paper.
@@ -280,12 +282,13 @@ def process_arxiv_id(
             time.sleep(3)  # polite delay
             resp = httpx.get(pdf_url, follow_redirects=True, timeout=120)
             resp.raise_for_status()
-            with tempfile.TemporaryDirectory() as tmp:
-                pdf_path = Path(tmp) / f"{arxiv_id}.pdf"
-                pdf_path.write_bytes(resp.content)
-                paper_pdf = extract_paper_from_pdf(pdf_path)
-                paper = paper_pdf
-                source_type = "pdf"
+            # Keep the PDF on disk if vision-math is requested (temp dir stays open)
+            _pdf_tmpdir = tempfile.mkdtemp(prefix="paper2md_pdf_")
+            pdf_path_for_vision = Path(_pdf_tmpdir) / f"{arxiv_id}.pdf"
+            pdf_path_for_vision.write_bytes(resp.content)
+            paper_pdf = extract_paper_from_pdf(pdf_path_for_vision)
+            paper = paper_pdf
+            source_type = "pdf"
         except Exception as e:
             _report_error("pdf_fallback", label, e)
             if push_supabase:
@@ -310,6 +313,29 @@ def process_arxiv_id(
         # PDF fallback — split plain text into sections heuristically
         pdf_sections = _split_pdf_into_sections(paper.text)
         tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
+
+        # Vision math extraction (optional, PDF-only papers)
+        if vision_math and pdf_sections:
+            try:
+                from lib.pdf_vision_math import extract_vision_math_for_sections
+                tqdm.write(f"[INFO] {label}: running vision math extraction…")
+                pdf_sections = extract_vision_math_for_sections(
+                    pdf_path=pdf_path_for_vision,
+                    sections=pdf_sections,
+                    max_pages_per_section=vision_pages,
+                    verbose=True,
+                )
+                total_blocks = sum(len(s.math_blocks) for s in pdf_sections)
+                tqdm.write(f"[INFO] {label}: {total_blocks} math block(s) extracted via vision")
+            except Exception as e:
+                _report_error("vision_math", label, e)
+            finally:
+                import shutil
+                shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
+        else:
+            import shutil
+            shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
+
         paper = Paper(
             title=paper.title,
             text=paper.text,
@@ -586,6 +612,11 @@ def main() -> int:
     # ── ArXiv / math options ───────────────────────────────────────────────
     ap.add_argument("--no-math-explain", action="store_true",
                     help="Skip math explanation step (faster)")
+    ap.add_argument("--vision-math", action="store_true",
+                    help="For PDF-only papers: use a vision LLM (OpenRouter, free) to extract "
+                         "math expressions as LaTeX from rendered page images")
+    ap.add_argument("--vision-pages", type=int, default=5,
+                    help="Pages to render per section for vision math (default: 5)")
     ap.add_argument("--max-math-blocks", type=int, default=None,
                     help="Global cap on math blocks explained per paper (default: PAPER2MD_MAX_MATH_BLOCKS env or 50)")
     ap.add_argument("--max-blocks-per-section", type=int, default=None,
@@ -636,6 +667,8 @@ def main() -> int:
                 no_algo_explain=args.no_algo_explain,
                 push_supabase=args.push_supabase,
                 force=args.force,
+                vision_math=args.vision_math,
+                vision_pages=args.vision_pages,
             )
             if paper:
                 processed += 1
