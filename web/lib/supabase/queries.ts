@@ -55,6 +55,16 @@ export async function getSectionsPaged(
   return { sections: (data ?? []) as SectionWithMathCount[], total: count ?? 0 };
 }
 
+/** Count total sections for a paper (cheap — no body data fetched). */
+export async function getSectionsCount(client: Client, paperId: string): Promise<number> {
+  const { count, error } = await client
+    .from("sections")
+    .select("id", { count: "exact", head: true })
+    .eq("paper_id", paperId);
+  if (error) throw new Error(`getSectionsCount: ${error.message}`);
+  return count ?? 0;
+}
+
 /** Return a page of papers for the landing page, plus the total count. */
 export async function getRecentPapers(
   client: Client,

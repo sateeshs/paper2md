@@ -7,6 +7,10 @@ import { extractPageTexts } from "@/lib/pdf-doc";
 interface PdfSectionPaneProps {
   arxivId: string;
   sectionTitle: string;
+  /** 0-based position of this section among all sections — used for page estimation fallback */
+  orderIdx?: number;
+  /** Total number of sections in the paper — used for page estimation fallback */
+  totalSections?: number;
 }
 
 function normalizeLine(text: string): string {
@@ -65,48 +69,68 @@ function titleVariants(title: string): string[] {
 }
 
 /** Finds which PDF page contains the section title as a heading. */
-async function findPage(arxivId: string, title: string): Promise<number> {
+async function findPage(
+  arxivId: string,
+  title: string,
+  orderIdx?: number,
+  totalSections?: number,
+): Promise<number> {
   const variants = titleVariants(title);
-  if (variants.length === 0) return 1;
 
+  const { extractPageTexts, getPdfDocument } = await import("@/lib/pdf-doc");
   const texts = await extractPageTexts(arxivId);
-  const totalPages = texts.length - 1;
-  const tocZone = Math.max(3, Math.ceil(totalPages * 0.1));
+  const scannedPages = texts.length - 1;
+  const tocZone = Math.max(3, Math.ceil(scannedPages * 0.1));
 
-  for (const normTitle of variants) {
-    // Pass 1: heading-line exact match
-    const matches: number[] = [];
-    for (let p = 1; p <= totalPages; p++) {
-      if (texts[p].split("\n").some((line) => isHeadingLine(line, normTitle))) {
-        matches.push(p);
+  if (variants.length > 0) {
+    for (const normTitle of variants) {
+      // Pass 1: heading-line exact match within scanned pages
+      const matches: number[] = [];
+      for (let p = 1; p <= scannedPages; p++) {
+        if (texts[p].split("\n").some((line) => isHeadingLine(line, normTitle))) {
+          matches.push(p);
+        }
+      }
+      if (matches.length > 0) {
+        const bodyMatches = matches.filter((p) => p > tocZone);
+        return bodyMatches.length > 0 ? bodyMatches[0] : matches[0];
       }
     }
-    if (matches.length > 0) {
-      const bodyMatches = matches.filter((p) => p > tocZone);
-      return bodyMatches.length > 0 ? bodyMatches[0] : matches[0];
+
+    // Pass 2: substring fallback within scanned pages
+    const primary = variants[0];
+    const fallbacks: number[] = [];
+    for (let p = 1; p <= scannedPages; p++) {
+      if (normalizeLine(texts[p]).includes(primary)) fallbacks.push(p);
+    }
+    if (fallbacks.length > 0) {
+      const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
+      return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
     }
   }
 
-  // Pass 2: substring fallback using first variant
-  const primary = variants[0];
-  const fallbacks: number[] = [];
-  for (let p = 1; p <= totalPages; p++) {
-    if (normalizeLine(texts[p]).includes(primary)) fallbacks.push(p);
-  }
-  if (fallbacks.length > 0) {
-    const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
-    return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
+  // Pass 3: ratio-based estimate using actual PDF total pages.
+  // Needed when the section falls beyond MAX_SCAN_PAGES (e.g. long textbooks).
+  if (orderIdx !== undefined && totalSections && totalSections > 0) {
+    const doc = await getPdfDocument(arxivId);
+    const actualTotal = doc.numPages;
+    return Math.max(1, Math.round(((orderIdx + 0.5) / totalSections) * actualTotal));
   }
 
   return 1;
 }
 
-export function PdfSectionPane({ arxivId, sectionTitle }: PdfSectionPaneProps) {
+export function PdfSectionPane({
+  arxivId,
+  sectionTitle,
+  orderIdx,
+  totalSections,
+}: PdfSectionPaneProps) {
   const [targetPage, setTargetPage] = useState<number>(1);
 
   useEffect(() => {
-    findPage(arxivId, sectionTitle).then(setTargetPage);
-  }, [arxivId, sectionTitle]);
+    findPage(arxivId, sectionTitle, orderIdx, totalSections).then(setTargetPage);
+  }, [arxivId, sectionTitle, orderIdx, totalSections]);
 
   return <PdfPageViewer arxivId={arxivId} targetPage={targetPage} />;
 }
