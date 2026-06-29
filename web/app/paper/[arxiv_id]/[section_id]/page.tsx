@@ -2,7 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getSectionWithMath, getPaperByArxivId } from "@/lib/supabase/queries";
+import { getSectionWithMath, getPaperByArxivId, getSectionsCount } from "@/lib/supabase/queries";
 import { MathBlock } from "@/components/MathBlock";
 import { AlgorithmBlock } from "@/components/AlgorithmBlock";
 import type { AlgorithmBlock as AlgorithmBlockRow } from "@/lib/supabase/types";
@@ -40,6 +40,8 @@ export default async function SectionPage({ params }: PageProps) {
   ]);
 
   if (!section || !paper) notFound();
+
+  const totalSections = await getSectionsCount(client, paper.id);
 
   const mathBlocks = section.math_blocks ?? [];
   // algorithm_blocks are included via the extended getSectionWithMath query
@@ -103,7 +105,12 @@ export default async function SectionPage({ params }: PageProps) {
 
       {/* Right pane — PDF at the section's page */}
       <div className="hidden lg:flex flex-col w-[48%] shrink-0 border-l border-zinc-200 dark:border-zinc-700">
-        <PdfSectionPane arxivId={arxiv_id} sectionTitle={section.title ?? ""} />
+        <PdfSectionPane
+          arxivId={arxiv_id}
+          sectionTitle={section.title ?? ""}
+          orderIdx={section.order_idx}
+          totalSections={totalSections}
+        />
       </div>
     </div>
   );

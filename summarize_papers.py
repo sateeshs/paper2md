@@ -421,16 +421,18 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
         return result.strip()
 
     def _build_from_positions(
-        full_text: str, positions: list[tuple[int, str]]
+        full_text: str, positions: list[tuple[int, int, str]]
     ) -> list[Section]:
-        """Given (char_offset, title) pairs, slice full_text into sections."""
+        """Given (body_start, heading_end, title) triples, slice full_text into sections.
+
+        body_start: character offset where the body content begins (after the heading).
+        heading_end: same as body_start — kept for clarity; the next section's
+                     heading_start determines where this section ends.
+        """
         result: list[Section] = []
-        for i, (pos, title) in enumerate(positions):
-            next_pos = positions[i + 1][0] if i + 1 < len(positions) else len(full_text)
-            content = full_text[pos:next_pos].strip()
-            # Drop the heading line itself from the body
-            nl = content.find("\n")
-            content = content[nl:].strip() if nl != -1 else ""
+        for i, (body_start, _heading_end, title) in enumerate(positions):
+            next_heading_start = positions[i + 1][0] if i + 1 < len(positions) else len(full_text)
+            content = full_text[body_start:next_heading_start].strip()
             content = _clean_pdf_body(content)
             if len(content) < MIN_BODY:
                 if result:
@@ -443,10 +445,14 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
         return result
 
     # ── Strategy 1: multi-line "Chapter\n\nN\n\nTitle" (pdfminer artefact) ──
+    # Use m.end() as body_start so the heading itself is excluded from the body.
     _MULTILINE_CH = re.compile(r"\nChapter\n\n(\d+)\n\n([^\n]+)")
     matches = list(_MULTILINE_CH.finditer(text))
     if len(matches) >= 2:
-        positions = [(m.start(), f"Chapter {m.group(1)}: {m.group(2).strip()}") for m in matches]
+        positions = [
+            (m.end(), m.end(), f"Chapter {m.group(1)}: {m.group(2).strip()}")
+            for m in matches
+        ]
         sections = _build_from_positions(text, positions)
         if len(sections) >= 2:
             return tuple(sections)
@@ -457,7 +463,11 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
     )
     inline_matches = list(_INLINE_CH.finditer(text))
     if len(inline_matches) >= 2:
-        positions = [(m.start(), m.group(0).strip()) for m in inline_matches]
+        # body starts after the heading line (m.end()) not at m.start()
+        positions = [
+            (m.end(), m.end(), m.group(0).strip())
+            for m in inline_matches
+        ]
         sections = _build_from_positions(text, positions)
         if len(sections) >= 2:
             return tuple(sections)
