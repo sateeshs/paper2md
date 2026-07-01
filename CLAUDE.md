@@ -15,6 +15,7 @@ User → /chat → POST /api/chat → Claude Sonnet 4.6
                    paper-processor-mcp  (Python / Modal)          — process, parse, explain
                    paper-reader-mcp     (TypeScript / CF Workers)  — sections, math, prereqs
                    arxiv-search-mcp     (TypeScript / CF Workers)  — discover papers
+                   math-to-code-mcp     (TypeScript / CF Workers)  — formula → Python code
 ```
 
 **Batch processing** — Modal `process_pending_batch()` cron (every 6h) replaced GitHub Actions.
@@ -417,11 +418,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # anon key — safe to expose
 PAPER_PROCESSOR_MCP_URL=            # Modal serve URL for paper-processor-mcp
 PAPER_READER_MCP_URL=               # Cloudflare Workers URL for paper-reader-mcp
 ARXIV_SEARCH_MCP_URL=               # Cloudflare Workers URL for arxiv-search-mcp
-MATH_TO_CODE_MCP_URL=               # Modal serve URL for math-to-code-mcp (optional)
+MATH_TO_CODE_MCP_URL=               # Cloudflare Workers URL for math-to-code-mcp (optional)
 
 # UI feature flags (client-readable)
 NEXT_PUBLIC_SHOW_CHAT=true          # show /chat page (default false until MCP live)
 NEXT_PUBLIC_SHOW_CODE_TOGGLE=true   # show Code toggle on MathBlock (default true)
+NEXT_PUBLIC_SHOW_REVIEW_UI=true     # show Save-to-DB button in CodePanel (default true)
 
 # GitHub fallback (only needed when PAPER_PROCESSOR_MCP_URL is unset)
 GITHUB_DISPATCH_TOKEN=              # PAT: Actions read/write
@@ -448,12 +450,12 @@ GITHUB_KB_REPO=                     # e.g. "paper2md-kb"
 - [ ] DB migration — verify `liked`, `liked_at`, `github_md_url` columns are applied
 - [ ] Create GitHub PAT for kb repo (Contents: read/write), add `GITHUB_KB_*` env vars
 
-### math-to-code-mcp (Phase 8 — not yet started)
-- [ ] `mcp-servers/math-to-code-mcp/server.py` — 3 tools (list_implementable, generate_formula_code, generate_section_code)
-- [ ] Modal deploy sharing `paper2md-secrets`
-- [ ] `web/components/CodePanel.tsx` — 5 collapsible read-only sections with copy buttons
-- [ ] `web/app/api/math/[block_id]/code/route.ts` — cache check → MCP call
-- [ ] `supabase/migrations/` — `math_code_artifacts` table
+### math-to-code-mcp (TypeScript / CF Workers — ready to deploy)
+- [ ] `wrangler secret put SUPABASE_URL` in `mcp-servers/math-to-code-mcp/`
+- [ ] `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `wrangler secret put ANTHROPIC_API_KEY`
+- [ ] `wrangler deploy` → add URL to Vercel + `.env.local` as `MATH_TO_CODE_MCP_URL`
+- [ ] Apply `supabase/migrations/005_math_code_artifacts.sql` and run `npm run gen:types`
 
 ### Misc
 - [ ] Replace placeholder titles in DB for 3 papers that have `arxiv_id` stored as title
