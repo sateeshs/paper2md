@@ -26,3 +26,5 @@ beautifulsoup4>=4.12
 
 # Vision math extraction for PDF-only papers (--vision-math flag)
 pymupdf>=1.24.0
+mcp==1.28.1
+modal==1.5.1

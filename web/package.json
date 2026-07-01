@@ -11,9 +11,11 @@
     "gen:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/supabase/types.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.49.0",
     "@tailwindcss/postcss": "^4.3.0",
+    "ai": "^7.0.10",
     "katex": "^0.16.22",
     "next": "16.2.9",
     "pdfjs-dist": "^6.0.227",
