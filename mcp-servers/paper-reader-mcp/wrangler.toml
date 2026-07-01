@@ -1,0 +1,12 @@
+name = "paper2md-reader-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Non-secret vars (override with wrangler secret put for SUPABASE_ANON_KEY)
+ENVIRONMENT = "production"
+
+# Secrets (set via: wrangler secret put SUPABASE_URL && wrangler secret put SUPABASE_ANON_KEY)
+# SUPABASE_URL
+# SUPABASE_ANON_KEY
