@@ -12,6 +12,7 @@ import { ProseWithMath } from "@/components/ProseWithMath";
 import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
 import { aggregatePrerequisites } from "@/lib/prerequisites";
 import { BackButton } from "@/components/BackButton";
+import { DownloadSectionButton } from "@/components/DownloadSectionButton";
 
 export const revalidate = 3600;
 
@@ -69,9 +70,28 @@ export default async function SectionPage({ params }: PageProps) {
           </span>
         </nav>
 
-        <h1 className="text-2xl font-bold mb-6">
-          {section.title ?? `Section ${section.order_idx + 1}`}
-        </h1>
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <h1 className="text-2xl font-bold">
+            {section.title ?? `Section ${section.order_idx + 1}`}
+          </h1>
+          <DownloadSectionButton
+            section={{
+              id: section.id,
+              title: section.title ?? null,
+              order_idx: section.order_idx,
+              plain_text: section.plain_text ?? null,
+              math_blocks: mathBlocks.map((b) => ({
+                id: b.id,
+                order_idx: b.order_idx,
+                env_type: b.env_type ?? '',
+                latex_expr: b.latex_expr ?? '',
+                explanation: b.explanation ?? null,
+                explanation_model: b.explanation_model ?? null,
+              })),
+            }}
+            paper={{ title: paper.title, arxiv_id: arxiv_id }}
+          />
+        </div>
 
         {/* PDF-sourced notice — shown when paper has no LaTeX source */}
         {paper.source_type === "pdf" && (
