@@ -5,7 +5,7 @@ import type { MathBlock as MathBlockType } from "@/lib/supabase/types";
 import { KATEX_OPTIONS, isDisplayMode, prepareLatex } from "@/lib/katex-helpers";
 import { ProseWithMath } from "@/components/ProseWithMath";
 import { CodePanel } from "@/components/CodePanel";
-import type { CodeSection } from "@/components/CodePanel";
+import type { CodeSection, CodeArtifactForSave } from "@/components/CodePanel";
 import { flags } from "@/lib/feature-flags";
 
 interface MathBlockProps {
@@ -95,6 +95,10 @@ export function MathBlock({ block }: MathBlockProps) {
         } else {
           setCodeData(data as CodeArtifact);
           setCodeState("ready");
+          // Cache in localStorage so DownloadSectionButton can include generated code
+          try {
+            localStorage.setItem(`code:${block.id}:${library}`, JSON.stringify(data))
+          } catch { /* quota exceeded — non-fatal */ }
         }
       } catch (err) {
         setCodeError(err instanceof Error ? err.message : "Network error");
@@ -235,6 +239,18 @@ export function MathBlock({ block }: MathBlockProps) {
                   sections={codeSections}
                   functionName={codeData.function_name ?? ""}
                   generatedModel={codeData.generated_model ?? null}
+                  artifact={{
+                    block_id: block.id,
+                    library,
+                    function_name: codeData.function_name,
+                    imports: codeData.imports,
+                    code: codeData.code,
+                    example_usage: codeData.example_usage,
+                    test_code: codeData.test_code,
+                    parameters: codeData.parameters,
+                    notes: codeData.notes,
+                    generated_model: codeData.generated_model,
+                  } satisfies CodeArtifactForSave}
                 />
               )}
             </>
