@@ -13,6 +13,9 @@ export const flags = {
   SHOW_CHAT_INTERFACE: process.env.NEXT_PUBLIC_SHOW_CHAT === 'true',
   SHOW_CODE_TOGGLE: process.env.NEXT_PUBLIC_SHOW_CODE_TOGGLE !== 'false',    // default ON
   SHOW_MATH_LIBRARY_PICKER: process.env.NEXT_PUBLIC_SHOW_LIBRARY_PICKER !== 'false', // default ON
+  // Controls Save-to-DB button and artifact review panel in CodePanel.
+  // Set NEXT_PUBLIC_SHOW_REVIEW_UI=false to hide it (e.g. read-only / demo mode).
+  SHOW_REVIEW_UI: process.env.NEXT_PUBLIC_SHOW_REVIEW_UI !== 'false',        // default ON
 } as const
 
 export type FeatureFlags = typeof flags
