@@ -239,7 +239,7 @@ export function MathBlock({ block }: MathBlockProps) {
                   sections={codeSections}
                   functionName={codeData.function_name ?? ""}
                   generatedModel={codeData.generated_model ?? null}
-                  artifact={{
+                  artifact={flags.SHOW_REVIEW_UI ? {
                     block_id: block.id,
                     library,
                     function_name: codeData.function_name,
@@ -250,7 +250,7 @@ export function MathBlock({ block }: MathBlockProps) {
                     parameters: codeData.parameters,
                     notes: codeData.notes,
                     generated_model: codeData.generated_model,
-                  } satisfies CodeArtifactForSave}
+                  } satisfies CodeArtifactForSave : undefined}
                 />
               )}
             </>
