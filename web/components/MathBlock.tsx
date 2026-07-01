@@ -4,15 +4,49 @@ import { useEffect, useRef, useState } from "react";
 import type { MathBlock as MathBlockType } from "@/lib/supabase/types";
 import { KATEX_OPTIONS, isDisplayMode, prepareLatex } from "@/lib/katex-helpers";
 import { ProseWithMath } from "@/components/ProseWithMath";
+import { CodePanel } from "@/components/CodePanel";
+import type { CodeSection } from "@/components/CodePanel";
+import { flags } from "@/lib/feature-flags";
 
 interface MathBlockProps {
   block: MathBlockType;
 }
 
+type Library = "numpy" | "pytorch" | "jax" | "scipy";
+type CodeState = "idle" | "loading" | "ready" | "error";
+
+interface CodeArtifact {
+  function_name?: string;
+  imports?: string;
+  code?: string;
+  parameters?: unknown;
+  example_usage?: string;
+  test_code?: string | null;
+  notes?: string;
+  prompt_context?: {
+    formula?: string;
+    what_it_computes?: string;
+    symbol_meanings?: string;
+    context_before?: string;
+    context_after?: string;
+    library?: string;
+  };
+  generated_model?: string;
+}
+
+const LIBRARIES: Library[] = ["numpy", "pytorch", "jax", "scipy"];
+
 export function MathBlock({ block }: MathBlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [renderError, setRenderError] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
+
+  // Code toggle state
+  const [showCode, setShowCode] = useState(false);
+  const [codeState, setCodeState] = useState<CodeState>("idle");
+  const [codeData, setCodeData] = useState<CodeArtifact | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [library, setLibrary] = useState<Library>("numpy");
 
   const displayMode = isDisplayMode(block.env_type);
   const prepared = prepareLatex(block.latex_expr, displayMode);
@@ -33,8 +67,83 @@ export function MathBlock({ block }: MathBlockProps) {
     });
   }, [prepared, displayMode]);
 
+  function handleLibraryChange(next: Library) {
+    setLibrary(next);
+    // Reset so next expand re-fetches for new library
+    if (codeState === "ready") {
+      setCodeState("idle");
+      setCodeData(null);
+    }
+  }
+
+  async function handleCodeToggle() {
+    const next = !showCode;
+    setShowCode(next);
+
+    if (next && codeState === "idle") {
+      setCodeState("loading");
+      try {
+        const res = await fetch(`/api/math/${block.id}/code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ library }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setCodeError(data.error ?? "Unknown error");
+          setCodeState("error");
+        } else {
+          setCodeData(data as CodeArtifact);
+          setCodeState("ready");
+        }
+      } catch (err) {
+        setCodeError(err instanceof Error ? err.message : "Network error");
+        setCodeState("error");
+      }
+    }
+  }
+
   // Expression is entirely commented-out or empty — nothing to render
   if (!prepared) return null;
+
+  const codeSections: CodeSection[] = codeData
+    ? [
+        {
+          label: "PROMPT CONTEXT",
+          content: codeData.prompt_context
+            ? [
+                `Formula: ${codeData.prompt_context.formula ?? ""}`,
+                `What it computes: ${codeData.prompt_context.what_it_computes ?? ""}`,
+                `Symbols: ${codeData.prompt_context.symbol_meanings ?? ""}`,
+                codeData.prompt_context.context_before ? `Context before: ${codeData.prompt_context.context_before}` : "",
+                codeData.prompt_context.context_after ? `Context after: ${codeData.prompt_context.context_after}` : "",
+                `Library: ${codeData.prompt_context.library ?? library}`,
+              ]
+                .filter(Boolean)
+                .join("\n")
+            : "",
+          defaultOpen: false,
+        },
+        {
+          label: "IMPORTS",
+          content: codeData.imports ?? "",
+          defaultOpen: true,
+        },
+        {
+          label: "FUNCTION",
+          content: codeData.code ?? "",
+          defaultOpen: true,
+        },
+        {
+          label: "EXAMPLE USAGE",
+          content: codeData.example_usage ?? "",
+          defaultOpen: true,
+        },
+        ...(codeData.test_code
+          ? [{ label: "TESTS", content: codeData.test_code, defaultOpen: false }]
+          : []),
+      ]
+    : [];
 
   return (
     <div className="my-4 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -78,6 +187,60 @@ export function MathBlock({ block }: MathBlockProps) {
           </p>
         )}
       </div>
+
+      {/* Code toggle (only when feature flag is on) */}
+      {flags.SHOW_CODE_TOGGLE && (
+        <div className="border-t border-zinc-200 dark:border-zinc-700">
+          <div className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <button
+              onClick={handleCodeToggle}
+              className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 flex-1 text-left"
+            >
+              <span>{showCode ? "▾" : "▸"}</span>
+              <span>Code</span>
+              {codeState === "loading" && (
+                <span className="ml-1 text-xs text-blue-500 animate-pulse">generating…</span>
+              )}
+            </button>
+
+            {/* Library picker */}
+            <select
+              value={library}
+              onChange={(e) => handleLibraryChange(e.target.value as Library)}
+              className="text-xs text-zinc-500 dark:text-zinc-400 bg-transparent border border-zinc-200 dark:border-zinc-600 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              aria-label="Target library"
+            >
+              {LIBRARIES.map((lib) => (
+                <option key={lib} value={lib}>
+                  {lib}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {showCode && (
+            <>
+              {codeState === "loading" && (
+                <div className="px-4 py-6 text-xs text-zinc-400 text-center">
+                  Generating {library} implementation… (~30–90s)
+                </div>
+              )}
+              {codeState === "error" && (
+                <p className="px-4 py-3 text-xs text-red-600 bg-red-50 dark:bg-red-950">
+                  {codeError ?? "Code generation failed. Try again."}
+                </p>
+              )}
+              {codeState === "ready" && codeData && (
+                <CodePanel
+                  sections={codeSections}
+                  functionName={codeData.function_name ?? ""}
+                  generatedModel={codeData.generated_model ?? null}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

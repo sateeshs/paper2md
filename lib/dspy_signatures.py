@@ -218,6 +218,67 @@ class SATTutor(dspy.Signature):
     )
 
 
+class GenerateFormulaCode(dspy.Signature):
+    """Convert a LaTeX mathematical formula from a research paper into clean,
+    runnable Python code. The function must:
+    - Accept parameters (NEVER hardcode values from the paper)
+    - Match the mathematical semantics exactly
+    - Use idiomatic library patterns (NumPy broadcasting, PyTorch tensor ops, etc.)
+    - Include a clear docstring citing what the formula computes
+    - Be syntactically valid and importable
+    """
+
+    # Inputs
+    paper_title: str = dspy.InputField(desc="Full title of the paper")
+    section_title: str = dspy.InputField(desc="Section containing this formula")
+    latex_expr: str = dspy.InputField(desc="LaTeX expression of the formula")
+    what_it_computes: str = dspy.InputField(
+        desc="Plain-English description from math explanation"
+    )
+    symbol_meanings: str = dspy.InputField(
+        desc="Symbol-to-meaning mapping from math explanation"
+    )
+    context_before: str = dspy.InputField(
+        desc="Text immediately before the formula (up to 800 chars)"
+    )
+    context_after: str = dspy.InputField(
+        desc="Text immediately after the formula (up to 800 chars)"
+    )
+    library: str = dspy.InputField(
+        desc="Target library: numpy | pytorch | jax | scipy"
+    )
+
+    # Outputs
+    function_name: str = dspy.OutputField(
+        desc="Snake_case following library_verb_noun pattern. "
+             "E.g. 'numpy_compute_scaled_dot_product_attention'"
+    )
+    imports: str = dspy.OutputField(
+        desc="Required import statements, one per line"
+    )
+    code: str = dspy.OutputField(
+        desc="Complete Python function with type hints and docstring. "
+             "NEVER hardcode values from the paper (e.g. if paper uses d_k=64, "
+             "that must be a parameter, not a constant). "
+             "All paper-specific numbers become function arguments with defaults allowed."
+    )
+    parameters: str = dspy.OutputField(
+        desc="JSON list: [{name, type, description, example_value}]. "
+             "example_value uses the paper's numerical example for illustration only."
+    )
+    example_usage: str = dspy.OutputField(
+        desc="Runnable Python snippet calling the function with example values"
+    )
+    test_code: str = dspy.OutputField(
+        desc="A single pytest test function that verifies the output shape/type/range. "
+             "Use the example values from example_usage."
+    )
+    notes: str = dspy.OutputField(
+        desc="Caveats about assumptions, numerical precision, edge cases, or "
+             "paper-specific constraints the function does not enforce."
+    )
+
+
 class SummarizeChunk(dspy.Signature):
     """Summarise one chunk of an ML/RecSys research paper for an engineering audience.
 
