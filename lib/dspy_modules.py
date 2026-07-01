@@ -29,7 +29,14 @@ from lib.dspy_config import (
     is_provider_exhausted,
     rate_limit_sleep,
 )
-from lib.dspy_signatures import ExplainAlgorithmBlock, ExplainMathBlock, ReduceToFinalSummary, SATTutor, SummarizeChunk
+from lib.dspy_signatures import (
+    ExplainAlgorithmBlock,
+    ExplainMathBlock,
+    GenerateFormulaCode,
+    ReduceToFinalSummary,
+    SATTutor,
+    SummarizeChunk,
+)
 from lib.models import AlgorithmBlock, MathBlock, Paper, Section
 
 
@@ -401,6 +408,60 @@ class SATTutorModule(dspy.Module):
             "answer":           pred.answer,
             "agent_model":      _active_provider(),
         }
+
+
+def _is_implementable(block: MathBlock) -> tuple[bool, str]:
+    """Classify whether a math block is suitable for code generation.
+
+    Mirrors Paper2Agent's tutorial-scanner exclusion logic:
+    exclude when the block is definitional notation rather than a computation.
+    """
+    if not block.explanation:
+        return False, "no explanation stored — run explain_section_math first"
+    if block.env_type == "inline" and len(block.latex_expr) < 10:
+        return False, "trivial inline expression"
+    try:
+        exp = json.loads(block.explanation)
+    except (json.JSONDecodeError, TypeError):
+        return False, "explanation is not valid JSON"
+    what = exp.get("what_it_computes", "").lower()
+    notation_keywords = ("notation", "defines", "denotes", "let ", "where ", "symbol for")
+    if any(kw in what for kw in notation_keywords):
+        return False, "definitional notation, not a computation"
+    return True, "has clear input→output computation"
+
+
+class FormulaCodeGeneratorModule(dspy.Module):
+    """DSPy module that wraps GenerateFormulaCode with ChainOfThought."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.generate = dspy.ChainOfThought(GenerateFormulaCode)
+
+    def forward(
+        self,
+        paper_title: str,
+        section_title: str,
+        block: MathBlock,
+        library: str = "numpy",
+    ) -> dspy.Prediction:
+        exp: dict = {}
+        if block.explanation:
+            try:
+                exp = json.loads(block.explanation)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        return self.generate(
+            paper_title=paper_title,
+            section_title=section_title,
+            latex_expr=block.latex_expr,
+            what_it_computes=exp.get("what_it_computes", ""),
+            symbol_meanings=exp.get("symbol_meanings", ""),
+            context_before=block.context_before or "",
+            context_after=block.context_after or "",
+            library=library,
+        )
 
 
 def _format_summary(pred: dspy.Prediction) -> str:

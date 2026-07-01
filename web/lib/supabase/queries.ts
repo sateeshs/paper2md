@@ -191,6 +191,25 @@ export async function getCitationsForPaper(
   return data ?? [];
 }
 
+/** Fetch a cached math code artifact for a block + library combo. */
+export async function getCodeArtifact(
+  client: Client,
+  blockId: string,
+  library: string
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await client
+    .from("math_code_artifacts")
+    .select("*")
+    .eq("block_id", blockId)
+    .eq("library", library)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`getCodeArtifact: ${error.message}`);
+  return data ?? null;
+}
+
 /** Queue a new paper for processing (INSERT with status=pending). */
 export async function queuePaper(
   client: Client,
