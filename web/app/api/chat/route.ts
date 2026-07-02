@@ -1,10 +1,21 @@
 import { streamText, experimental_createMCPClient } from 'ai'
 import type { LanguageModel } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { createOpenAI } from '@ai-sdk/openai'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { USE_MCP, createAllMCPClients } from '@/lib/mcp-clients'
 import { PAPER_AGENT_SYSTEM_PROMPT } from '@/lib/paper-agent-prompt'
 import type { Message } from 'ai'
+
+// OpenRouter via OpenAI-compatible API — free tier model
+const openrouter = createOpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY ?? '',
+  headers: {
+    'HTTP-Referer': 'https://paper2md.vercel.app',
+    'X-Title': 'paper2md',
+  },
+})
+const CHAT_MODEL = 'google/gemini-2.0-flash-001'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -14,9 +25,9 @@ export const maxDuration = 60
 const MAX_HISTORY = 14
 
 export async function POST(req: Request): Promise<Response> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENROUTER_API_KEY) {
     return Response.json(
-      { error: 'ANTHROPIC_API_KEY is not configured. Add it to web/.env.local.' },
+      { error: 'OPENROUTER_API_KEY is not configured. Add it to web/.env.local.' },
       { status: 500 }
     )
   }
@@ -51,8 +62,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const result = streamText({
-    // Cast: @ai-sdk/anthropic@4.x returns LanguageModelV4 but ai@4.3.x expects LanguageModelV1
-    model: anthropic('claude-sonnet-4-6') as unknown as LanguageModel,
+    model: openrouter(CHAT_MODEL) as unknown as LanguageModel,
     system: PAPER_AGENT_SYSTEM_PROMPT,
     messages: trimmed,
     tools,
