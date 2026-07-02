@@ -13,7 +13,7 @@
  * Secrets (wrangler secret put):
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY   (needed to write math_code_artifacts)
- *   ANTHROPIC_API_KEY
+ *   OPENROUTER_API_KEY
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -28,7 +28,7 @@ import { z } from 'zod'
 interface Env {
   SUPABASE_URL: string
   SUPABASE_SERVICE_ROLE_KEY: string
-  ANTHROPIC_API_KEY: string
+  OPENROUTER_API_KEY: string
 }
 
 interface MathBlockRow {
@@ -116,38 +116,46 @@ Rules:
 - example_usage must be self-contained and runnable
 - Respond ONLY with the JSON object, no markdown fences`
 
-async function callAnthropic(
+// OpenRouter uses the OpenAI-compatible chat completions API.
+// Default model: google/gemini-2.0-flash-001 (fast, free tier available)
+const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
+
+async function callLLM(
   apiKey: string,
   prompt: string,
-  model = 'claude-haiku-4-5-20251001',
 ): Promise<CodeArtifact> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://paper2md.vercel.app',
+      'X-Title': 'paper2md math-to-code',
     },
     body: JSON.stringify({
-      model,
+      model: OPENROUTER_MODEL,
       max_tokens: 2048,
-      system: CODE_GEN_SYSTEM,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: CODE_GEN_SYSTEM },
+        { role: 'user', content: prompt },
+      ],
     }),
   })
 
   if (!response.ok) {
     const body = await response.text()
-    throw new Error(`Anthropic API ${response.status}: ${body}`)
+    throw new Error(`OpenRouter API ${response.status}: ${body}`)
   }
 
   const data = await response.json() as {
-    content: Array<{ type: string; text: string }>
+    choices: Array<{ message: { content: string } }>
   }
-  const text = data.content.find(c => c.type === 'text')?.text ?? ''
+  const text = data.choices[0]?.message?.content ?? ''
 
   try {
-    return JSON.parse(text) as CodeArtifact
+    // Strip markdown fences if model wraps the JSON
+    const cleaned = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
+    return JSON.parse(cleaned) as CodeArtifact
   } catch {
     throw new Error(`LLM returned non-JSON: ${text.slice(0, 200)}`)
   }
@@ -251,7 +259,7 @@ async function persistArtifact(
       test_code: artifact.test_code ?? null,
       parameters: artifact.parameters ?? null,
       notes: artifact.notes ?? null,
-      generated_model: 'claude-haiku-4-5-20251001',
+      generated_model: OPENROUTER_MODEL,
     })
     .select('id')
     .maybeSingle()
@@ -332,7 +340,7 @@ function createServer(env: Env): McpServer {
         try { exp = JSON.parse(raw.explanation ?? '{}') } catch { /* ignore */ }
 
         const prompt = buildPrompt(raw, exp, library, paperTitle, sectionTitle)
-        const artifact = await callAnthropic(env.ANTHROPIC_API_KEY, prompt)
+        const artifact = await callLLM(env.OPENROUTER_API_KEY, prompt)
         if (!include_tests) artifact.test_code = null
 
         const artifactId = await persistArtifact(env, block_id, sectionId, library, artifact)
@@ -356,7 +364,7 @@ function createServer(env: Env): McpServer {
             context_after: raw.context_after ?? '',
             library,
           },
-          generated_model: 'claude-haiku-4-5-20251001',
+          generated_model: OPENROUTER_MODEL,
           artifact_id: artifactId,
         })
       } catch (e) {
@@ -406,7 +414,7 @@ function createServer(env: Env): McpServer {
           const prompt = buildPrompt(raw, exp, library, paperTitle, sectionTitle)
           let artifact: CodeArtifact
           try {
-            artifact = await callAnthropic(env.ANTHROPIC_API_KEY, prompt)
+            artifact = await callLLM(env.OPENROUTER_API_KEY, prompt)
             if (!include_tests) artifact.test_code = null
           } catch (e) {
             skipReasons.push(`block ${raw.id}: ${String(e)}`)
@@ -450,7 +458,7 @@ function createServer(env: Env): McpServer {
           module_filename: moduleFilename,
           functions: allFunctions.map(f => ({ function_name: f.function_name, latex_expr: f.latex_expr })),
           test_module_code: testModuleCode,
-          generated_model: 'claude-haiku-4-5-20251001',
+          generated_model: OPENROUTER_MODEL,
           skipped_count: blocks.length - allFunctions.length,
           skip_reasons: skipReasons,
         })
