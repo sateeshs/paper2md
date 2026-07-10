@@ -50,6 +50,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     dispatch = await triggerProcessing(arxivId);
   }
 
+  // If neither trigger is configured, surface a clear error so clients don't
+  // silently show "triggered" while the paper stays pending forever.
+  if (!dispatch.triggered) {
+    return NextResponse.json(
+      {
+        ...result,
+        dispatch,
+        error: "Processing trigger not configured — paper is queued but will not be processed automatically. Set PAPER_PROCESSOR_MCP_URL or GITHUB_DISPATCH_TOKEN.",
+      },
+      { status: 503 }
+    );
+  }
+
   return NextResponse.json(
     { ...result, dispatch },
     { status: result.queued ? 201 : 200 }

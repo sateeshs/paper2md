@@ -8,7 +8,7 @@ interface ProcessButtonProps {
 }
 
 export function ProcessButton({ arxivId }: ProcessButtonProps) {
-  const [state, setState] = useState<"idle" | "loading" | "triggered" | "error">("idle");
+  const [state, setState] = useState<"idle" | "loading" | "triggered" | "error" | "not_configured">("idle");
 
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
@@ -22,6 +22,9 @@ export function ProcessButton({ arxivId }: ProcessButtonProps) {
       });
       if (res.ok) {
         setState("triggered");
+      } else if (res.status === 503) {
+        // Trigger not configured — paper is queued but won't be auto-processed
+        setState("not_configured");
       } else {
         setState("error");
       }
@@ -32,6 +35,14 @@ export function ProcessButton({ arxivId }: ProcessButtonProps) {
 
   if (state === "triggered") {
     return <PaperStatusStream arxivId={arxivId} />;
+  }
+
+  if (state === "not_configured") {
+    return (
+      <span className="text-xs text-amber-600 font-medium shrink-0" title="No processing backend configured — set PAPER_PROCESSOR_MCP_URL or GITHUB_DISPATCH_TOKEN">
+        Queued — no processor configured
+      </span>
+    );
   }
 
   if (state === "error") {

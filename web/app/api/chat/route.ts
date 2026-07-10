@@ -15,7 +15,7 @@ const openrouter = createOpenAI({
     'X-Title': 'paper2md',
   },
 })
-const CHAT_MODEL = 'google/gemini-2.0-flash-001'
+const CHAT_MODEL = 'google/gemini-2.5-flash'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
