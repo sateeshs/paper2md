@@ -2,6 +2,102 @@
 
 import { useState } from 'react'
 
+// ---------------------------------------------------------------------------
+// Python syntax highlighter — display only; does NOT affect copy or download
+// ---------------------------------------------------------------------------
+
+const PYTHON_KEYWORDS = new Set([
+  'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
+  'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
+  'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is',
+  'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try',
+  'while', 'with', 'yield',
+])
+
+const PYTHON_BUILTINS = new Set([
+  'abs', 'all', 'any', 'bool', 'bytes', 'callable', 'chr', 'dict',
+  'dir', 'divmod', 'enumerate', 'eval', 'exec', 'filter', 'float',
+  'format', 'frozenset', 'getattr', 'globals', 'hasattr', 'hash', 'hex',
+  'id', 'input', 'int', 'isinstance', 'issubclass', 'iter', 'len', 'list',
+  'locals', 'map', 'max', 'min', 'next', 'object', 'oct', 'open', 'ord',
+  'pow', 'print', 'property', 'range', 'repr', 'reversed', 'round', 'set',
+  'setattr', 'slice', 'sorted', 'staticmethod', 'str', 'sum', 'super',
+  'tuple', 'type', 'vars', 'zip',
+])
+
+type TokenType = 'keyword' | 'builtin' | 'string' | 'comment' | 'number' | 'decorator' | 'plain'
+
+interface Token {
+  text: string
+  type: TokenType
+}
+
+const TOKEN_PATTERNS: Array<[RegExp, TokenType | 'word']> = [
+  [/^(#[^\n]*)/, 'comment'],
+  [/^("""[\s\S]*?"""|'''[\s\S]*?''')/, 'string'],
+  [/^("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/, 'string'],
+  [/^(@[\w.]+)/, 'decorator'],
+  [/^(\b0[xX][0-9a-fA-F]+|\b\d+\.?\d*(?:[eE][+-]?\d+)?)/, 'number'],
+  [/^([A-Za-z_]\w*)/, 'word'],
+]
+
+function tokenizePython(code: string): Token[] {
+  const tokens: Token[] = []
+  let pos = 0
+  while (pos < code.length) {
+    let matched = false
+    for (const [pattern, rawType] of TOKEN_PATTERNS) {
+      const m = code.slice(pos).match(pattern)
+      if (m) {
+        let type: TokenType
+        if (rawType === 'word') {
+          if (PYTHON_KEYWORDS.has(m[1])) type = 'keyword'
+          else if (PYTHON_BUILTINS.has(m[1])) type = 'builtin'
+          else type = 'plain'
+        } else {
+          type = rawType
+        }
+        tokens.push({ text: m[1], type })
+        pos += m[1].length
+        matched = true
+        break
+      }
+    }
+    if (!matched) {
+      tokens.push({ text: code[pos], type: 'plain' })
+      pos++
+    }
+  }
+  return tokens
+}
+
+const TOKEN_CLASS: Record<TokenType, string> = {
+  keyword:   'text-blue-500 dark:text-blue-400',
+  builtin:   'text-teal-500 dark:text-teal-400',
+  string:    'text-green-600 dark:text-green-400',
+  comment:   'text-zinc-400 dark:text-zinc-500 italic',
+  number:    'text-orange-500 dark:text-orange-400',
+  decorator: 'text-yellow-600 dark:text-yellow-400',
+  plain:     '',
+}
+
+const CODE_LABELS = new Set(['IMPORTS', 'FUNCTION', 'EXAMPLE USAGE', 'TESTS'])
+
+function HighlightedCode({ code }: { code: string }) {
+  const tokens = tokenizePython(code)
+  return (
+    <>
+      {tokens.map((token, i) =>
+        token.type === 'plain'
+          ? <span key={i}>{token.text}</span>
+          : <span key={i} className={TOKEN_CLASS[token.type]}>{token.text}</span>
+      )}
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
 export type CodeSection = {
   label: string
   content: string
@@ -123,7 +219,9 @@ function CollapsibleSection({ section }: { section: CodeSection }) {
       </div>
       {open && (
         <pre className="px-4 py-3 text-xs font-mono text-zinc-700 dark:text-zinc-300 overflow-x-auto whitespace-pre-wrap break-words leading-relaxed">
-          {section.content}
+          {CODE_LABELS.has(section.label)
+            ? <HighlightedCode code={section.content} />
+            : section.content}
         </pre>
       )}
     </div>

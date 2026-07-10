@@ -1,0 +1,341 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
+  <Item class="Script" referent="ref1">
+    <Properties>
+      <string name="Name">ClaudeTerrainPlugin</string>
+      <bool name="Disabled">false</bool>
+      <ProtectedString name="Source"><![CDATA[
+-- ============================================================
+-- Claude Terrain Plugin  v1.0
+-- Import this file into Roblox Studio via Plugin Manager.
+-- Calls Anthropic API directly — no local server needed.
+-- ============================================================
+
+local HttpService    = game:GetService("HttpService")
+local RunService     = game:GetService("RunService")
+local StudioService  = game:GetService("StudioService")
+
+-- ── Toolbar & button ─────────────────────────────────────────
+local toolbar = plugin:CreateToolbar("Claude AI")
+local btn     = toolbar:CreateButton(
+    "Claude Terrain",
+    "Open Claude Terrain Builder",
+    "rbxassetid://7072706796"  -- generic AI icon
+)
+
+-- ── DockWidget ───────────────────────────────────────────────
+local widgetInfo = DockWidgetPluginGuiInfo.new(
+    Enum.InitialDockState.Right,
+    false, false, 320, 520, 260, 400
+)
+local widget = plugin:CreateDockWidgetPluginGui("ClaudeTerrainWidget", widgetInfo)
+widget.Title = "Claude Terrain"
+
+btn.Click:Connect(function()
+    widget.Enabled = not widget.Enabled
+end)
+
+-- ── UI ───────────────────────────────────────────────────────
+local bg = Instance.new("Frame")
+bg.Size = UDim2.new(1,0,1,0)
+bg.BackgroundColor3 = Color3.fromRGB(24,24,30)
+bg.BorderSizePixel = 0
+bg.Parent = widget
+
+local function label(text, y, size)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1,-16,0,size or 16)
+    l.Position = UDim2.new(0,8,0,y)
+    l.BackgroundTransparency = 1
+    l.TextColor3 = Color3.fromRGB(180,180,200)
+    l.TextSize = 12
+    l.Font = Enum.Font.Gotham
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Text = text
+    l.Parent = bg
+    return l
+end
+
+local function input(y, h, placeholder)
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1,-16,0,h)
+    box.Position = UDim2.new(0,8,0,y)
+    box.BackgroundColor3 = Color3.fromRGB(36,36,46)
+    box.BorderSizePixel = 0
+    box.TextColor3 = Color3.fromRGB(220,220,240)
+    box.PlaceholderText = placeholder or ""
+    box.PlaceholderColor3 = Color3.fromRGB(90,90,110)
+    box.TextSize = 12
+    box.Font = Enum.Font.Gotham
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.TextWrapped = true
+    box.ClearTextOnFocus = false
+    box.MultiLine = (h > 30)
+    Instance.new("UIPadding", box).PaddingLeft = UDim.new(0,6)
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0,4)
+    box.Parent = bg
+    return box
+end
+
+local function button(text, y, color)
+    local btn2 = Instance.new("TextButton")
+    btn2.Size = UDim2.new(1,-16,0,32)
+    btn2.Position = UDim2.new(0,8,0,y)
+    btn2.BackgroundColor3 = color or Color3.fromRGB(99,102,241)
+    btn2.TextColor3 = Color3.fromRGB(255,255,255)
+    btn2.TextSize = 13
+    btn2.Font = Enum.Font.GothamBold
+    btn2.Text = text
+    btn2.BorderSizePixel = 0
+    Instance.new("UICorner", btn2).CornerRadius = UDim.new(0,6)
+    btn2.Parent = bg
+    return btn2
+end
+
+label("Anthropic API Key", 10)
+local keyBox = input(28, 28, "sk-ant-...")
+keyBox.Text = ""
+
+label("Describe the terrain you want:", 70)
+local promptBox = input(88, 90,
+    "e.g. 'A mountain range with a river valley and dense forest at the base'")
+
+local buildBtn  = button("Build Terrain",  192, Color3.fromRGB(99,102,241))
+local clearBtn  = button("Clear Terrain",  232, Color3.fromRGB(180,60,60))
+
+label("Status:", 278)
+local statusLbl = label("Idle", 296, 16)
+statusLbl.TextColor3 = Color3.fromRGB(120,200,120)
+
+label("Log:", 322)
+local logBox = Instance.new("TextLabel")
+logBox.Size = UDim2.new(1,-16,0,160)
+logBox.Position = UDim2.new(0,8,0,340)
+logBox.BackgroundColor3 = Color3.fromRGB(16,16,22)
+logBox.TextColor3 = Color3.fromRGB(140,200,140)
+logBox.TextSize = 11
+logBox.Font = Enum.Font.RobotoMono
+logBox.TextXAlignment = Enum.TextXAlignment.Left
+logBox.TextYAlignment = Enum.TextYAlignment.Top
+logBox.TextWrapped = true
+logBox.BorderSizePixel = 0
+logBox.Text = ""
+Instance.new("UICorner", logBox).CornerRadius = UDim.new(0,4)
+Instance.new("UIPadding", logBox).PaddingLeft = UDim.new(0,6)
+logBox.Parent = bg
+
+-- ── Helpers ──────────────────────────────────────────────────
+local logLines = {}
+local function log(msg)
+    table.insert(logLines, 1, msg)
+    if #logLines > 10 then table.remove(logLines) end
+    logBox.Text = table.concat(logLines, "\n")
+end
+
+local function setStatus(msg, ok)
+    statusLbl.Text = msg
+    statusLbl.TextColor3 = ok and Color3.fromRGB(120,200,120) or Color3.fromRGB(220,80,80)
+end
+
+-- ── Material map ─────────────────────────────────────────────
+local MATERIALS = {
+    Grass        = Enum.Material.Grass,
+    Water        = Enum.Material.Water,
+    Rock         = Enum.Material.Rock,
+    Sand         = Enum.Material.Sand,
+    Snow         = Enum.Material.Snow,
+    Mud          = Enum.Material.Mud,
+    Ground       = Enum.Material.Ground,
+    SmoothPlastic= Enum.Material.SmoothPlastic,
+    Concrete     = Enum.Material.Concrete,
+    Asphalt      = Enum.Material.Asphalt,
+    Ice          = Enum.Material.Ice,
+    Glacier      = Enum.Material.Glacier,
+    Sandstone    = Enum.Material.Sandstone,
+    Limestone    = Enum.Material.Limestone,
+    Basalt       = Enum.Material.Basalt,
+    CrackedLava  = Enum.Material.CrackedLava,
+    Cobblestone  = Enum.Material.Cobblestone,
+    LeafyGrass   = Enum.Material.LeafyGrass,
+    Forest       = Enum.Material.ForestFloor,
+}
+
+local function getMat(name)
+    return MATERIALS[name] or Enum.Material.Grass
+end
+
+-- ── Execute terrain commands from Claude ─────────────────────
+local function execCommands(cmds)
+    local terrain = workspace.Terrain
+    local executed = 0
+    for _, cmd in ipairs(cmds) do
+        local ok, err = pcall(function()
+            if cmd.type == "clear" then
+                terrain:Clear()
+                log("✓ Cleared terrain")
+
+            elseif cmd.type == "fill_block" then
+                local cf  = CFrame.new(cmd.cx or 0, cmd.cy or 0, cmd.cz or 0)
+                local sz  = Vector3.new(cmd.sx or 100, cmd.sy or 10, cmd.sz or 100)
+                local mat = getMat(cmd.material or "Grass")
+                terrain:FillBlock(cf, sz, mat)
+                log(string.format("✓ FillBlock %s %dx%dx%d",
+                    cmd.material or "Grass", cmd.sx or 100, cmd.sy or 10, cmd.sz or 100))
+
+            elseif cmd.type == "fill_ball" then
+                local center = Vector3.new(cmd.cx or 0, cmd.cy or 0, cmd.cz or 0)
+                local mat    = getMat(cmd.material or "Rock")
+                terrain:FillBall(center, cmd.radius or 20, mat)
+                log(string.format("✓ FillBall %s r=%d", cmd.material or "Rock", cmd.radius or 20))
+
+            elseif cmd.type == "fill_cylinder" then
+                local cf  = CFrame.new(cmd.cx or 0, cmd.cy or 0, cmd.cz or 0)
+                local mat = getMat(cmd.material or "Rock")
+                terrain:FillCylinder(cf, cmd.height or 40, cmd.radius or 10, mat)
+                log(string.format("✓ FillCylinder %s h=%d r=%d",
+                    cmd.material or "Rock", cmd.height or 40, cmd.radius or 10))
+
+            elseif cmd.type == "fill_wedge" then
+                local cf  = CFrame.new(cmd.cx or 0, cmd.cy or 0, cmd.cz or 0)
+                local sz  = Vector3.new(cmd.sx or 40, cmd.sy or 40, cmd.sz or 40)
+                local mat = getMat(cmd.material or "Rock")
+                terrain:FillWedge(cf, sz, mat)
+                log(string.format("✓ FillWedge %s", cmd.material or "Rock"))
+
+            elseif cmd.type == "replace_material" then
+                local reg = Region3.new(
+                    Vector3.new(cmd.min_x or -500, cmd.min_y or -50, cmd.min_z or -500),
+                    Vector3.new(cmd.max_x or 500,  cmd.max_y or 200, cmd.max_z or 500)
+                )
+                terrain:ReplaceMaterial(reg, 4, getMat(cmd.from), getMat(cmd.to))
+                log(string.format("✓ Replace %s→%s", cmd.from or "?", cmd.to or "?"))
+            end
+        end)
+        if not ok then
+            log("✗ " .. tostring(err):sub(1,60))
+        else
+            executed = executed + 1
+        end
+    end
+    return executed
+end
+
+-- ── Claude API call ──────────────────────────────────────────
+local SYSTEM_PROMPT = [[
+You are a Roblox terrain generation expert. Given a terrain description, respond with ONLY a valid JSON object (no markdown, no explanation) in this exact schema:
+
+{
+  "description": "one sentence summary of what you built",
+  "commands": [
+    {"type": "clear"},
+    {"type": "fill_block",    "cx":0,"cy":-5,"cz":0, "sx":1000,"sy":10,"sz":1000, "material":"Grass"},
+    {"type": "fill_ball",     "cx":0,"cy":40,"cz":0, "radius":60, "material":"Rock"},
+    {"type": "fill_ball",     "cx":0,"cy":5,"cz":0,  "radius":30, "material":"Water"},
+    {"type": "fill_cylinder", "cx":50,"cy":20,"cz":50,"height":80,"radius":15, "material":"Snow"},
+    {"type": "fill_wedge",    "cx":0,"cy":0,"cz":0,  "sx":40,"sy":40,"sz":40, "material":"Rock"},
+    {"type": "replace_material","from":"Grass","to":"Snow","min_x":-500,"min_y":80,"min_y_":80,"max_x":500,"max_y":200,"max_z":500,"min_z":-500}
+  ]
+}
+
+Rules:
+- ALWAYS start with {"type":"clear"} unless user says to keep existing terrain
+- coordinates: X=left/right, Y=up/down, Z=forward/back. Origin (0,0,0) is center.
+- Ground level is Y=0. Put base terrain with cy slightly negative (e.g. cy=-5, sy=10).
+- Available materials: Grass, Water, Rock, Sand, Snow, Mud, Ground, Ice, Glacier, Sandstone, Limestone, Basalt, CrackedLava, Cobblestone, LeafyGrass, Forest
+- Use multiple overlapping fills to create natural-looking terrain
+- Scale: typical map is 1000x1000 studs. Mountains: radius 60-150. Lakes: radius 30-80.
+- Respond with ONLY the JSON object. No markdown fences. No explanation outside JSON.
+]]
+
+local function callClaude(apiKey, userPrompt)
+    local body = HttpService:JSONEncode({
+        model      = "claude-sonnet-4-6",
+        max_tokens = 1500,
+        system     = SYSTEM_PROMPT,
+        messages   = {{ role = "user", content = userPrompt }},
+    })
+
+    local ok, result = pcall(function()
+        return HttpService:RequestAsync({
+            Url    = "https://api.anthropic.com/v1/messages",
+            Method = "POST",
+            Headers = {
+                ["x-api-key"]         = apiKey,
+                ["anthropic-version"] = "2023-06-01",
+                ["Content-Type"]      = "application/json",
+            },
+            Body = body,
+        })
+    end)
+
+    if not ok then
+        return nil, "HTTP error: " .. tostring(result)
+    end
+    if result.StatusCode ~= 200 then
+        return nil, "API error " .. result.StatusCode .. ": " .. result.Body:sub(1,200)
+    end
+
+    local data = HttpService:JSONDecode(result.Body)
+    local text = data.content and data.content[1] and data.content[1].text or ""
+
+    -- Strip markdown fences if model added them
+    text = text:gsub("^```[^\n]*\n", ""):gsub("\n```$", ""):match("^%s*(.-)%s*$")
+
+    local parsed, parseErr = pcall(HttpService.JSONDecode, HttpService, text)
+    if not parsed then
+        return nil, "JSON parse error: " .. tostring(parseErr) .. "\nRaw: " .. text:sub(1,200)
+    end
+
+    local decoded = HttpService:JSONDecode(text)
+    return decoded, nil
+end
+
+-- ── Button handlers ───────────────────────────────────────────
+buildBtn.MouseButton1Click:Connect(function()
+    local apiKey = keyBox.Text:match("^%s*(.-)%s*$")
+    local prompt = promptBox.Text:match("^%s*(.-)%s*$")
+
+    if apiKey == "" or not apiKey:find("^sk%-") then
+        setStatus("Enter a valid Anthropic API key (sk-ant-...)", false)
+        return
+    end
+    if prompt == "" then
+        setStatus("Enter a terrain description first", false)
+        return
+    end
+
+    buildBtn.Text = "Asking Claude…"
+    buildBtn.BackgroundColor3 = Color3.fromRGB(60,60,80)
+    setStatus("Calling Claude API…", true)
+    log("→ " .. prompt:sub(1,50))
+
+    -- Run in a coroutine so UI doesn't freeze
+    task.spawn(function()
+        local result, err = callClaude(apiKey, prompt)
+
+        if err then
+            setStatus("Error: " .. err:sub(1,80), false)
+            log("✗ " .. err:sub(1,80))
+        else
+            setStatus("Building: " .. (result.description or "…"), true)
+            log("Claude: " .. (result.description or "no description"))
+            local n = execCommands(result.commands or {})
+            setStatus(string.format("Done — %d commands applied ✓", n), true)
+        end
+
+        buildBtn.Text = "Build Terrain"
+        buildBtn.BackgroundColor3 = Color3.fromRGB(99,102,241)
+    end)
+end)
+
+clearBtn.MouseButton1Click:Connect(function()
+    workspace.Terrain:Clear()
+    setStatus("Terrain cleared", true)
+    log("✓ Cleared all terrain")
+end)
+
+setStatus("Ready — enter API key and prompt", true)
+log("Plugin loaded. Import complete.")
+    ]]></ProtectedString>
+    </Properties>
+  </Item>
+</roblox>

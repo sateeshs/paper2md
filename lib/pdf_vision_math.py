@@ -29,15 +29,15 @@ if TYPE_CHECKING:
 # Config
 # ---------------------------------------------------------------------------
 
-VISION_MODEL = "google/gemma-4-31b-it:free"
-FALLBACK_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free"
+VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free"
+FALLBACK_MODEL = "google/gemma-4-31b-it:free"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Render scale — 2× zoom gives ~150 DPI for a letter page (good for math)
 RENDER_SCALE = 2.0
 
 # Rate-limit guard: free tier ~10 req/min → sleep between section calls
-SLEEP_BETWEEN_SECTIONS = 7  # seconds
+SLEEP_BETWEEN_SECTIONS = 15  # seconds — conservative to avoid 429s
 
 # Max pages rendered per section (keeps API payload manageable)
 MAX_PAGES_PER_SECTION = 5
@@ -69,40 +69,55 @@ Do NOT include markdown fences or any text outside the JSON array.\
 # ---------------------------------------------------------------------------
 
 def _call_vision(image_b64_list: list[str], model: str = VISION_MODEL) -> str:
-    """Send page images to OpenRouter vision model. Returns raw text response."""
+    """Send page images to OpenRouter vision model. Returns raw text response.
+    Falls back to FALLBACK_MODEL on 429 rate limit errors."""
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not set")
 
-    content: list[dict] = []
-    for b64 in image_b64_list:
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{b64}"},
-        })
-    content.append({"type": "text", "text": _PROMPT})
+    def _post(m: str) -> str:
+        content: list[dict] = []
+        for b64 in image_b64_list:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{b64}"},
+            })
+        content.append({"type": "text", "text": _PROMPT})
 
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": content}],
-        "temperature": 0.0,
-        "max_tokens": 2048,
-    }
+        payload = {
+            "model": m,
+            "messages": [{"role": "user", "content": content}],
+            "temperature": 0.0,
+            "max_tokens": 2048,
+        }
 
-    resp = httpx.post(
-        OPENROUTER_URL,
-        json=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://paper2md.vercel.app",
-            "X-Title": "paper2md",
-        },
-        timeout=60,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
+        resp = httpx.post(
+            OPENROUTER_URL,
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://paper2md.vercel.app",
+                "X-Title": "paper2md",
+            },
+            timeout=90,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        choices = data.get("choices")
+        if not choices:
+            raise RuntimeError(f"No choices in response: {str(data)[:200]}")
+        return choices[0]["message"]["content"]
+
+    try:
+        return _post(model)
+    except (httpx.HTTPStatusError, RuntimeError) as e:
+        is_429 = isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429
+        if (is_429 or "No choices" in str(e)) and model != FALLBACK_MODEL:
+            print(f"  [vision] Error on {model}: {e}. Retrying with fallback after 20s…")
+            time.sleep(20)
+            return _post(FALLBACK_MODEL)
+        raise
 
 
 def _parse_math_response(raw: str) -> list[dict]:
@@ -166,25 +181,42 @@ def _find_section_start_pages(pdf_path: Path, sections: "tuple[Section, ...]") -
         page_texts.append(re.sub(r"\s+", " ", t).lower())
     doc.close()
 
+    n_sections = max(len(sections), 1)
     result: dict[int, int] = {}
     for sec in sections:
-        # Use first 80 non-whitespace chars of plain_text as probe
+        # Ratio-based expected page — use as anchor for search
+        ratio_page = max(1, round((sec.order_idx + 0.5) / n_sections * total))
+        # Search window: ±30% of total pages centred on ratio estimate
+        window = max(20, total // 5)
+        search_min = max(0, ratio_page - window - 1)  # 0-based
+        search_max = min(total - 1, ratio_page + window - 1)
+
+        # Use first 60 non-whitespace chars of plain_text as probe
         probe_raw = re.sub(r"\s+", " ", sec.plain_text[:200]).strip().lower()
         probe = probe_raw[:60]
         if len(probe) < 10:
-            # Fallback: use section title subtitle
+            # Fallback: use section title (strip chapter number prefix)
             title_sub = re.sub(r"^chapter\s+\d+[:\s]+", "", sec.title or "", flags=re.IGNORECASE)
             probe = re.sub(r"\s+", " ", title_sub).strip().lower()
 
         found = None
-        for i, pt in enumerate(page_texts):
-            if probe[:40] in pt:
-                found = i + 1  # 1-based
+        # Search within the ratio window first, then fall back to full document
+        search_ranges = [
+            range(search_min, search_max + 1),
+            range(0, search_min),
+            range(search_max + 1, total),
+        ]
+        for search_range in search_ranges:
+            for i in search_range:
+                if probe[:40] in page_texts[i]:
+                    found = i + 1  # 1-based
+                    break
+            if found is not None:
                 break
 
         if found is None:
-            # Ratio estimate
-            found = max(1, round((sec.order_idx + 0.5) / max(len(sections), 1) * total))
+            # Ratio estimate fallback
+            found = ratio_page
 
         result[sec.order_idx] = found
 

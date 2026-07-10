@@ -206,7 +206,8 @@ export async function getCodeArtifact(
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`getCodeArtifact: ${error.message}`);
+  // Table may not exist yet (migration pending) — treat as cache miss, never throw
+  if (error) return null;
   return data ?? null;
 }
 

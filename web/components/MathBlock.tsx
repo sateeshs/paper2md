@@ -13,7 +13,7 @@ interface MathBlockProps {
 }
 
 type Library = "numpy" | "pytorch" | "jax" | "scipy";
-type CodeState = "idle" | "loading" | "ready" | "error";
+type CodeState = "idle" | "loading" | "ready" | "error" | "not_implementable";
 
 interface CodeArtifact {
   function_name?: string;
@@ -35,6 +35,30 @@ interface CodeArtifact {
 }
 
 const LIBRARIES: Library[] = ["numpy", "pytorch", "jax", "scipy"];
+
+const NOTATION_KW = [
+  "is purely notation",
+  "is notation for",
+  "introduces notation",
+  "shorthand for",
+  "symbol for",
+  "no computation",
+  "cannot be computed",
+  "not a computation",
+];
+
+function isImplementable(block: MathBlockType): boolean {
+  if (!block.explanation) return false;
+  if (block.env_type === "inline" && (block.latex_expr ?? "").length < 10) return false;
+  try {
+    const exp = JSON.parse(block.explanation) as { what_it_computes?: string };
+    const what = (exp.what_it_computes ?? "").toLowerCase();
+    if (NOTATION_KW.some((kw) => what.includes(kw))) return false;
+    return !!exp.what_it_computes;
+  } catch {
+    return false;
+  }
+}
 
 export function MathBlock({ block }: MathBlockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,7 +113,9 @@ export function MathBlock({ block }: MathBlockProps) {
           body: JSON.stringify({ library }),
         });
         const data = await res.json();
-        if (!res.ok || data.error) {
+        if (data.error && String(data.error).startsWith("block is not implementable")) {
+          setCodeState("not_implementable");
+        } else if (!res.ok || data.error) {
           setCodeError(data.error ?? "Unknown error");
           setCodeState("error");
         } else {
@@ -192,8 +218,8 @@ export function MathBlock({ block }: MathBlockProps) {
         )}
       </div>
 
-      {/* Code toggle (only when feature flag is on) */}
-      {flags.SHOW_CODE_TOGGLE && (
+      {/* Code toggle (only when feature flag is on and block is implementable) */}
+      {flags.SHOW_CODE_TOGGLE && isImplementable(block) && (
         <div className="border-t border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
             <button
@@ -203,7 +229,7 @@ export function MathBlock({ block }: MathBlockProps) {
               <span>{showCode ? "▾" : "▸"}</span>
               <span>Code</span>
               {codeState === "loading" && (
-                <span className="ml-1 text-xs text-blue-500 animate-pulse">generating…</span>
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-ping ml-1 opacity-75" />
               )}
             </button>
 
@@ -225,9 +251,15 @@ export function MathBlock({ block }: MathBlockProps) {
           {showCode && (
             <>
               {codeState === "loading" && (
-                <div className="px-4 py-6 text-xs text-zinc-400 text-center">
-                  Generating {library} implementation… (~30–90s)
+                <div className="px-4 py-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="inline-block w-3 h-3 rounded-full bg-blue-500 animate-ping opacity-75" />
+                  Generating {library} implementation… this may take 30–90s
                 </div>
+              )}
+              {codeState === "not_implementable" && (
+                <p className="px-4 py-3 text-xs text-zinc-500 dark:text-zinc-400 italic">
+                  This formula defines notation rather than computing a value — no runnable implementation available.
+                </p>
               )}
               {codeState === "error" && (
                 <p className="px-4 py-3 text-xs text-red-600 bg-red-50 dark:bg-red-950">

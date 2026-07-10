@@ -71,7 +71,19 @@ interface CodeArtifact {
 // Implementability classifier
 // ---------------------------------------------------------------------------
 
-const NOTATION_KW = ['notation', 'defines', 'denotes', 'let ', 'where ', 'symbol for']
+// Only block code generation when what_it_computes is *about* pure symbol definition.
+// Avoid "defines" / "denotes" / "where" — they appear in normal computation descriptions
+// ("It defines the output as...", "where W_g denotes the gate matrix").
+const NOTATION_KW = [
+  'is purely notation',
+  'is notation for',
+  'introduces notation',
+  'shorthand for',
+  'symbol for',
+  'no computation',
+  'cannot be computed',
+  'not a computation',
+]
 
 function isImplementable(row: MathBlockRow): [boolean, string] {
   if (!row.explanation) return [false, 'no explanation — run explain_section_math first']
@@ -96,29 +108,133 @@ function isImplementable(row: MathBlockRow): [boolean, string] {
 // LLM — call Anthropic API directly (no SDK needed in CF Workers)
 // ---------------------------------------------------------------------------
 
-const CODE_GEN_SYSTEM = `You are an expert mathematical programmer. Given a mathematical formula and its explanation, generate clean, parameterized Python code that implements the formula.
+const CODE_GEN_SYSTEM = `You are an expert mathematical programmer and teacher. Given a mathematical formula and its explanation, generate Python code that (1) NUMERICALLY IMPLEMENTS the formula and (2) is fully self-explanatory — someone unfamiliar with the math should understand every symbol and every step just by reading the code.
 
 You MUST respond with valid JSON matching this exact schema:
 {
   "function_name": "library_verb_noun (e.g. numpy_compute_cross_entropy)",
   "imports": "import statements, one per line",
-  "code": "the complete function definition with docstring",
+  "code": "the complete function definition with docstring and inline comments",
   "parameters": [{"name": "x", "type": "np.ndarray", "description": "..."}],
-  "example_usage": "runnable example showing the function being called",
+  "example_usage": "runnable example with print statements showing intermediate values",
   "test_code": "pytest function testing correctness (or null)",
   "notes": "any caveats about numerical stability or edge cases"
 }
 
-Rules:
+═══════════════════════════════════════════════
+RULE 1 — EVERY SYMBOL MUST BE DOCUMENTED
+═══════════════════════════════════════════════
+
+In the docstring, include a "Symbol Guide" section that explains every math symbol with:
+- What it is (variable, operator, function)
+- What it means in plain English
+- Its type/shape (scalar, vector R^n, matrix R^{m×n})
+- A concrete example value
+
+Example docstring format:
+    Symbol Guide:
+        Σ (Sigma)       : summation operator — adds up terms for each index i
+                          Example: Σ_{i=1}^{3} x_i = x_1 + x_2 + x_3
+        u, v            : input vectors in R^{d_k}, each component ~ N(0,1)
+                          Example: u = [0.3, -1.2, 0.8], shape (d_k,)
+        E[X]            : expected value of X — average over many random samples
+                          Example: E[coin flip] ≈ 0.5
+        d_k             : dimensionality of the vectors (int), e.g. d_k=64 in transformers
+        <u, v>          : dot product = Σ_i u_i * v_i = u[0]*v[0] + u[1]*v[1] + ...
+        Var(X)          : variance of X = E[(X - E[X])^2] — spread of X around its mean
+
+═══════════════════════════════════════════════
+RULE 2 — STEP-BY-STEP INLINE COMMENTS
+═══════════════════════════════════════════════
+
+Every significant computation line must have an inline comment that:
+- Names which part of the formula this implements (using the LaTeX notation)
+- Shows what the result looks like with a concrete example value
+
+Example:
+    # Σ_{i=1}^{d_k} u_i * v_i  (dot product, the Sigma loop over d_k dimensions)
+    dot_product = np.dot(u, v)        # e.g. [0.3,-1.2,0.8]·[0.5,0.2,-0.9] = -0.69
+
+    # E[<u,v>] via Monte Carlo: average over n_samples realizations
+    expected_value = np.mean(dot_products)   # should be ≈ 0.0 for zero-mean vectors
+
+═══════════════════════════════════════════════
+RULE 3 — MATHEMATICAL NOTATION → CODE
+═══════════════════════════════════════════════
+
+These rules are MANDATORY. Every formula element must become real computation.
+
+1. SUMMATION  Σ_{i=1}^{n} f(i)
+   → np.sum(array)  OR  explicit for loop.  NEVER skip the sum and return a constant.
+   Example: Σ_{i=1}^{d_k} u_i*v_i  →  dot = np.sum(u * v)  # Σ u_i*v_i
+
+2. EXPECTATION  E[X]
+   → Monte Carlo: generate n_samples realizations, return np.mean(samples).
+   → Accept n_samples: int = 10000 as a parameter.
+   → NEVER return the theoretical result directly (e.g. return 0.0 is FORBIDDEN).
+   Example: E[u_i*v_i] where u_i,v_i~N(0,1)
+     →  samples = np.random.randn(n_samples) * np.random.randn(n_samples)
+        return float(np.mean(samples))   # E[u_i*v_i] = E[u_i]*E[v_i] = 0*0 ≈ 0
+
+3. VARIANCE  Var(X)
+   → Monte Carlo: generate samples, return np.var(samples).
+   Example: Var(<u,v>)  →  dots = np.einsum('ni,ni->n', u_mat, v_mat); return np.var(dots)
+
+4. VECTORS / MATRICES  u, v, W, X
+   → np.ndarray parameters, or np.random.randn(n_samples, d_k) for random-vector formulas.
+
+5. DIMENSION  d_k, n, m
+   → int parameter; must appear in the body (controls array shape or loop range).
+
+6. DOT PRODUCT  <u,v>  or  u·v  or  u^T v
+   → np.dot(u, v)  or  np.sum(u * v, axis=-1)
+
+7. PRODUCTS  ∏_{i} f(i)
+   → np.prod(array)  or  accumulate in a loop.
+
+═══════════════════════════════════════════════
+RULE 4 — EDUCATIONAL example_usage
+═══════════════════════════════════════════════
+
+The example_usage field must:
+- Use concrete, small input values (e.g. d_k=4, not d_k=512)
+- Print intermediate results with labels so the reader can follow the math
+- Show the expected theoretical result alongside the computed result
+- Be fully self-contained and runnable (import numpy if needed)
+
+Example pattern:
+    import numpy as np
+    np.random.seed(42)
+
+    # Set d_k=4 so we can mentally verify: u and v have 4 components each
+    result = numpy_compute_expected_dot_product(d_k=4, n_samples=50000)
+    print(f"E[<u,v>] with d_k=4: {result:.4f}")
+    print(f"Theory says:          0.0000  (zero-mean × zero-mean = 0)")
+
+    result_var = numpy_compute_dot_product_variance(d_k=4, n_samples=50000)
+    print(f"Var(<u,v>) with d_k=4: {result_var:.4f}")
+    print(f"Theory says:            4.0000  (= d_k)")
+
+═══════════════════════════════════════════════
+STRICT PROHIBITIONS
+═══════════════════════════════════════════════
+
+- NEVER return a hardcoded constant. Every return value must be computed.
+- NEVER write a function body that is just \`return 0.0\` or \`return d_k\`.
+- NEVER omit the Σ summation — it must become np.sum() or a loop.
+- NEVER omit the E[] expectation — it must become np.mean() over samples.
 - Function name: {library}_compute_{short_description} using snake_case
-- Never hardcode numeric constants from the paper — use parameters
-- Always include type annotations and a docstring with the LaTeX formula
-- example_usage must be self-contained and runnable
-- Respond ONLY with the JSON object, no markdown fences`
+- example_usage must include print() statements showing actual output values
+
+CRITICAL OUTPUT FORMAT:
+- Return ONLY the raw JSON object — absolutely no markdown fences, no \`\`\`json, no \`\`\`
+- All newlines inside string values MUST be escaped as \\n (backslash + n)
+- All backslashes inside string values MUST be escaped as \\\\
+- The response must be directly parseable by JSON.parse() with zero modifications`
 
 // OpenRouter uses the OpenAI-compatible chat completions API.
 // Default model: google/gemini-2.0-flash-001 (fast, free tier available)
-const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
+const OPENROUTER_MODEL = 'google/gemini-2.5-flash'
 
 async function callLLM(
   apiKey: string,
@@ -134,7 +250,8 @@ async function callLLM(
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
+      response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: CODE_GEN_SYSTEM },
         { role: 'user', content: prompt },
@@ -152,12 +269,29 @@ async function callLLM(
   }
   const text = data.choices[0]?.message?.content ?? ''
 
+  // Extract JSON between first '{' and last '}' to strip any markdown fences
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  const extracted = start !== -1 && end !== -1 ? text.slice(start, end + 1) : text.trim()
+
+  // Attempt 1: parse as-is
   try {
-    // Strip markdown fences if model wraps the JSON
-    const cleaned = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
-    return JSON.parse(cleaned) as CodeArtifact
+    return JSON.parse(extracted) as CodeArtifact
+  } catch { /* fall through to repair */ }
+
+  // Attempt 2: fix unescaped newlines/tabs inside JSON string values.
+  // Matches each "..." token (respecting \" escapes) and escapes bare control chars.
+  try {
+    const repaired = extracted.replace(/"((?:[^"\\]|\\.)*)"/gs, (_m, inner: string) => {
+      const fixed = inner
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t')
+      return `"${fixed}"`
+    })
+    return JSON.parse(repaired) as CodeArtifact
   } catch {
-    throw new Error(`LLM returned non-JSON: ${text.slice(0, 200)}`)
+    throw new Error(`LLM returned non-JSON (len=${text.length}): ${text.slice(-200)}`)
   }
 }
 
@@ -239,33 +373,37 @@ async function persistArtifact(
   library: string,
   artifact: CodeArtifact,
 ): Promise<string> {
-  // Idempotent: delete existing then insert fresh
-  await db(env)
-    .from('math_code_artifacts')
-    .delete()
-    .eq('block_id', blockId)
-    .eq('library', library)
+  try {
+    // Idempotent: delete existing then insert fresh
+    await db(env)
+      .from('math_code_artifacts')
+      .delete()
+      .eq('block_id', blockId)
+      .eq('library', library)
 
-  const { data, error } = await db(env)
-    .from('math_code_artifacts')
-    .insert({
-      block_id: blockId,
-      section_id: sectionId,
-      library,
-      function_name: artifact.function_name,
-      imports: artifact.imports,
-      code: artifact.code,
-      example_usage: artifact.example_usage,
-      test_code: artifact.test_code ?? null,
-      parameters: artifact.parameters ?? null,
-      notes: artifact.notes ?? null,
-      generated_model: OPENROUTER_MODEL,
-    })
-    .select('id')
-    .maybeSingle()
+    const { data } = await db(env)
+      .from('math_code_artifacts')
+      .insert({
+        block_id: blockId,
+        section_id: sectionId,
+        library,
+        function_name: artifact.function_name,
+        imports: artifact.imports,
+        code: artifact.code,
+        example_usage: artifact.example_usage,
+        test_code: artifact.test_code ?? null,
+        parameters: artifact.parameters ?? null,
+        notes: artifact.notes ?? null,
+        generated_model: OPENROUTER_MODEL,
+      })
+      .select('id')
+      .maybeSingle()
 
-  if (error) throw new Error(`persistArtifact: ${error.message}`)
-  return (data as unknown as { id: string } | null)?.id ?? ''
+    return (data as unknown as { id: string } | null)?.id ?? ''
+  } catch {
+    // Table may not exist yet (migration pending) — non-fatal, code still returned
+    return ''
+  }
 }
 
 // ---------------------------------------------------------------------------
