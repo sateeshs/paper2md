@@ -259,6 +259,8 @@ def process_arxiv_id(
     source_type = "arxiv_latex"
     sections = ()
 
+    _needs_pdf_fallback = False
+
     if latex:
         # Parse sections and math blocks from LaTeX
         try:
@@ -270,9 +272,16 @@ def process_arxiv_id(
         except Exception as e:
             _report_error("latex_parse", label, e)
             sections = ()
-    else:
+
+        # Detect stub LaTeX (e.g. \includepdf wrapper) that yields no sections
+        if not sections:
+            tqdm.write(f"[WARN] {label}: LaTeX source yielded 0 sections — falling back to PDF")
+            _needs_pdf_fallback = True
+
+    if not latex or _needs_pdf_fallback:
         # Fall back to direct PDF download (no API call — avoids rate limits)
-        tqdm.write(f"[WARN] {label}: no LaTeX source — falling back to PDF")
+        if not latex:
+            tqdm.write(f"[WARN] {label}: no LaTeX source — falling back to PDF")
         try:
             import tempfile
             import time
@@ -296,7 +305,7 @@ def process_arxiv_id(
             return None
 
     # Build Paper object from LaTeX path
-    if latex:
+    if latex and not _needs_pdf_fallback:
         # For arXiv papers prefer the API title (authoritative, avoids template placeholders).
         # Fall back to LaTeX \title{} extraction if the API call fails.
         title = _arxiv_api_title(arxiv_id) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
@@ -511,7 +520,101 @@ def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
         if len(sections) >= 2:
             return tuple(sections)
 
-    # ── Strategy 3: paragraph-aware chunking (guaranteed fallback) ────────────
+    # ── Strategy 3: numbered section headings ──────────────────────────────────
+    # Handles both well-spaced PDFs ("1 Introduction\n") and no-space PDFs where
+    # headings are glued to body text ("2Background:PolicyOptimization...").
+
+    # 3a: standalone-line headings (well-formatted PDFs)
+    _NUMBERED_SEC_LINE = re.compile(
+        r"^(\d+(?:\.\d+)?|[A-Z])\s+([A-Z][A-Za-z\s:,&\-–—]{2,78})$", re.MULTILINE
+    )
+    line_matches = list(_NUMBERED_SEC_LINE.finditer(text))
+    if len(line_matches) >= 3:
+        positions = [
+            (m.end(), m.end(), m.group(0).strip())
+            for m in line_matches
+            if len(m.group(0).strip()) <= 100
+        ]
+        sections = _build_from_positions(text, positions)
+        if len(sections) >= 3:
+            return tuple(sections)
+
+    # 3b: no-space PDFs — find top-level section markers using known heading keywords.
+    # In poorly-extracted PDFs, text runs together without whitespace. We look for
+    # digit + known academic section keywords (Introduction, Background, Conclusion, etc.)
+    _KNOWN_SECTIONS = (
+        "Introduction", "Background", "Related", "Method", "Approach",
+        "Algorithm", "Experiment", "Result", "Discussion", "Conclusion",
+        "Evaluation", "Implementation", "Analysis", "Preliminaries",
+        "Problem", "Model", "Framework", "Architecture", "Training",
+        "Setup", "Appendix", "Overview", "Motivation", "Objective",
+        "Formulation", "Surrogate", "Adaptive", "Clipped",
+    )
+    _SEC_KW_PATTERN = re.compile(
+        r"(\d)(" + "|".join(_KNOWN_SECTIONS) + r")"
+    )
+    all_kw_matches = list(_SEC_KW_PATTERN.finditer(text))
+    # Filter to strictly sequential section numbers (1, 2, 3, ...).
+    # This avoids false positives from figure/table data containing digit + keyword.
+    kw_matches: list[re.Match[str]] = []
+    expected_sec = 1
+    for m in all_kw_matches:
+        num = int(m.group(1))
+        if num == expected_sec:
+            kw_matches.append(m)
+            expected_sec = num + 1
+
+    if len(kw_matches) >= 3:
+        parts = [text[:kw_matches[0].start()]]
+        for i, m in enumerate(kw_matches):
+            end = kw_matches[i + 1].start() if i + 1 < len(kw_matches) else len(text)
+            parts.append(text[m.start():end])
+    else:
+        parts = []
+
+    if len(parts) >= 4:  # first part is preamble + at least 3 sections
+        def _nospace_title(chunk: str, keyword: str) -> str:
+            """Build a readable section title from the matched keyword.
+
+            For no-space PDFs, we rely on the keyword matched by the regex
+            since word boundaries are unreliable in concatenated text.
+            For well-spaced text, we also grab words after the keyword.
+            """
+            m = re.match(r"(\d+)", chunk)
+            num = m.group(1) if m else ""
+            title = re.sub(r"([a-z])([A-Z])", r"\1 \2", keyword)
+            # If text has spaces (well-formatted PDF), grab extra title words
+            after_kw = chunk[len(num) + len(keyword):]
+            if " " in after_kw[:30]:
+                # Well-spaced: take up to 3 additional capitalized words
+                words = after_kw.strip().split()
+                for w in words[:3]:
+                    if w[0:1].isupper() and len(w) <= 15:
+                        title += " " + w
+                    else:
+                        break
+            return f"{num} {title}"
+
+        built_sections: list[Section] = []
+        # Skip first part (preamble/abstract before section 1)
+        for i, part in enumerate(parts[1:]):
+            body = _clean_pdf_body(part)
+            if len(body) < MIN_BODY:
+                if built_sections:
+                    built_sections[-1] = dataclasses.replace(
+                        built_sections[-1],
+                        plain_text=built_sections[-1].plain_text + "\n\n" + body,
+                    )
+                continue
+            keyword = kw_matches[i].group(2) if i < len(kw_matches) else ""
+            title = _nospace_title(part, keyword)
+            built_sections.append(
+                Section(order_idx=len(built_sections), title=title, plain_text=body)
+            )
+        if len(built_sections) >= 3:
+            return tuple(built_sections)
+
+    # ── Strategy 4: paragraph-aware chunking (guaranteed fallback) ────────────
     chunks = chunk_text_for_llm(text, max_chars=CHUNK_CHARS)
     result: list[Section] = []
     for chunk in chunks:
