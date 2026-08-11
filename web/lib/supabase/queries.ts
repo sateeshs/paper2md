@@ -146,6 +146,26 @@ export async function getSectionWithMath(
   return data as SectionWithMath | null;
 }
 
+/** Return the prev/next section IDs for navigation on the section detail page. */
+export async function getAdjacentSections(
+  client: Client,
+  paperId: string,
+  currentOrderIdx: number
+): Promise<{ prev: { id: string; title: string | null } | null; next: { id: string; title: string | null } | null }> {
+  const { data, error } = await client
+    .from("sections")
+    .select("id, order_idx, title")
+    .eq("paper_id", paperId)
+    .in("order_idx", [currentOrderIdx - 1, currentOrderIdx + 1]);
+
+  if (error) throw new Error(`getAdjacentSections: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    prev: rows.find((s) => s.order_idx < currentOrderIdx) ?? null,
+    next: rows.find((s) => s.order_idx > currentOrderIdx) ?? null,
+  };
+}
+
 /** Search papers by title (case-insensitive prefix match). */
 export async function searchPapers(
   client: Client,

@@ -236,7 +236,29 @@ CRITICAL OUTPUT FORMAT:
 // Default model: google/gemini-2.0-flash-001 (fast, free tier available)
 const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
 
+const MAX_LLM_RETRIES = 2
+
 async function callLLM(
+  apiKey: string,
+  prompt: string,
+): Promise<CodeArtifact> {
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt <= MAX_LLM_RETRIES; attempt++) {
+    try {
+      return await callLLMOnce(apiKey, prompt)
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e))
+      const isRetryable = lastError.message.includes('truncated') ||
+        lastError.message.includes('non-JSON')
+      if (!isRetryable || attempt === MAX_LLM_RETRIES) break
+    }
+  }
+
+  throw lastError!
+}
+
+async function callLLMOnce(
   apiKey: string,
   prompt: string,
 ): Promise<CodeArtifact> {
@@ -250,7 +272,7 @@ async function callLLM(
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
-      max_tokens: 8192,
+      max_tokens: 16384,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: CODE_GEN_SYSTEM },
@@ -270,19 +292,40 @@ async function callLLM(
   const choice = data.choices[0]
   const text = choice?.message?.content ?? ''
 
-  // Detect truncated response (thinking models can exhaust the token budget)
-  if (choice?.finish_reason === 'length' || text.length < 100) {
+  // Detect truncated response: explicit length finish, very short, or incomplete JSON
+  if (choice?.finish_reason === 'length') {
+    throw new Error(
+      `LLM response truncated (finish_reason=length, len=${text.length}). ` +
+      `The model ran out of output tokens.`
+    )
+  }
+
+  if (text.length < 200) {
     throw new Error(
       `LLM response truncated (finish_reason=${choice?.finish_reason ?? 'unknown'}, ` +
-      `len=${text.length}). The model may have used most tokens for reasoning. ` +
-      `Try again or use a simpler formula.`
+      `len=${text.length}). Response too short to contain valid code artifact.`
     )
   }
 
   // Extract JSON between first '{' and last '}' to strip any markdown fences
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
-  const extracted = start !== -1 && end !== -1 ? text.slice(start, end + 1) : text.trim()
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(
+      `LLM returned non-JSON (len=${text.length}, no braces found): ${text.slice(0, 200)}`
+    )
+  }
+  const extracted = text.slice(start, end + 1)
+
+  // Verify the JSON has all required top-level keys before parsing
+  const requiredKeys = ['function_name', 'code', 'imports']
+  const missingKeys = requiredKeys.filter(k => !extracted.includes(`"${k}"`))
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `LLM response truncated (len=${text.length}, missing keys: ${missingKeys.join(', ')}): ` +
+      `${text.slice(-200)}`
+    )
+  }
 
   // Attempt 1: parse as-is
   try {

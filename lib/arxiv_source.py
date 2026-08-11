@@ -34,7 +34,7 @@ _MAX_INCLUDE_DEPTH = 5
 
 # Patterns for includes
 _INPUT_RE = re.compile(
-    r"\\(?:input|include)\{([^}]+)\}",
+    r"\\(?:input|include)(?:\{([^}]+)\}|[ \t]+([^\s{}%\\]+))",
     re.MULTILINE,
 )
 
@@ -187,7 +187,7 @@ def _resolve_includes(
         return content
 
     def replacer(m: re.Match) -> str:  # type: ignore[type-arg]
-        ref = m.group(1).strip()
+        ref = (m.group(1) or m.group(2)).strip()
         # Add .tex extension if missing
         if not ref.endswith(".tex"):
             ref += ".tex"
