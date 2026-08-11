@@ -35,7 +35,7 @@ export async function getPdfDocument(arxivId: string) {
  * Maximum pages to scan for section-title mapping.
  * 600-page PDFs crash the browser tab if we extract all pages — cap here.
  */
-const MAX_SCAN_PAGES = 150;
+const MAX_SCAN_PAGES = 300;
 
 /**
  * Extract plain text page-by-page up to maxPages.

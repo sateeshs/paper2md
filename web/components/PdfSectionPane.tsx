@@ -98,14 +98,31 @@ async function findPage(
     }
 
     // Pass 2: substring fallback within scanned pages
-    const primary = variants[0];
-    const fallbacks: number[] = [];
-    for (let p = 1; p <= scannedPages; p++) {
-      if (normalizeLine(texts[p]).includes(primary)) fallbacks.push(p);
+    for (const normTitle of variants) {
+      const fallbacks: number[] = [];
+      for (let p = 1; p <= scannedPages; p++) {
+        if (normalizeLine(texts[p]).includes(normTitle)) fallbacks.push(p);
+      }
+      if (fallbacks.length > 0) {
+        const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
+        return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
+      }
     }
-    if (fallbacks.length > 0) {
-      const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
-      return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
+
+    // Pass 2b: fuzzy — match if 80%+ of title words appear on the page
+    const primary = variants[0];
+    const titleWords = primary.split(" ").filter((w) => w.length >= 3);
+    if (titleWords.length >= 2) {
+      const fuzzyMatches: number[] = [];
+      for (let p = 1; p <= scannedPages; p++) {
+        const pageNorm = normalizeLine(texts[p]);
+        const matched = titleWords.filter((w) => pageNorm.includes(w)).length;
+        if (matched / titleWords.length >= 0.8) fuzzyMatches.push(p);
+      }
+      if (fuzzyMatches.length > 0) {
+        const bodyFuzzy = fuzzyMatches.filter((p) => p > tocZone);
+        return bodyFuzzy.length > 0 ? bodyFuzzy[0] : fuzzyMatches[0];
+      }
     }
   }
 
