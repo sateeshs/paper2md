@@ -90,6 +90,34 @@ python summarize_papers.py --clear-cache   # wipe cache then run
 
 Set `PAPER2MD_DEBUG_TRACE=1` for full tracebacks on failures.
 
+### Filling missing math explanations
+
+`explain_math_only.py` generates explanations for math blocks already in Supabase
+without re-processing the paper. It UPDATEs rows in-place — no sections are deleted.
+
+```bash
+# All unexplained blocks across all papers
+python explain_math_only.py
+
+# Single paper
+python explain_math_only.py --arxiv-id 2407.18384 --max-blocks 300
+
+# Single section (page) — pass the Supabase section UUID
+python explain_math_only.py --section-id 479197f5-140e-4c8e-8b08-d79ee62ecd75
+
+# Re-explain blocks that already have explanations
+python explain_math_only.py --arxiv-id 2407.18384 --force
+
+# Cap blocks per section (ensures coverage across all sections)
+python explain_math_only.py --arxiv-id 2407.18384 --max-blocks-per-section 5
+
+# Textbook framing (changes explanation style)
+python explain_math_only.py --arxiv-id 2409.02668 --paper-type textbook
+```
+
+Key options: `--min-expr-len` (skip trivial inline exprs, default 6),
+`--paper-type` (`research_paper` | `textbook` | `lecture_notes`).
+
 ### Debugging section count issues
 
 If a paper shows fewer sections than expected, run the diagnostic script:
