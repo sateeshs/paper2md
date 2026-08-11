@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { prepareLatex, KATEX_OPTIONS } from "@/lib/katex-helpers";
 
 // Matches display math: \[...\] or $$...$$ — must come before inline patterns
@@ -41,22 +41,35 @@ function autoWrapBareLatex(text: string): string {
 
 function MathChunk({ expr, display }: { expr: string; display: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const [renderError, setRenderError] = useState(false);
 
   useEffect(() => {
     if (!ref.current) return;
     const prepared = prepareLatex(expr, display);
-    if (!prepared) return;
+    if (!prepared) {
+      setRenderError(true);
+      return;
+    }
     import("katex").then(({ default: katex }) => {
       try {
         katex.render(prepared, ref.current!, {
           ...KATEX_OPTIONS,
           displayMode: display,
         });
+        setRenderError(false);
       } catch {
-        // leave as raw text on error
+        setRenderError(true);
       }
     });
   }, [expr, display]);
+
+  if (renderError) {
+    return (
+      <code className="text-sm text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono break-all">
+        {expr}
+      </code>
+    );
+  }
 
   // Empty span — no children so React never overwrites KaTeX's innerHTML on re-render
   return (
