@@ -250,7 +250,7 @@ async function callLLM(
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
-      max_tokens: 4096,
+      max_tokens: 16384,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: CODE_GEN_SYSTEM },
@@ -265,9 +265,19 @@ async function callLLM(
   }
 
   const data = await response.json() as {
-    choices: Array<{ message: { content: string } }>
+    choices: Array<{ message: { content: string }; finish_reason?: string }>
   }
-  const text = data.choices[0]?.message?.content ?? ''
+  const choice = data.choices[0]
+  const text = choice?.message?.content ?? ''
+
+  // Detect truncated response (thinking models can exhaust the token budget)
+  if (choice?.finish_reason === 'length' || text.length < 100) {
+    throw new Error(
+      `LLM response truncated (finish_reason=${choice?.finish_reason ?? 'unknown'}, ` +
+      `len=${text.length}). The model may have used most tokens for reasoning. ` +
+      `Try again or use a simpler formula.`
+    )
+  }
 
   // Extract JSON between first '{' and last '}' to strip any markdown fences
   const start = text.indexOf('{')
