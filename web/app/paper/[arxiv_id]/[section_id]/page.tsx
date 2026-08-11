@@ -2,7 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getSectionWithMath, getPaperByArxivId, getSectionsCount } from "@/lib/supabase/queries";
+import { getSectionWithMath, getPaperByArxivId, getSectionsCount, getAdjacentSections } from "@/lib/supabase/queries";
 import { MathBlock } from "@/components/MathBlock";
 import { AlgorithmBlock } from "@/components/AlgorithmBlock";
 import type { AlgorithmBlock as AlgorithmBlockRow } from "@/lib/supabase/types";
@@ -42,7 +42,10 @@ export default async function SectionPage({ params }: PageProps) {
 
   if (!section || !paper) notFound();
 
-  const totalSections = await getSectionsCount(client, paper.id);
+  const [totalSections, adjacent] = await Promise.all([
+    getSectionsCount(client, paper.id),
+    getAdjacentSections(client, paper.id, section.order_idx),
+  ]);
 
   const mathBlocks = section.math_blocks ?? [];
   // algorithm_blocks are included via the extended getSectionWithMath query
@@ -127,11 +130,30 @@ export default async function SectionPage({ params }: PageProps) {
 
         {/* Navigation */}
         <div className="mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">
-          <BackButton
-            fallbackHref={`/paper/${arxiv_id}`}
-            label={`← Back to ${paper.title}`}
-            className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          />
+          <div className="flex items-center justify-between gap-4">
+            {adjacent.prev ? (
+              <a
+                href={`/paper/${arxiv_id}/${adjacent.prev.id}`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 truncate max-w-[40%]"
+              >
+                ← {adjacent.prev.title ?? `Section ${section.order_idx}`}
+              </a>
+            ) : (
+              <BackButton
+                fallbackHref={`/paper/${arxiv_id}`}
+                label={`← Back to paper`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+              />
+            )}
+            {adjacent.next && (
+              <a
+                href={`/paper/${arxiv_id}/${adjacent.next.id}`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 truncate max-w-[40%] text-right ml-auto"
+              >
+                {adjacent.next.title ?? `Section ${section.order_idx + 2}`} →
+              </a>
+            )}
+          </div>
         </div>
       </div>
 

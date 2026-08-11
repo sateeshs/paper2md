@@ -314,6 +314,25 @@ function ExplanationPanel({ explanation }: { explanation: string }) {
   }
 
   if (parsed) {
+    const hasFields = !!(
+      parsed.what_it_computes ||
+      parsed.symbol_meanings ||
+      parsed.derivation ||
+      parsed.intuition ||
+      parsed.proof_role ||
+      parsed.prerequisites ||
+      parsed.mathematical_significance ||
+      parsed.paper_relevance
+    );
+
+    if (!hasFields) {
+      return (
+        <p className="px-4 py-3 text-sm text-zinc-400 dark:text-zinc-500 italic bg-white dark:bg-zinc-950">
+          Explanation data is empty — the paper may need re-processing.
+        </p>
+      );
+    }
+
     return (
       <dl className="px-4 py-3 space-y-2 text-sm bg-white dark:bg-zinc-950">
         {parsed.what_it_computes && (
