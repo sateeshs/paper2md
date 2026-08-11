@@ -152,12 +152,25 @@ export default async function SectionPage({ params }: PageProps) {
 // Plain-text cleanup (strips LaTeX table/comment artifacts that leaked in)
 // ---------------------------------------------------------------------------
 
+// Matches math delimiters in plain text — used to protect them from cleanup.
+// Order: \[...\], $$...$$, $...$ (non-greedy, no newline), \(...\)
+const CLEANUP_MATH_RE =
+  /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|(?<!\$)\$(?!\$)((?:[^$\n]|\\.)+?)(?<!\$)\$(?!\$)|\\\(((?:[^\\]|\\.)+?)\\\)/g;
+
 function cleanPlainText(text: string): string {
-  return text
+  // Protect math regions from text cleanup (%, \\, & replacements)
+  const mathRegions: string[] = [];
+  const withPlaceholders = text.replace(CLEANUP_MATH_RE, (match) => {
+    const idx = mathRegions.length;
+    mathRegions.push(match);
+    return `\x00MATH${idx}\x00`;
+  });
+
+  const cleaned = withPlaceholders
     .split("\n")
     .map((line) => {
       let t = line;
-      // Drop % comment lines
+      // Drop % comment lines (safe — math regions are placeholder-protected)
       t = t.replace(/%[^\n]*/g, "").trim();
       return t;
     })
@@ -165,6 +178,8 @@ function cleanPlainText(text: string): string {
       const t = line.trim();
       // Keep blank lines — they are paragraph/section separators
       if (!t) return true;
+      // Keep lines containing math placeholders
+      if (t.includes("\x00")) return true;
       // Drop lines that look like table rows (3+ & separators)
       if ((t.match(/&/g) ?? []).length >= 3) return false;
       // Drop lines that are only backslash commands / column specs
@@ -177,6 +192,13 @@ function cleanPlainText(text: string): string {
     .replace(/\\\\/g, "\n")      // \\ → newline
     .replace(/\n{3,}/g, "\n\n") // collapse 3+ blank lines → paragraph break
     .trim();
+
+  // Restore protected math regions
+  let result = cleaned;
+  for (let i = 0; i < mathRegions.length; i++) {
+    result = result.replace(`\x00MATH${i}\x00`, mathRegions[i]);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -330,11 +352,24 @@ function SectionBody({
   // Display blocks (equation, align, …) are interleaved in the prose.
   // Inline blocks with explanations appear as cards too — the formula shows inline
   // via ProseWithMath AND as a card with the expandable explanation.
-  const meaningfulBlocks = mathBlocks.filter(
-    (b) =>
-      !isTrivialBlock(b) &&
-      (DISPLAY_ENV_TYPES.has(b.env_type) || !!b.explanation)
-  );
+  //
+  // When a section has NO explanations at all (paper not yet explained), also
+  // include complex inline formulas (>30 chars stripped) so the reader can at
+  // least see the key formulas rendered as cards.
+  const hasAnyExplanation = mathBlocks.some((b) => !!b.explanation);
+  const meaningfulBlocks = mathBlocks.filter((b) => {
+    if (isTrivialBlock(b)) return false;
+    if (DISPLAY_ENV_TYPES.has(b.env_type)) return true;
+    if (b.explanation) return true;
+    if (!hasAnyExplanation) {
+      const stripped = b.latex_expr
+        .trim()
+        .replace(/^\$\$|\$\$$|^\$|\$$|^\\\[|\\\]$|^\\\(|\\\)$/g, "")
+        .trim();
+      return stripped.length > 30;
+    }
+    return false;
+  });
 
   if (meaningfulBlocks.length === 0 && !plain) {
     return (
