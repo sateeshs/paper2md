@@ -234,7 +234,7 @@ CRITICAL OUTPUT FORMAT:
 
 // OpenRouter uses the OpenAI-compatible chat completions API.
 // Default model: google/gemini-2.0-flash-001 (fast, free tier available)
-const OPENROUTER_MODEL = 'google/gemini-2.5-flash'
+const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
 
 async function callLLM(
   apiKey: string,
@@ -250,7 +250,7 @@ async function callLLM(
     },
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
-      max_tokens: 16384,
+      max_tokens: 8192,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: CODE_GEN_SYSTEM },
