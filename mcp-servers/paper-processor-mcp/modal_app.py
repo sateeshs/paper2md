@@ -148,7 +148,7 @@ async def process_pending_batch() -> None:
 # ---------------------------------------------------------------------------
 
 MANIM_SCENE_SYSTEM_PROMPT = """\
-You are a ManimGL code generator. Given a LaTeX math expression and its explanation,
+You are a ManimGL v1.7.2 code generator. Given a LaTeX math expression and its explanation,
 generate a self-contained Python scene that visually illustrates the formula.
 
 ## Rules
@@ -159,16 +159,24 @@ generate a self-contained Python scene that visually illustrates the formula.
   Keep animations SHORT (3-5 seconds total). Use `self.wait(0.5)` between steps.
 - The mode will be specified in the user message
 - Resolution is 1280×720; the coordinate system spans roughly x=[-7,7] y=[-4,4]
-- Use a dark background (ManimGL default #333333)
-- Place the rendered LaTeX formula at the top using `Tex()` or `MathTex()`
+- Use a dark background (ManimGL default)
+- Place the rendered LaTeX formula at the top using `Tex()` (NOT MathTex — it does not exist in ManimGL)
 - Below the formula, add visual aids: annotated symbols, geometric diagrams,
   function plots, matrix visualizations, or conceptual diagrams as appropriate
 - Use colors to distinguish different parts: BLUE, YELLOW, GREEN, RED, TEAL, ORANGE
 - Use `Brace`, `Arrow`, `Text`, `SurroundingRectangle` for annotations
 - Keep the layout clean and readable — don't overcrowd
 
+## CRITICAL: ManimGL v1.7.2 API differences from ManimCE
+- Use `Tex()` for ALL LaTeX (both text and math). There is NO `MathTex` class.
+- Use `Tex(r"$E = mc^2$")` for math mode (wrap in dollar signs inside Tex)
+- Use `ShowCreation` NOT `Create` for drawing animations
+- Use `axes.get_graph()` NOT `axes.plot()`
+- `FunctionGraph(lambda x: ...)` works directly
+- `Arrow(start, end)` takes points, not mobjects
+
 ## Available ManimGL classes (use only these)
-- `Tex(r"\\LaTeX")`, `MathTex(r"x^2")`, `Text("plain text")`
+- `Tex(r"$\\LaTeX$")`, `Text("plain text")`
 - `NumberPlane()`, `Axes()`, `FunctionGraph(lambda x: x**2)`
 - `Circle()`, `Square()`, `Rectangle()`, `Line()`, `Arrow()`, `Vector()`
 - `Brace(mobject, direction)`, `SurroundingRectangle(mobject)`
@@ -177,50 +185,41 @@ generate a self-contained Python scene that visually illustrates the formula.
 - Positioning: `.to_edge(UP)`, `.to_corner(UL)`, `.next_to(obj, DOWN)`
 - Colors: BLUE, YELLOW, GREEN, RED, TEAL, ORANGE, WHITE, GREY
 
-## Example 1: Simple equation
+## Example 1: Simple equation (STATIC)
 ```python
 from manimlib import *
 
 class FormulaScene(Scene):
     def construct(self):
-        # Main formula
-        formula = MathTex(r"E = mc^2")
+        formula = Tex(r"$E = mc^2$")
         formula.scale(1.5).to_edge(UP, buff=1.0)
         self.add(formula)
 
-        # Annotations
-        labels = VGroup(
-            Text("Energy", font_size=24, color=BLUE),
-            Text("Mass", font_size=24, color=GREEN),
-            Text("Speed of light²", font_size=24, color=YELLOW),
-        )
+        e_label = Text("Energy", font_size=24, color=BLUE)
+        m_label = Text("Mass", font_size=24, color=GREEN)
+        c_label = Text("Speed of light²", font_size=24, color=YELLOW)
 
-        e_brace = Brace(formula[0][0], DOWN, color=BLUE)
-        m_brace = Brace(formula[0][2], DOWN, color=GREEN)
-        c_brace = Brace(formula[0][3:], DOWN, color=YELLOW)
+        e_label.next_to(formula[0][0], DOWN, buff=0.8)
+        m_label.next_to(formula[0][2], DOWN, buff=0.8)
+        c_label.next_to(formula[0][3:], DOWN, buff=0.8)
 
-        labels[0].next_to(e_brace, DOWN)
-        labels[1].next_to(m_brace, DOWN)
-        labels[2].next_to(c_brace, DOWN)
-
-        self.add(e_brace, m_brace, c_brace, *labels)
+        self.add(e_label, m_label, c_label)
 ```
 
-## Example 2: Function with plot
+## Example 2: Function with plot (STATIC)
 ```python
 from manimlib import *
 
 class FormulaScene(Scene):
     def construct(self):
-        formula = MathTex(r"f(x) = \\sin(x)")
+        formula = Tex(r"$f(x) = \\sin(x)$")
         formula.scale(1.3).to_edge(UP, buff=0.5)
         self.add(formula)
 
         axes = Axes(x_range=[-4, 4], y_range=[-1.5, 1.5], width=10, height=4)
         axes.shift(DOWN * 0.5)
         graph = axes.get_graph(lambda x: np.sin(x), color=BLUE)
-        axes_labels = axes.get_axis_labels(x_label="x", y_label="f(x)")
-        self.add(axes, graph, axes_labels)
+        self.add(axes, graph)
 ```
 
 ## Output format
