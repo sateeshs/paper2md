@@ -4,14 +4,43 @@ This file provides guidance to Claude Code when working with this repository.
 
 ---
 
+## Architecture
+
+paper2md is an **AI-agent-native app** where a Claude LLM calls structured MCP tools to
+process papers, read sections, explain math, surface prerequisites, and recommend references.
+
+```
+User → /chat → POST /api/chat → Claude Sonnet 4.6
+                                   ↕ MCP tools (maxSteps: 20)
+                   paper-processor-mcp  (Python / Modal)          — process, parse, explain
+                   paper-reader-mcp     (TypeScript / CF Workers)  — sections, math, prereqs
+                   arxiv-search-mcp     (TypeScript / CF Workers)  — discover papers
+                   math-to-code-mcp     (TypeScript / CF Workers)  — formula → Python code
+```
+
+**Batch processing** — Modal `process_pending_batch()` cron (every 6h) replaced GitHub Actions.
+**Queue fallback** — `/api/queue` fires MCP when `PAPER_PROCESSOR_MCP_URL` is set; falls back
+to GitHub Actions `workflow_dispatch` otherwise.
+**Health** — `GET /api/health` pings all configured MCP server `/health` endpoints.
+
+---
+
 ## Repository Layout
 
 ```
 paper2md/
 ├── lib/                        # Python processing core
+├── mcp-servers/                # MCP server implementations
+│   ├── paper-processor-mcp/   # Python (Modal) — 5 tools: process, sections, math, algos, status
+│   └── paper-reader-mcp/      # TypeScript (CF Workers) — 5 tools: sections, math, prereqs, refs
+│   └── arxiv-search-mcp/      # TypeScript (CF Workers) — 3 tools: search, metadata, find-prereqs
 ├── web/                        # Next.js web app (deployed to Vercel)
+│   ├── app/chat/              # Chat interface + tool result cards
+│   ├── app/api/chat/          # POST streaming handler (Claude + MCP)
+│   ├── app/api/health/        # GET /api/health — pings all MCP servers
+│   └── lib/                   # mcp-clients.ts, mcp-dispatch.ts, feature-flags.ts
 ├── supabase/migrations/        # SQL schema + RLS
-├── .github/workflows/          # GitHub Actions pipeline
+├── .github/workflows/          # workflow_dispatch fallback (cron retired → Modal)
 ├── scripts/                    # One-time setup scripts
 ├── papers/                     # Sample PDFs
 ├── summarize_papers.py         # Main CLI entry point
@@ -60,6 +89,34 @@ python summarize_papers.py --clear-cache   # wipe cache then run
 ```
 
 Set `PAPER2MD_DEBUG_TRACE=1` for full tracebacks on failures.
+
+### Filling missing math explanations
+
+`explain_math_only.py` generates explanations for math blocks already in Supabase
+without re-processing the paper. It UPDATEs rows in-place — no sections are deleted.
+
+```bash
+# All unexplained blocks across all papers
+python explain_math_only.py
+
+# Single paper
+python explain_math_only.py --arxiv-id 2407.18384 --max-blocks 300
+
+# Single section (page) — pass the Supabase section UUID
+python explain_math_only.py --section-id 479197f5-140e-4c8e-8b08-d79ee62ecd75
+
+# Re-explain blocks that already have explanations
+python explain_math_only.py --arxiv-id 2407.18384 --force
+
+# Cap blocks per section (ensures coverage across all sections)
+python explain_math_only.py --arxiv-id 2407.18384 --max-blocks-per-section 5
+
+# Textbook framing (changes explanation style)
+python explain_math_only.py --arxiv-id 2409.02668 --paper-type textbook
+```
+
+Key options: `--min-expr-len` (skip trivial inline exprs, default 6),
+`--paper-type` (`research_paper` | `textbook` | `lecture_notes`).
 
 ### Debugging section count issues
 
@@ -174,6 +231,7 @@ npm run dev                         # http://localhost:3000
 | Route | File | Purpose |
 |-------|------|---------|
 | `/` | `app/page.tsx` | Hero + SearchBar + QueueForm + 20 recent papers |
+| `/chat` | `app/chat/page.tsx` | AI chat interface (Claude + MCP tools) |
 | `/paper/[arxiv_id]` | `app/paper/[arxiv_id]/page.tsx` | Paper overview + section list + PDF split view |
 | `/paper/[arxiv_id]/[section_id]` | `app/paper/[arxiv_id]/[section_id]/page.tsx` | Section detail + math blocks |
 
@@ -181,9 +239,11 @@ npm run dev                         # http://localhost:3000
 
 | Method | Route | Purpose |
 |--------|-------|---------|
+| GET | `/api/health` | Ping all configured MCP server `/health` endpoints |
+| POST | `/api/chat` | Streaming chat handler — Claude Sonnet 4.6 + MCP tools, `maxSteps:20` |
 | GET | `/api/search?q=` | Autocomplete — searches `title` + `arxiv_id` in Supabase |
 | GET | `/api/arxiv?q=` | Proxy ArXiv Atom API title search |
-| POST | `/api/queue` | Enqueue paper (`status=pending`) + trigger `workflow_dispatch` |
+| POST | `/api/queue` | Enqueue paper (`status=pending`) + trigger MCP or `workflow_dispatch` |
 | POST | `/api/like` | Like paper → generate MD → commit to GitHub kb → update DB |
 | GET | `/api/pdf/[arxiv_id]` | Proxy arxiv.org PDF (strips `X-Frame-Options` for embedding) |
 
@@ -209,7 +269,26 @@ npm run dev                         # http://localhost:3000
 extractArxivId(input: string): string | null
 // Accepts: "2301.07984", "2301.07984v2", arxiv.org URLs, alphaxiv.org URLs
 
-// github-dispatch.ts
+// mcp-clients.ts
+USE_MCP: boolean                                 // true when all 3 core MCP URLs are set
+createAllMCPClients(): Promise<MCPClient[]>      // paper-processor + paper-reader + arxiv-search
+createMathToCodeClient(): Promise<MCPClient>     // math-to-code-mcp (optional)
+
+// mcp-dispatch.ts
+triggerMCPProcessing(arxivId: string): Promise<void>
+// Fire-and-forget: calls process_paper tool on paper-processor-mcp
+
+// feature-flags.ts
+flags.USE_PAPER_PROCESSOR_MCP   // true when PAPER_PROCESSOR_MCP_URL is set
+flags.USE_PAPER_READER_MCP      // true when PAPER_READER_MCP_URL is set
+flags.USE_ARXIV_SEARCH_MCP      // true when ARXIV_SEARCH_MCP_URL is set
+flags.SHOW_CHAT_INTERFACE       // true when NEXT_PUBLIC_SHOW_CHAT=true
+flags.SHOW_CODE_TOGGLE          // default true; false when NEXT_PUBLIC_SHOW_CODE_TOGGLE=false
+
+// paper-agent-prompt.ts
+PAPER_AGENT_SYSTEM_PROMPT: string  // system prompt for /api/chat (tool ordering + style)
+
+// github-dispatch.ts  (fallback when MCP not configured)
 triggerProcessing(arxiv_id: string): Promise<DispatchResult>
 // Calls GitHub Actions workflow_dispatch REST API
 
@@ -299,12 +378,15 @@ Migrations are in `supabase/migrations/` and are applied manually via the Supaba
 
 File: `.github/workflows/process_pending.yml`
 
+The scheduled cron has been **retired** — batch processing is now handled by Modal's
+`process_pending_batch()` function (every 6h). The workflow remains as `workflow_dispatch`-only
+for manual triggers and emergency fallback.
+
 Triggers:
-- **Cron**: `0 */6 * * *` (every 6 hours)
-- **workflow_dispatch**: manual or via REST API from `/api/queue`
+- **workflow_dispatch**: manual or via REST API from `/api/queue` (fallback when MCP not set)
   - Optional input: `arxiv_id` — if set, processes only that paper
 
-Required GitHub Secrets:
+Required GitHub Secrets (still needed for fallback path):
 ```
 GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -312,7 +394,31 @@ PAPER2MD_LLM_PROVIDER=gemini
 PAPER2MD_MAX_MATH_BLOCKS=50
 ```
 
-The repo must be **public** for unlimited free Actions minutes.
+---
+
+## Modal Deployment
+
+```bash
+# One-time secrets setup
+modal secret create paper2md-secrets \
+  SUPABASE_URL="https://..." \
+  SUPABASE_SERVICE_ROLE_KEY="sb_secret_..." \
+  GEMINI_API_KEY="..." \
+  GROQ_API_KEY="..." \
+  OPENROUTER_API_KEY="..." \
+  PAPER2MD_LLM_PROVIDER="gemini" \
+  PAPER2MD_MAX_MATH_BLOCKS="50"
+
+# Deploy MCP server + batch cron
+modal deploy mcp-servers/paper-processor-mcp/modal_app.py
+
+# Local dev (live reload)
+modal serve mcp-servers/paper-processor-mcp/modal_app.py
+```
+
+The deploy registers two Modal functions:
+- `serve` — ASGI web endpoint for the FastMCP server (MCP tools over HTTP)
+- `process_pending_batch` — Cron job running every 6h (replaces GitHub Actions)
 
 ---
 
@@ -335,27 +441,49 @@ PAPER2MD_DEBUG_TRACE=0              # set to 1 for full tracebacks
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # anon key — safe to expose
-GITHUB_DISPATCH_TOKEN=                  # PAT: Actions read/write (triggers pipeline)
-GITHUB_KB_TOKEN=                        # PAT: Contents write (commits .md files)
-GITHUB_KB_OWNER=                        # GitHub username/org
-GITHUB_KB_REPO=                         # e.g. "paper2md-kb"
+
+# MCP server URLs (set to enable MCP path; leave unset for GitHub Actions fallback)
+PAPER_PROCESSOR_MCP_URL=            # Modal serve URL for paper-processor-mcp
+PAPER_READER_MCP_URL=               # Cloudflare Workers URL for paper-reader-mcp
+ARXIV_SEARCH_MCP_URL=               # Cloudflare Workers URL for arxiv-search-mcp
+MATH_TO_CODE_MCP_URL=               # Cloudflare Workers URL for math-to-code-mcp (optional)
+
+# UI feature flags (client-readable)
+NEXT_PUBLIC_SHOW_CHAT=true          # show /chat page (default false until MCP live)
+NEXT_PUBLIC_SHOW_CODE_TOGGLE=true   # show Code toggle on MathBlock (default true)
+NEXT_PUBLIC_SHOW_REVIEW_UI=true     # show Save-to-DB button in CodePanel (default true)
+
+# GitHub fallback (only needed when PAPER_PROCESSOR_MCP_URL is unset)
+GITHUB_DISPATCH_TOKEN=              # PAT: Actions read/write
+GITHUB_KB_TOKEN=                    # PAT: Contents write (commits .md files)
+GITHUB_KB_OWNER=                    # GitHub username/org
+GITHUB_KB_REPO=                     # e.g. "paper2md-kb"
 ```
 
 > **Note**: `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` must be the real service_role key, not the anon key. Get it from Supabase dashboard → Project Settings → API → service_role.
 
 ---
 
-## Pending Work (Phase 4 & 5)
+## Pending Work
 
-### Phase 4 — Automation
-- [ ] Create GitHub PAT (Actions: read/write), add as `GITHUB_DISPATCH_TOKEN` to Vercel
-- [ ] Deploy to Vercel — Root Directory: `web/`, add env vars
-- [ ] Make repo public (enables unlimited free Actions minutes)
+### MCP Deployment
+- [ ] Deploy `paper-processor-mcp` to Modal (`modal deploy mcp-servers/paper-processor-mcp/modal_app.py`)
+- [ ] Deploy `paper-reader-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/paper-reader-mcp/`)
+- [ ] Deploy `arxiv-search-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/arxiv-search-mcp/`)
+- [ ] Add MCP URLs to Vercel env vars + set `NEXT_PUBLIC_SHOW_CHAT=true`
+- [ ] Verify `GET /api/health` returns `{ status: 'ok' }` for all 3 servers
 
-### Phase 5 — Like / Publish to GitHub
+### Like / Publish to GitHub
 - [ ] Create `paper2md-kb` public GitHub repo
-- [ ] DB migration — add `liked`, `liked_at`, `github_md_url` columns (already in `001_schema.sql` in plans, but verify they are applied)
+- [ ] DB migration — verify `liked`, `liked_at`, `github_md_url` columns are applied
 - [ ] Create GitHub PAT for kb repo (Contents: read/write), add `GITHUB_KB_*` env vars
+
+### math-to-code-mcp (TypeScript / CF Workers — ready to deploy)
+- [ ] `wrangler secret put SUPABASE_URL` in `mcp-servers/math-to-code-mcp/`
+- [ ] `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `wrangler secret put ANTHROPIC_API_KEY`
+- [ ] `wrangler deploy` → add URL to Vercel + `.env.local` as `MATH_TO_CODE_MCP_URL`
+- [ ] Apply `supabase/migrations/005_math_code_artifacts.sql` and run `npm run gen:types`
 
 ### Misc
 - [ ] Replace placeholder titles in DB for 3 papers that have `arxiv_id` stored as title

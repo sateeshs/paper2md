@@ -29,7 +29,14 @@ from lib.dspy_config import (
     is_provider_exhausted,
     rate_limit_sleep,
 )
-from lib.dspy_signatures import ExplainAlgorithmBlock, ExplainMathBlock, ReduceToFinalSummary, SATTutor, SummarizeChunk
+from lib.dspy_signatures import (
+    ExplainAlgorithmBlock,
+    ExplainMathBlock,
+
+    ReduceToFinalSummary,
+    SATTutor,
+    SummarizeChunk,
+)
 from lib.models import AlgorithmBlock, MathBlock, Paper, Section
 
 

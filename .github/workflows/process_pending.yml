@@ -1,10 +1,22 @@
-name: Process Pending Papers
+# Batch processing — manual / emergency fallback
+#
+# The scheduled cron has been replaced by Modal's process_pending_batch()
+# function (mcp-servers/paper-processor-mcp/modal_app.py), which runs every
+# 6 hours as a Modal Cron job.
+#
+# This workflow is kept as a manual fallback for:
+#   - Environments where Modal is not deployed
+#   - Emergency re-processing runs
+#   - Single-paper re-triggers from the GitHub UI
+#
+# The /api/queue route prefers the paper-processor-mcp when
+# PAPER_PROCESSOR_MCP_URL is set; it falls back to workflow_dispatch here.
+
+name: Process Pending Papers (manual fallback)
 
 on:
-  # Run every 30 minutes
-  schedule:
-    - cron: "*/30 * * * *"
-  # Allow manual trigger from GitHub UI (Actions tab → Run workflow)
+  # Manual trigger from GitHub UI (Actions tab → Run workflow)
+  # Also called by /api/queue route when PAPER_PROCESSOR_MCP_URL is not set
   workflow_dispatch:
     inputs:
       arxiv_id:
@@ -46,7 +58,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PAPER2MD_MAX_MATH_BLOCKS:  "10"
 
-      - name: Process all pending papers (scheduled / manual without arxiv_id)
+      - name: Process all pending papers (manual without arxiv_id)
         if: ${{ github.event.inputs.arxiv_id == '' }}
         run: |
           python summarize_papers.py \

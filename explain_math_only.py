@@ -7,10 +7,11 @@ runs MathExplainer on each, and UPDATEs the rows in-place.
 Sections and paper IDs are never deleted or re-inserted.
 
 Usage:
-  python explain_math_only.py                       # unexplained blocks only
-  python explain_math_only.py --arxiv-id 2606.06447 # single paper
-  python explain_math_only.py --max-blocks 100      # override cap
-  python explain_math_only.py --force               # re-explain all blocks
+  python explain_math_only.py                                    # unexplained blocks only
+  python explain_math_only.py --arxiv-id 2606.06447              # single paper
+  python explain_math_only.py --section-id <uuid>                # single section (page)
+  python explain_math_only.py --max-blocks 100                   # override cap
+  python explain_math_only.py --force                            # re-explain all blocks
 """
 
 from __future__ import annotations
@@ -36,17 +37,36 @@ def _get_client():
 def fetch_unexplained_blocks(
     client,
     arxiv_id: str | None,
+    section_id: str | None,
     force: bool,
 ) -> list[dict]:
     """
     Return rows joined across math_blocks → sections → papers.
     Each row has the fields MathExplainer needs.
+
+    If section_id is given, only blocks for that single section are returned.
     """
     # Resolve section IDs for the given arxiv_id first (nested filter
     # in the Supabase Python client doesn't work as an inner-join filter).
     section_ids: list[str] | None = None
     paper_meta: dict | None = None
-    if arxiv_id:
+
+    if section_id:
+        # Single section mode — resolve paper via section
+        sec_resp = (
+            client.table("sections")
+            .select("id, title, paper_id, papers(id, arxiv_id, title)")
+            .eq("id", section_id)
+            .single()
+            .execute()
+        )
+        if not sec_resp.data:
+            tqdm.write(f"[WARN] Section {section_id} not found in DB.")
+            return []
+        section_ids = [section_id]
+        paper_meta = sec_resp.data.get("papers")
+        tqdm.write(f"[INFO] Section: {sec_resp.data.get('title', '?')} (paper: {(paper_meta or {}).get('title', '?')})")
+    elif arxiv_id:
         paper_resp = client.table("papers").select("id, arxiv_id, title").eq("arxiv_id", arxiv_id).single().execute()
         if not paper_resp.data:
             tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
@@ -95,6 +115,7 @@ def run(
     min_expr_len: int,
     paper_type: str,
     max_blocks_per_section: int | None = None,
+    section_id: str | None = None,
 ) -> None:
     from lib.dspy_config import configure_dspy
     from lib.dspy_modules import MathExplainer
@@ -105,7 +126,7 @@ def run(
     client = _get_client()
 
     tqdm.write("[INFO] Fetching unexplained math blocks from Supabase…")
-    rows = fetch_unexplained_blocks(client, arxiv_id, force)
+    rows = fetch_unexplained_blocks(client, arxiv_id, section_id, force)
 
     if not rows:
         tqdm.write("[INFO] No unexplained blocks found.")
@@ -188,6 +209,8 @@ def run(
 def main() -> int:
     ap = argparse.ArgumentParser(description="Fill missing math explanations in Supabase")
     ap.add_argument("--arxiv-id", metavar="ID", help="Limit to one paper")
+    ap.add_argument("--section-id", metavar="UUID",
+                    help="Limit to a single section (Supabase section UUID)")
     ap.add_argument("--max-blocks", type=int,
                     default=int(os.environ.get("PAPER2MD_MAX_MATH_BLOCKS", 200)),
                     help="Global cap on blocks to explain (default: 200)")
@@ -210,6 +233,7 @@ def main() -> int:
         min_expr_len=args.min_expr_len,
         paper_type=args.paper_type,
         max_blocks_per_section=args.max_blocks_per_section,
+        section_id=args.section_id,
     )
     return 0
 

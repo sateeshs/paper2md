@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { queuePaper } from "@/lib/supabase/queries";
 import { extractArxivId } from "@/lib/arxiv-id";
 import { triggerProcessing } from "@/lib/github-dispatch";
+import { triggerMCPProcessing } from "@/lib/mcp-dispatch";
+import { flags } from "@/lib/feature-flags";
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: unknown;
@@ -38,8 +40,28 @@ export async function POST(request: Request): Promise<NextResponse> {
   const client = await createClient();
   const result = await queuePaper(client, arxivId, title);
 
-  // Fire workflow_dispatch for both new queues and re-trigger requests on existing pending papers
-  const dispatch = await triggerProcessing(arxivId);
+  let dispatch: Record<string, unknown>;
+  if (flags.USE_PAPER_PROCESSOR_MCP) {
+    // Fire-and-forget: paper is already pending in Supabase.
+    // Modal cron will retry if this trigger is dropped by the serverless runtime.
+    void triggerMCPProcessing(arxivId);
+    dispatch = { triggered: true, method: "mcp" };
+  } else {
+    dispatch = await triggerProcessing(arxivId);
+  }
+
+  // If neither trigger is configured, surface a clear error so clients don't
+  // silently show "triggered" while the paper stays pending forever.
+  if (!dispatch.triggered) {
+    return NextResponse.json(
+      {
+        ...result,
+        dispatch,
+        error: "Processing trigger not configured — paper is queued but will not be processed automatically. Set PAPER_PROCESSOR_MCP_URL or GITHUB_DISPATCH_TOKEN.",
+      },
+      { status: 503 }
+    );
+  }
 
   return NextResponse.json(
     { ...result, dispatch },

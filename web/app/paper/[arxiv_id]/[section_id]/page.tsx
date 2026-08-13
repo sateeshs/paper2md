@@ -2,7 +2,7 @@ import type React from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getSectionWithMath, getPaperByArxivId, getSectionsCount } from "@/lib/supabase/queries";
+import { getSectionWithMath, getPaperByArxivId, getSectionsCount, getAdjacentSections } from "@/lib/supabase/queries";
 import { MathBlock } from "@/components/MathBlock";
 import { AlgorithmBlock } from "@/components/AlgorithmBlock";
 import type { AlgorithmBlock as AlgorithmBlockRow } from "@/lib/supabase/types";
@@ -12,6 +12,7 @@ import { ProseWithMath } from "@/components/ProseWithMath";
 import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
 import { aggregatePrerequisites } from "@/lib/prerequisites";
 import { BackButton } from "@/components/BackButton";
+import { DownloadSectionButton } from "@/components/DownloadSectionButton";
 
 export const revalidate = 3600;
 
@@ -41,7 +42,10 @@ export default async function SectionPage({ params }: PageProps) {
 
   if (!section || !paper) notFound();
 
-  const totalSections = await getSectionsCount(client, paper.id);
+  const [totalSections, adjacent] = await Promise.all([
+    getSectionsCount(client, paper.id),
+    getAdjacentSections(client, paper.id, section.order_idx),
+  ]);
 
   const mathBlocks = section.math_blocks ?? [];
   // algorithm_blocks are included via the extended getSectionWithMath query
@@ -69,9 +73,28 @@ export default async function SectionPage({ params }: PageProps) {
           </span>
         </nav>
 
-        <h1 className="text-2xl font-bold mb-6">
-          {section.title ?? `Section ${section.order_idx + 1}`}
-        </h1>
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <h1 className="text-2xl font-bold">
+            {section.title ?? `Section ${section.order_idx + 1}`}
+          </h1>
+          <DownloadSectionButton
+            section={{
+              id: section.id,
+              title: section.title ?? null,
+              order_idx: section.order_idx,
+              plain_text: section.plain_text ?? null,
+              math_blocks: mathBlocks.map((b) => ({
+                id: b.id,
+                order_idx: b.order_idx,
+                env_type: b.env_type ?? '',
+                latex_expr: b.latex_expr ?? '',
+                explanation: b.explanation ?? null,
+                explanation_model: b.explanation_model ?? null,
+              })),
+            }}
+            paper={{ title: paper.title, arxiv_id: arxiv_id }}
+          />
+        </div>
 
         {/* PDF-sourced notice — shown when paper has no LaTeX source */}
         {paper.source_type === "pdf" && (
@@ -107,11 +130,30 @@ export default async function SectionPage({ params }: PageProps) {
 
         {/* Navigation */}
         <div className="mt-10 pt-6 border-t border-zinc-200 dark:border-zinc-700">
-          <BackButton
-            fallbackHref={`/paper/${arxiv_id}`}
-            label={`← Back to ${paper.title}`}
-            className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
-          />
+          <div className="flex items-center justify-between gap-4">
+            {adjacent.prev ? (
+              <a
+                href={`/paper/${arxiv_id}/${adjacent.prev.id}`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 truncate max-w-[40%]"
+              >
+                ← {adjacent.prev.title ?? `Section ${section.order_idx}`}
+              </a>
+            ) : (
+              <BackButton
+                fallbackHref={`/paper/${arxiv_id}`}
+                label={`← Back to paper`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+              />
+            )}
+            {adjacent.next && (
+              <a
+                href={`/paper/${arxiv_id}/${adjacent.next.id}`}
+                className="text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 truncate max-w-[40%] text-right ml-auto"
+              >
+                {adjacent.next.title ?? `Section ${section.order_idx + 2}`} →
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
@@ -132,12 +174,25 @@ export default async function SectionPage({ params }: PageProps) {
 // Plain-text cleanup (strips LaTeX table/comment artifacts that leaked in)
 // ---------------------------------------------------------------------------
 
+// Matches math delimiters in plain text — used to protect them from cleanup.
+// Order: \[...\], $$...$$, $...$ (non-greedy, no newline), \(...\)
+const CLEANUP_MATH_RE =
+  /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|(?<!\$)\$(?!\$)((?:[^$\n]|\\.)+?)(?<!\$)\$(?!\$)|\\\(((?:[^\\]|\\.)+?)\\\)/g;
+
 function cleanPlainText(text: string): string {
-  return text
+  // Protect math regions from text cleanup (%, \\, & replacements)
+  const mathRegions: string[] = [];
+  const withPlaceholders = text.replace(CLEANUP_MATH_RE, (match) => {
+    const idx = mathRegions.length;
+    mathRegions.push(match);
+    return `\x00MATH${idx}\x00`;
+  });
+
+  const cleaned = withPlaceholders
     .split("\n")
     .map((line) => {
       let t = line;
-      // Drop % comment lines
+      // Drop % comment lines (safe — math regions are placeholder-protected)
       t = t.replace(/%[^\n]*/g, "").trim();
       return t;
     })
@@ -145,6 +200,8 @@ function cleanPlainText(text: string): string {
       const t = line.trim();
       // Keep blank lines — they are paragraph/section separators
       if (!t) return true;
+      // Keep lines containing math placeholders
+      if (t.includes("\x00")) return true;
       // Drop lines that look like table rows (3+ & separators)
       if ((t.match(/&/g) ?? []).length >= 3) return false;
       // Drop lines that are only backslash commands / column specs
@@ -157,6 +214,13 @@ function cleanPlainText(text: string): string {
     .replace(/\\\\/g, "\n")      // \\ → newline
     .replace(/\n{3,}/g, "\n\n") // collapse 3+ blank lines → paragraph break
     .trim();
+
+  // Restore protected math regions
+  let result = cleaned;
+  for (let i = 0; i < mathRegions.length; i++) {
+    result = result.replace(`\x00MATH${i}\x00`, mathRegions[i]);
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,11 +374,24 @@ function SectionBody({
   // Display blocks (equation, align, …) are interleaved in the prose.
   // Inline blocks with explanations appear as cards too — the formula shows inline
   // via ProseWithMath AND as a card with the expandable explanation.
-  const meaningfulBlocks = mathBlocks.filter(
-    (b) =>
-      !isTrivialBlock(b) &&
-      (DISPLAY_ENV_TYPES.has(b.env_type) || !!b.explanation)
-  );
+  //
+  // When a section has NO explanations at all (paper not yet explained), also
+  // include complex inline formulas (>30 chars stripped) so the reader can at
+  // least see the key formulas rendered as cards.
+  const hasAnyExplanation = mathBlocks.some((b) => !!b.explanation);
+  const meaningfulBlocks = mathBlocks.filter((b) => {
+    if (isTrivialBlock(b)) return false;
+    if (DISPLAY_ENV_TYPES.has(b.env_type)) return true;
+    if (b.explanation) return true;
+    if (!hasAnyExplanation) {
+      const stripped = b.latex_expr
+        .trim()
+        .replace(/^\$\$|\$\$$|^\$|\$$|^\\\[|\\\]$|^\\\(|\\\)$/g, "")
+        .trim();
+      return stripped.length > 30;
+    }
+    return false;
+  });
 
   if (meaningfulBlocks.length === 0 && !plain) {
     return (
