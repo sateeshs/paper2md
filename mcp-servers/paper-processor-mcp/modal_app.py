@@ -19,7 +19,14 @@ Secrets (one-time setup):
     OPENROUTER_API_KEY="..." \\
     OPENAI_API_KEY="..." \\
     PAPER2MD_LLM_PROVIDER="gemini" \\
-    PAPER2MD_MAX_MATH_BLOCKS="50"
+    PAPER2MD_MAX_MATH_BLOCKS="50" \\
+    VIZ_STORAGE_BACKEND="supabase"
+
+  Storage backend toggle (VIZ_STORAGE_BACKEND):
+    "supabase" (default) — uses existing SUPABASE_* env vars, math-visuals bucket
+    "r2"                 — requires R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+                           R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL
+                           + boto3 in manim_image pip_install
 """
 
 from __future__ import annotations
@@ -391,6 +398,59 @@ def _upload_to_supabase_storage(file_path: str, block_id: str, mode: str = "stat
     return public_url
 
 
+def _upload_to_r2(file_path: str, block_id: str, mode: str = "static") -> str:
+    """Upload rendered file to Cloudflare R2 and return public URL.
+
+    Requires env vars: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY.
+    Optional: R2_BUCKET_NAME (default: math-visuals), R2_PUBLIC_URL.
+    """
+    import os
+    import boto3
+
+    account_id = os.environ["R2_ACCOUNT_ID"].strip()
+    bucket = os.environ.get("R2_BUCKET_NAME", "math-visuals").strip()
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"].strip(),
+        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"].strip(),
+        region_name="auto",
+    )
+
+    ext = "gif" if mode == "animated" else "png"
+    content_type = "image/gif" if mode == "animated" else "image/png"
+    object_key = f"{block_id}.{ext}"
+
+    s3.upload_file(
+        file_path,
+        bucket,
+        object_key,
+        ExtraArgs={"ContentType": content_type},
+    )
+
+    public_domain = os.environ.get(
+        "R2_PUBLIC_URL",
+        f"https://pub-{account_id}.r2.dev/{bucket}",
+    ).rstrip("/")
+    return f"{public_domain}/{object_key}"
+
+
+def _upload_viz(file_path: str, block_id: str, mode: str = "static") -> str:
+    """Upload visualization to configured storage backend.
+
+    Set VIZ_STORAGE_BACKEND env var to switch:
+      "r2"       → Cloudflare R2 (requires R2_* env vars + boto3)
+      "supabase" → Supabase Storage (default, uses existing SUPABASE_* env vars)
+    """
+    import os
+
+    backend = os.environ.get("VIZ_STORAGE_BACKEND", "supabase").strip().lower()
+    if backend == "r2":
+        return _upload_to_r2(file_path, block_id, mode)
+    return _upload_to_supabase_storage(file_path, block_id, mode)
+
+
 def _update_math_block(block_id: str, url: str, manim_code: str, mode: str = "static") -> None:
     """Update math_blocks row with visualization data."""
     import os
@@ -468,7 +528,7 @@ def render_math_visual(request: dict) -> dict:
             )
 
             output_path = _render_scene(manim_code, block_id, mode=mode)
-            url = _upload_to_supabase_storage(output_path, block_id, mode=mode)
+            url = _upload_viz(output_path, block_id, mode=mode)
             _update_math_block(block_id, url, manim_code, mode=mode)
 
             url_key = "video_url" if mode == "animated" else "image_url"
