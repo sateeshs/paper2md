@@ -126,12 +126,36 @@ async function findPage(
     }
   }
 
-  // Pass 3: ratio-based estimate using actual PDF total pages.
-  // Needed when the section falls beyond MAX_SCAN_PAGES (e.g. long textbooks).
+  // Pass 3: ratio-based estimate, then targeted scan around estimated page.
   if (orderIdx !== undefined && totalSections && totalSections > 0) {
     const doc = await getPdfDocument(arxivId);
     const actualTotal = doc.numPages;
-    return Math.max(1, Math.round(((orderIdx + 0.5) / totalSections) * actualTotal));
+    const estimated = Math.max(1, Math.round(((orderIdx + 0.5) / totalSections) * actualTotal));
+
+    // If estimated page is beyond what we scanned, do a targeted scan
+    // ±20 pages around the estimate to find the exact heading.
+    if (estimated > scannedPages && variants.length > 0) {
+      const scanStart = Math.max(1, estimated - 20);
+      const scanEnd = Math.min(actualTotal, estimated + 20);
+      for (let p = scanStart; p <= scanEnd; p++) {
+        const page = await doc.getPage(p);
+        const content = await page.getTextContent();
+        const { buildPageText } = await import("@/lib/pdf-doc");
+        const pageText = buildPageText(
+          content.items as Array<{ str?: string; transform?: number[] }>
+        );
+        for (const normTitle of variants) {
+          if (pageText.split("\n").some((line) => isHeadingLine(line, normTitle))) {
+            return p;
+          }
+          if (normalizeLine(pageText).includes(normTitle)) {
+            return p;
+          }
+        }
+      }
+    }
+
+    return estimated;
   }
 
   return 1;

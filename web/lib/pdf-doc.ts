@@ -33,9 +33,37 @@ export async function getPdfDocument(arxivId: string) {
 
 /**
  * Maximum pages to scan for section-title mapping.
- * 600-page PDFs crash the browser tab if we extract all pages — cap here.
+ * Very long PDFs (600+ pages) are slow — scan all but in batches.
  */
-const MAX_SCAN_PAGES = 300;
+const MAX_SCAN_PAGES = 800;
+
+/**
+ * Build readable text from PDF.js TextContent items.
+ * Items on the same Y line are joined with spaces; line breaks only between
+ * different Y positions. This produces proper heading lines for matching.
+ */
+export function buildPageText(items: Array<{ str?: string; transform?: number[] }>): string {
+  const lines: string[] = [];
+  let currentLine: string[] = [];
+  let lastY: number | null = null;
+
+  for (const item of items) {
+    const str = item.str ?? "";
+    if (!str) continue;
+    // transform[5] is the Y coordinate in PDF space
+    const y = item.transform?.[5] ?? 0;
+    if (lastY !== null && Math.abs(y - lastY) > 2) {
+      // New line — flush previous
+      if (currentLine.length > 0) lines.push(currentLine.join(" "));
+      currentLine = [];
+    }
+    currentLine.push(str);
+    lastY = y;
+  }
+  if (currentLine.length > 0) lines.push(currentLine.join(" "));
+
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 
 /**
  * Extract plain text page-by-page up to maxPages.
@@ -51,11 +79,9 @@ export async function extractPageTexts(
   for (let i = 1; i <= limit; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
-    const text = content.items
-      .map((it) => ("str" in it ? (it as { str: string }).str : ""))
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    const text = buildPageText(
+      content.items as Array<{ str?: string; transform?: number[] }>
+    );
     texts.push(text);
   }
   return texts;
