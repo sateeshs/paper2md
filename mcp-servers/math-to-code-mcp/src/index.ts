@@ -233,8 +233,8 @@ CRITICAL OUTPUT FORMAT:
 - The response must be directly parseable by JSON.parse() with zero modifications`
 
 // OpenRouter uses the OpenAI-compatible chat completions API.
-// Default model: google/gemini-2.0-flash-001 (fast, free tier available)
-const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
+// Default model: google/gemini-2.5-flash (fast, free tier available)
+const OPENROUTER_MODEL = 'google/gemini-2.5-flash'
 
 const MAX_LLM_RETRIES = 2
 
