@@ -15,7 +15,7 @@ interface MathBlockProps {
 type Library = "numpy" | "pytorch" | "jax" | "scipy";
 type CodeState = "idle" | "loading" | "ready" | "error" | "not_implementable";
 type VizMode = "static" | "animated";
-type VizState = "idle" | "loading" | "ready" | "error";
+type VizState = "idle" | "loading" | "ready" | "error" | "saving";
 
 interface CodeArtifact {
   function_name?: string;
@@ -81,6 +81,9 @@ export function MathBlock({ block }: MathBlockProps) {
   const [vizUrl, setVizUrl] = useState<string | null>(null);
   const [vizCode, setVizCode] = useState<string | null>(null);
   const [vizError, setVizError] = useState<string | null>(null);
+  const [vizSaved, setVizSaved] = useState(false);
+  const [vizImageData, setVizImageData] = useState<string | null>(null);
+  const [vizContentType, setVizContentType] = useState<string | null>(null);
 
   const displayMode = isDisplayMode(block.env_type);
   const prepared = prepareLatex(block.latex_expr, displayMode);
@@ -149,6 +152,9 @@ export function MathBlock({ block }: MathBlockProps) {
       setVizState("idle");
       setVizUrl(null);
       setVizCode(null);
+      setVizSaved(false);
+      setVizImageData(null);
+      setVizContentType(null);
     }
   }
 
@@ -157,19 +163,6 @@ export function MathBlock({ block }: MathBlockProps) {
     setShowViz(next);
 
     if (next && vizState === "idle") {
-      // Check localStorage cache
-      const cacheKey = `viz:${block.id}:${vizMode}`;
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const data = JSON.parse(cached);
-          setVizUrl(data.image_url ?? data.video_url ?? null);
-          setVizCode(data.manim_code ?? null);
-          setVizState("ready");
-          return;
-        }
-      } catch { /* cache miss — fetch fresh */ }
-
       setVizState("loading");
       try {
         const res = await fetch(`/api/math/${block.id}/visualize`, {
@@ -182,19 +175,54 @@ export function MathBlock({ block }: MathBlockProps) {
           setVizError(data.error ?? "Visualization failed");
           setVizCode(data.manim_code ?? null);
           setVizState("error");
-        } else {
-          const url = data.image_url ?? data.video_url ?? null;
-          setVizUrl(url);
+        } else if (data.saved) {
+          // Previously saved — URL from DB
+          setVizUrl(data.image_url ?? data.video_url ?? null);
           setVizCode(data.manim_code ?? null);
+          setVizSaved(true);
           setVizState("ready");
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(data));
-          } catch { /* quota exceeded — non-fatal */ }
+        } else {
+          // Fresh render — base64 preview (not yet saved)
+          setVizImageData(data.image_data ?? null);
+          setVizContentType(data.content_type ?? null);
+          setVizCode(data.manim_code ?? null);
+          setVizSaved(false);
+          setVizState("ready");
         }
       } catch (err) {
         setVizError(err instanceof Error ? err.message : "Network error");
         setVizState("error");
       }
+    }
+  }
+
+  async function handleVizSave() {
+    if (!vizImageData) return;
+    setVizState("saving");
+    try {
+      const res = await fetch(`/api/math/${block.id}/visualize/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_data: vizImageData,
+          manim_code: vizCode,
+          mode: vizMode,
+          content_type: vizContentType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setVizError(data.error ?? "Save failed");
+        setVizState("error");
+      } else {
+        setVizUrl(data.image_url ?? data.video_url ?? null);
+        setVizSaved(true);
+        setVizImageData(null);
+        setVizState("ready");
+      }
+    } catch (err) {
+      setVizError(err instanceof Error ? err.message : "Save failed");
+      setVizState("error");
     }
   }
 
@@ -384,10 +412,12 @@ export function MathBlock({ block }: MathBlockProps) {
 
           {showViz && (
             <div className="bg-white dark:bg-zinc-950">
-              {vizState === "loading" && (
+              {(vizState === "loading" || vizState === "saving") && (
                 <div className="px-4 py-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                   <span className="inline-block w-3 h-3 rounded-full bg-purple-500 animate-ping opacity-75" />
-                  Generating {vizMode === "animated" ? "animation" : "diagram"}… this may take 30–60s on first load
+                  {vizState === "saving"
+                    ? "Saving…"
+                    : `Generating ${vizMode === "animated" ? "animation" : "diagram"}… this may take 30–60s on first load`}
                 </div>
               )}
               {vizState === "error" && (
@@ -407,21 +437,39 @@ export function MathBlock({ block }: MathBlockProps) {
                   )}
                 </div>
               )}
-              {vizState === "ready" && vizUrl && (
+              {vizState === "ready" && (
                 <div className="px-4 py-3">
-                  {vizMode === "animated" ? (
+                  {/* Show image: base64 preview OR saved URL */}
+                  {vizImageData && !vizSaved && (
                     <img
-                      src={vizUrl}
-                      alt="Math animation"
-                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
-                    />
-                  ) : (
-                    <img
-                      src={vizUrl}
-                      alt="Math visualization"
+                      src={`data:${vizContentType ?? "image/png"};base64,${vizImageData}`}
+                      alt={vizMode === "animated" ? "Math animation preview" : "Math visualization preview"}
                       className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
                     />
                   )}
+                  {vizUrl && vizSaved && (
+                    <img
+                      src={vizUrl}
+                      alt={vizMode === "animated" ? "Math animation" : "Math visualization"}
+                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                  )}
+
+                  {/* Save button — only shown for unsaved previews */}
+                  {!vizSaved && vizImageData && (
+                    <button
+                      onClick={handleVizSave}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+                    >
+                      Save
+                    </button>
+                  )}
+                  {vizSaved && (
+                    <span className="mt-2 inline-block text-xs text-green-600 dark:text-green-400">
+                      ✓ Saved
+                    </span>
+                  )}
+
                   {vizCode && (
                     <details className="mt-2">
                       <summary className="text-xs text-zinc-400 cursor-pointer">

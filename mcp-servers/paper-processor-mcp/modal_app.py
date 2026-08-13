@@ -482,8 +482,10 @@ def render_math_visual(request: dict) -> dict:
 
     Input: {block_id, latex_expr, explanation, env_type, context_before, context_after, mode}
     mode: "static" (PNG) or "animated" (GIF)
-    Output: {image_url/video_url, manim_code} or {error, manim_code}
+    Output: {image_data: base64, manim_code, mode, content_type} for preview.
+    Upload/save happens separately via the Next.js save endpoint.
     """
+    import base64
     import json
     import os
 
@@ -528,11 +530,17 @@ def render_math_visual(request: dict) -> dict:
             )
 
             output_path = _render_scene(manim_code, block_id, mode=mode)
-            url = _upload_viz(output_path, block_id, mode=mode)
-            _update_math_block(block_id, url, manim_code, mode=mode)
 
-            url_key = "video_url" if mode == "animated" else "image_url"
-            return {url_key: url, "manim_code": manim_code, "mode": mode}
+            with open(output_path, "rb") as f:
+                image_b64 = base64.b64encode(f.read()).decode("ascii")
+
+            content_type = "image/gif" if mode == "animated" else "image/png"
+            return {
+                "image_data": image_b64,
+                "content_type": content_type,
+                "manim_code": manim_code,
+                "mode": mode,
+            }
 
         except Exception as exc:
             last_error = str(exc)

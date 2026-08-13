@@ -21,7 +21,7 @@ export async function POST(
     // body parse failure — proceed with static default
   }
 
-  // 1. Check Supabase cache
+  // 1. Check Supabase cache (only returns saved visualizations)
   const supabase = await createServiceClient();
   const { data: block, error } = await supabase
     .from("math_blocks")
@@ -38,7 +38,7 @@ export async function POST(
     );
   }
 
-  // Return cached result if available for this mode
+  // Return cached result if previously saved
   const cachedUrl =
     mode === "animated" ? block.viz_video_url : block.viz_image_url;
   if (cachedUrl) {
@@ -47,6 +47,7 @@ export async function POST(
       [urlKey]: cachedUrl,
       manim_code: block.viz_manim_code,
       mode,
+      saved: true,
     });
   }
 
@@ -59,7 +60,7 @@ export async function POST(
     );
   }
 
-  // 3. Call Modal web endpoint
+  // 3. Call Modal — returns base64 image data (no upload)
   try {
     const res = await fetch(modalUrl, {
       method: "POST",
@@ -84,7 +85,8 @@ export async function POST(
       );
     }
 
-    return NextResponse.json(result);
+    // Pass through base64 preview (not yet saved)
+    return NextResponse.json({ ...result, saved: false });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
