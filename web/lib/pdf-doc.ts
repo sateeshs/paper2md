@@ -35,7 +35,7 @@ export async function getPdfDocument(arxivId: string) {
  * Maximum pages to scan for section-title mapping.
  * Very long PDFs (600+ pages) are slow — scan all but in batches.
  */
-const MAX_SCAN_PAGES = 800;
+const MAX_SCAN_PAGES = 300;
 
 /**
  * Build readable text from PDF.js TextContent items.
