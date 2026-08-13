@@ -21,12 +21,12 @@ export async function POST(
     // body parse failure — proceed with static default
   }
 
-  // 1. Check Supabase cache (only returns saved visualizations)
+  // 1. Fetch math block data (core columns that always exist)
   const supabase = await createServiceClient();
   const { data: block, error } = await supabase
     .from("math_blocks")
     .select(
-      "viz_image_url, viz_video_url, viz_manim_code, latex_expr, explanation, env_type, context_before, context_after"
+      "latex_expr, explanation, env_type, context_before, context_after"
     )
     .eq("id", block_id)
     .maybeSingle();
@@ -38,17 +38,25 @@ export async function POST(
     );
   }
 
-  // Return cached result if previously saved
-  const cachedUrl =
-    mode === "animated" ? block.viz_video_url : block.viz_image_url;
-  if (cachedUrl) {
-    const urlKey = mode === "animated" ? "video_url" : "image_url";
-    return NextResponse.json({
-      [urlKey]: cachedUrl,
-      manim_code: block.viz_manim_code,
-      mode,
-      saved: true,
-    });
+  // Try cache lookup (viz columns may not exist if migration 006 hasn't run)
+  const { data: vizCache } = await supabase
+    .from("math_blocks")
+    .select("viz_image_url, viz_video_url, viz_manim_code")
+    .eq("id", block_id)
+    .maybeSingle();
+
+  if (vizCache) {
+    const cachedUrl =
+      mode === "animated" ? vizCache.viz_video_url : vizCache.viz_image_url;
+    if (cachedUrl) {
+      const urlKey = mode === "animated" ? "video_url" : "image_url";
+      return NextResponse.json({
+        [urlKey]: cachedUrl,
+        manim_code: vizCache.viz_manim_code,
+        mode,
+        saved: true,
+      });
+    }
   }
 
   // 2. Gate on Modal endpoint availability
