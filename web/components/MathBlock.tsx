@@ -14,6 +14,8 @@ interface MathBlockProps {
 
 type Library = "numpy" | "pytorch" | "jax" | "scipy";
 type CodeState = "idle" | "loading" | "ready" | "error" | "not_implementable";
+type VizMode = "static" | "animated";
+type VizState = "idle" | "loading" | "ready" | "error";
 
 interface CodeArtifact {
   function_name?: string;
@@ -72,6 +74,14 @@ export function MathBlock({ block }: MathBlockProps) {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Library>("numpy");
 
+  // Visualize state
+  const [showViz, setShowViz] = useState(false);
+  const [vizMode, setVizMode] = useState<VizMode>("static");
+  const [vizState, setVizState] = useState<VizState>("idle");
+  const [vizUrl, setVizUrl] = useState<string | null>(null);
+  const [vizCode, setVizCode] = useState<string | null>(null);
+  const [vizError, setVizError] = useState<string | null>(null);
+
   const displayMode = isDisplayMode(block.env_type);
   const prepared = prepareLatex(block.latex_expr, displayMode);
 
@@ -129,6 +139,61 @@ export function MathBlock({ block }: MathBlockProps) {
       } catch (err) {
         setCodeError(err instanceof Error ? err.message : "Network error");
         setCodeState("error");
+      }
+    }
+  }
+
+  function handleVizModeChange(next: VizMode) {
+    setVizMode(next);
+    if (vizState === "ready") {
+      setVizState("idle");
+      setVizUrl(null);
+      setVizCode(null);
+    }
+  }
+
+  async function handleVizToggle() {
+    const next = !showViz;
+    setShowViz(next);
+
+    if (next && vizState === "idle") {
+      // Check localStorage cache
+      const cacheKey = `viz:${block.id}:${vizMode}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const data = JSON.parse(cached);
+          setVizUrl(data.image_url ?? data.video_url ?? null);
+          setVizCode(data.manim_code ?? null);
+          setVizState("ready");
+          return;
+        }
+      } catch { /* cache miss — fetch fresh */ }
+
+      setVizState("loading");
+      try {
+        const res = await fetch(`/api/math/${block.id}/visualize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: vizMode }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setVizError(data.error ?? "Visualization failed");
+          setVizCode(data.manim_code ?? null);
+          setVizState("error");
+        } else {
+          const url = data.image_url ?? data.video_url ?? null;
+          setVizUrl(url);
+          setVizCode(data.manim_code ?? null);
+          setVizState("ready");
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify(data));
+          } catch { /* quota exceeded — non-fatal */ }
+        }
+      } catch (err) {
+        setVizError(err instanceof Error ? err.message : "Network error");
+        setVizState("error");
       }
     }
   }
@@ -286,6 +351,90 @@ export function MathBlock({ block }: MathBlockProps) {
                 />
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* Visualize toggle (ManimGL-generated diagrams) */}
+      {flags.SHOW_VISUALIZE && block.explanation && (
+        <div className="border-t border-zinc-200 dark:border-zinc-700">
+          <div className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <button
+              onClick={handleVizToggle}
+              className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 flex-1 text-left"
+            >
+              <span>{showViz ? "▾" : "▸"}</span>
+              <span>Visualize</span>
+              {vizState === "loading" && (
+                <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-ping ml-1 opacity-75" />
+              )}
+            </button>
+
+            {/* Mode picker: Static vs Animated */}
+            <select
+              value={vizMode}
+              onChange={(e) => handleVizModeChange(e.target.value as VizMode)}
+              className="text-xs text-zinc-500 dark:text-zinc-400 bg-transparent border border-zinc-200 dark:border-zinc-600 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              aria-label="Visualization mode"
+            >
+              <option value="static">Static</option>
+              <option value="animated">Animated</option>
+            </select>
+          </div>
+
+          {showViz && (
+            <div className="bg-white dark:bg-zinc-950">
+              {vizState === "loading" && (
+                <div className="px-4 py-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="inline-block w-3 h-3 rounded-full bg-purple-500 animate-ping opacity-75" />
+                  Generating {vizMode === "animated" ? "animation" : "diagram"}… this may take 30–60s on first load
+                </div>
+              )}
+              {vizState === "error" && (
+                <div className="px-4 py-3">
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    {vizError ?? "Visualization failed. Try again."}
+                  </p>
+                  {vizCode && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-zinc-400 cursor-pointer">
+                        Show generated ManimGL code
+                      </summary>
+                      <pre className="mt-1 text-xs text-zinc-500 overflow-x-auto p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
+                        {vizCode}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+              {vizState === "ready" && vizUrl && (
+                <div className="px-4 py-3">
+                  {vizMode === "animated" ? (
+                    <img
+                      src={vizUrl}
+                      alt="Math animation"
+                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                  ) : (
+                    <img
+                      src={vizUrl}
+                      alt="Math visualization"
+                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                  )}
+                  {vizCode && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-zinc-400 cursor-pointer">
+                        Show ManimGL code
+                      </summary>
+                      <pre className="mt-1 text-xs text-zinc-500 overflow-x-auto p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
+                        {vizCode}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

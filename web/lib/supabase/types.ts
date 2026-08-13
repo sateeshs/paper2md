@@ -49,6 +49,9 @@ export interface MathBlock {
   context_after: string | null;
   explanation: string | null; // JSON: {what_it_computes, symbol_meanings, intuition, derivation, proof_role, prerequisites, mathematical_significance}
   explanation_model: string | null;
+  viz_image_url: string | null;
+  viz_video_url: string | null;
+  viz_manim_code: string | null;
   created_at: string;
 }
 

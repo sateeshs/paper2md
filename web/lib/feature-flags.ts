@@ -16,6 +16,7 @@ export const flags = {
   // Controls Save-to-DB button and artifact review panel in CodePanel.
   // Set NEXT_PUBLIC_SHOW_REVIEW_UI=false to hide it (e.g. read-only / demo mode).
   SHOW_REVIEW_UI: process.env.NEXT_PUBLIC_SHOW_REVIEW_UI !== 'false',        // default ON
+  SHOW_VISUALIZE: process.env.NEXT_PUBLIC_SHOW_VISUALIZE === 'true',          // default OFF (opt-in)
 } as const
 
 export type FeatureFlags = typeof flags
