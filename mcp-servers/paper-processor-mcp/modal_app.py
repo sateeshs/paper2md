@@ -19,12 +19,7 @@ Secrets (one-time setup):
     OPENROUTER_API_KEY="..." \\
     OPENAI_API_KEY="..." \\
     PAPER2MD_LLM_PROVIDER="gemini" \\
-    PAPER2MD_MAX_MATH_BLOCKS="50" \\
-    R2_ACCOUNT_ID="<cloudflare-account-id>" \\
-    R2_ACCESS_KEY_ID="<r2-api-token-access-key>" \\
-    R2_SECRET_ACCESS_KEY="<r2-api-token-secret>" \\
-    R2_BUCKET_NAME="math-visuals" \\
-    R2_PUBLIC_URL="https://<bucket>.r2.dev"
+    PAPER2MD_MAX_MATH_BLOCKS="50"
 """
 
 from __future__ import annotations
@@ -73,7 +68,6 @@ manim_image = (
     .pip_install(
         "supabase>=2.0.0",
         "httpx>=0.27.0",
-        "boto3>=1.35.0",       # S3-compatible client for Cloudflare R2
     )
     .copy_local_dir(str(_MANIM_ROOT), "/app/manim")
     .run_commands(
@@ -364,43 +358,37 @@ def _render_scene(scene_code: str, block_id: str, mode: str = "static",
     raise FileNotFoundError(f"No {ext} output found in {output_dir}")
 
 
-def _upload_to_r2(file_path: str, block_id: str, mode: str = "static") -> str:
-    """Upload rendered file to Cloudflare R2 and return public URL.
+def _upload_to_supabase_storage(file_path: str, block_id: str, mode: str = "static") -> str:
+    """Upload rendered file to Supabase Storage and return public URL.
 
-    Requires env vars: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME.
-    Public access via the R2 public bucket URL (enable in Cloudflare dashboard).
+    Uses the 'math-visuals' bucket (must be created as public in Supabase dashboard).
+    Requires env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY.
     """
     import os
-    import boto3
+    from supabase import create_client
 
-    account_id = os.environ["R2_ACCOUNT_ID"].strip()
-    bucket = os.environ.get("R2_BUCKET_NAME", "math-visuals").strip()
-
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"].strip(),
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"].strip(),
-        region_name="auto",
+    client = create_client(
+        os.environ["SUPABASE_URL"].strip(),
+        os.environ["SUPABASE_SERVICE_ROLE_KEY"].strip(),
     )
 
     ext = "gif" if mode == "animated" else "png"
     content_type = "image/gif" if mode == "animated" else "image/png"
-    object_key = f"{block_id}.{ext}"
+    object_path = f"{block_id}.{ext}"
+    bucket_name = "math-visuals"
 
-    s3.upload_file(
-        file_path,
-        bucket,
-        object_key,
-        ExtraArgs={"ContentType": content_type},
+    with open(file_path, "rb") as f:
+        file_data = f.read()
+
+    # Upsert: overwrite if exists (re-render case)
+    client.storage.from_(bucket_name).upload(
+        path=object_path,
+        file=file_data,
+        file_options={"content-type": content_type, "upsert": "true"},
     )
 
-    # Public URL via R2 public access (r2.dev subdomain or custom domain)
-    public_domain = os.environ.get(
-        "R2_PUBLIC_URL",
-        f"https://pub-{account_id}.r2.dev/{bucket}",
-    ).rstrip("/")
-    return f"{public_domain}/{object_key}"
+    public_url = client.storage.from_(bucket_name).get_public_url(object_path)
+    return public_url
 
 
 def _update_math_block(block_id: str, url: str, manim_code: str, mode: str = "static") -> None:
@@ -480,7 +468,7 @@ def render_math_visual(request: dict) -> dict:
             )
 
             output_path = _render_scene(manim_code, block_id, mode=mode)
-            url = _upload_to_r2(output_path, block_id, mode=mode)
+            url = _upload_to_supabase_storage(output_path, block_id, mode=mode)
             _update_math_block(block_id, url, manim_code, mode=mode)
 
             url_key = "video_url" if mode == "animated" else "image_url"
