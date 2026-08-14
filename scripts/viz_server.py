@@ -135,8 +135,7 @@ _MAX_RETRIES = 2
 # Core functions
 # ---------------------------------------------------------------------------
 
-def _call_llm(
-    api_key: str,
+def _build_user_msg(
     latex_expr: str,
     env_type: str,
     explanation_text: str,
@@ -145,7 +144,7 @@ def _call_llm(
     mode: str = "static",
     error_feedback: str | None = None,
 ) -> str:
-    """Call Gemini to generate ManimGL Scene code."""
+    """Build the user message for the LLM."""
     if mode == "animated":
         mode_instruction = "Use self.play() with animations (Write, FadeIn, Transform, ShowCreation). Keep total duration 3-5 seconds."
     else:
@@ -162,9 +161,36 @@ def _call_llm(
     )
     if error_feedback:
         user_msg += f"\n\nPrevious attempt failed with error:\n{error_feedback}\nFix the code and try again."
+    return user_msg
 
+
+def _call_openrouter(api_key: str, user_msg: str) -> str:
+    """Call OpenRouter (OpenAI-compatible) to generate ManimGL code."""
     resp = httpx.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": "google/gemini-2.5-flash",
+            "messages": [
+                {"role": "system", "content": MANIM_SCENE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_msg},
+            ],
+            "temperature": 0.3,
+            "max_tokens": 4096,
+        },
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"].strip()
+
+
+def _call_gemini(api_key: str, user_msg: str) -> str:
+    """Call Gemini directly to generate ManimGL code."""
+    resp = httpx.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
         params={"key": api_key},
         json={
             "system_instruction": {"parts": [{"text": MANIM_SCENE_SYSTEM_PROMPT}]},
@@ -174,18 +200,46 @@ def _call_llm(
         timeout=60,
     )
     resp.raise_for_status()
-    data = resp.json()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-    text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    # Strip markdown fences if present
+
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences from LLM output."""
     if text.startswith("```python"):
         text = text[len("```python"):].strip()
     if text.startswith("```"):
         text = text[3:].strip()
     if text.endswith("```"):
         text = text[:-3].strip()
-
     return text
+
+
+def _call_llm(
+    latex_expr: str,
+    env_type: str,
+    explanation_text: str,
+    context_before: str,
+    context_after: str,
+    mode: str = "static",
+    error_feedback: str | None = None,
+) -> str:
+    """Generate ManimGL code via OpenRouter (preferred) or Gemini direct."""
+    user_msg = _build_user_msg(
+        latex_expr, env_type, explanation_text,
+        context_before, context_after, mode, error_feedback,
+    )
+
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+
+    if openrouter_key:
+        text = _call_openrouter(openrouter_key, user_msg)
+    elif gemini_key:
+        text = _call_gemini(gemini_key, user_msg)
+    else:
+        raise RuntimeError("No API key configured — set OPENROUTER_API_KEY or GEMINI_API_KEY")
+
+    return _strip_fences(text)
 
 
 def _render_scene(scene_code: str, block_id: str, mode: str = "static") -> str:
@@ -246,9 +300,8 @@ class RenderRequest(BaseModel):
 @app.post("/render")
 def render_math_visual(req: RenderRequest) -> dict:
     """Generate a ManimGL visualization and return base64 image data."""
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        return {"error": "GEMINI_API_KEY not configured", "manim_code": ""}
+    if not os.environ.get("OPENROUTER_API_KEY") and not os.environ.get("GEMINI_API_KEY"):
+        return {"error": "No API key configured — set OPENROUTER_API_KEY or GEMINI_API_KEY", "manim_code": ""}
 
     mode = req.mode if req.mode in ("static", "animated") else "static"
 
@@ -272,7 +325,7 @@ def render_math_visual(req: RenderRequest) -> dict:
         try:
             error_feedback = last_error if attempt > 0 else None
             manim_code = _call_llm(
-                api_key, req.latex_expr, req.env_type,
+                req.latex_expr, req.env_type,
                 explanation_text, req.context_before, req.context_after,
                 mode=mode, error_feedback=error_feedback,
             )
@@ -307,5 +360,6 @@ def health() -> dict:
 if __name__ == "__main__":
     import uvicorn
     print("Starting viz server on http://localhost:8321")
+    print("Uses OPENROUTER_API_KEY (preferred) or GEMINI_API_KEY for code generation")
     print("Set MATH_VISUAL_MODAL_URL=http://localhost:8321/render in web/.env.local")
     uvicorn.run(app, host="0.0.0.0", port=8321)

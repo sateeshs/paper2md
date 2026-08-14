@@ -185,6 +185,11 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
       .replace(/\\end\{eqnarray\}/g,     "\\end{align}");
   }
 
+  // Unsupported packages: \xymatrix (XY-pic commutative diagrams)
+  if (/\\xymatrix\b/.test(s)) {
+    return "\\text{[diagram — xymatrix not supported by KaTeX]}";
+  }
+
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
@@ -195,11 +200,13 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // \mbox → \text
   s = s.replace(/\\mbox\{([^}]*)\}/g, "\\text{$1}");
 
-  // After all cleanup, return empty string if nothing remains
-  // (e.g. an equation that was entirely commented out)
+  // After all cleanup, return empty string if nothing meaningful remains
+  // (e.g. an equation that was entirely commented out, or junk whitespace-only extractions)
   const bodyStripped = s
     .replace(/\\begin\{[^}]+\}/g, "")
     .replace(/\\end\{[^}]+\}/g, "")
+    .replace(/\\\\/g, "")       // strip line breaks
+    .replace(/[.\s,;]+/g, "")   // strip whitespace and punctuation-only residue
     .trim();
   if (!bodyStripped) return "";
 
