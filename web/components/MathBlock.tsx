@@ -268,6 +268,9 @@ export function MathBlock({ block }: MathBlockProps) {
       ]
     : [];
 
+  // Hide blocks with no renderable content (junk whitespace-only extractions)
+  if (!prepared) return null;
+
   return (
     <div className="my-4 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* Rendered math */}
