@@ -585,6 +585,66 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _expand_custom_macros(latex_doc: str) -> str:
+    """Expand simple (zero-argument) custom macros defined in the document.
+
+    Handles \\newcommand, \\renewcommand, \\providecommand, and \\DeclareMathOperator.
+    Only expands macros with no arguments (no [n] or #1 in the body).
+    Leaves the original definitions in place (harmless for downstream parsing).
+    """
+    # Match: \newcommand{\name}{body}, \providecommand{\name}{body}, etc.
+    # Also handles \newcommand\name{body} (no braces around name)
+    _MACRO_DEF_RE = re.compile(
+        r"\\(?:new|renew|provide)command\s*"
+        r"\{?(\\[a-zA-Z]+)\}?"       # \macroName (with or without outer braces)
+        r"(?:\s*\[\d+\])?"           # optional [num_args] — if present, skip expansion
+        r"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",   # {body} with one level of nesting
+    )
+    _DECLARE_OP_RE = re.compile(
+        r"\\DeclareMathOperator\s*"
+        r"\{?(\\[a-zA-Z]+)\}?"
+        r"\s*\{([^}]+)\}",
+    )
+
+    macros: dict[str, str] = {}
+
+    for m in _MACRO_DEF_RE.finditer(latex_doc):
+        name = m.group(1)   # e.g. \PtwoB
+        body = m.group(2)   # e.g. \mathcal B
+        # Skip macros that take arguments (#1 in body)
+        if "#" in body:
+            continue
+        macros[name] = body
+
+    for m in _DECLARE_OP_RE.finditer(latex_doc):
+        name = m.group(1)
+        body = m.group(2)
+        macros[name] = rf"\operatorname{{{body}}}"
+
+    if not macros:
+        return latex_doc
+
+    # Build a single regex to replace all macros in one pass.
+    # Sort by length (longest first) to avoid partial matches.
+    sorted_names = sorted(macros, key=len, reverse=True)
+    pattern = re.compile(
+        "(" + "|".join(re.escape(n) for n in sorted_names) + r")(?![a-zA-Z])"
+    )
+
+    def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
+        return macros[m.group(1)]
+
+    # Limit to 3 passes for macros that expand into other macros
+    result = latex_doc
+    for _ in range(3):
+        new_result = pattern.sub(_replace, result)
+        if new_result == result:
+            break
+        result = new_result
+
+    return result
+
+
 def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
     """
     Parse a merged LaTeX document into Section objects with math blocks.
@@ -595,6 +655,7 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
     Returns:
         Tuple of Section objects, each containing zero or more MathBlock objects.
     """
+    latex_doc = _expand_custom_macros(latex_doc)
     raw_sections = _split_sections(latex_doc)
     sections: list[Section] = []
 
