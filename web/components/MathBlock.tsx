@@ -528,14 +528,36 @@ const GREEK_RE = new RegExp(
 
 const FIELD_DESC_RE = /^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*/i;
 
+// Known field names the LLM may echo as placeholders
+const FIELD_NAMES = new Set([
+  "what_it_computes", "symbol_meanings", "derivation", "intuition",
+  "proof_role", "prerequisites", "mathematical_significance", "paper_relevance",
+]);
+
+// Match {field_name}, {{field_name}}, or bare field_name as entire value
+const PLACEHOLDER_RE = /^\s*\{?\{?\s*(\w+)\s*\}?\}?\s*$/;
+
+// JSON artifacts: leading ]] that leak from structured output
+const JSON_ARTIFACT_RE = /^\s*\]{1,2}\s*/;
+
 function sanitizeField(value: string | undefined): string {
   if (!value?.trim()) return "";
   let v = value;
+
+  // Detect placeholder echoes: {what_it_computes}, {{symbol_meanings}}, etc.
+  const placeholderMatch = PLACEHOLDER_RE.exec(v);
+  if (placeholderMatch && FIELD_NAMES.has(placeholderMatch[1])) return "";
+
   // Strip echoed DSPy field descriptions
   if (FIELD_DESC_RE.test(v)) {
     v = v.replace(FIELD_DESC_RE, "").trim();
     if (!v) return "";
   }
+
+  // Strip JSON artifacts like leading ]]
+  v = v.replace(JSON_ARTIFACT_RE, "").trim();
+  if (!v) return "";
+
   // Replace bare Unicode Greek outside $...$ with $\symbol$
   const parts = v.split(/(\$[^$]+\$)/);
   v = parts

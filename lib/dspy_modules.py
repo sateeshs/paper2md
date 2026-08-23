@@ -88,6 +88,22 @@ _QUAD_BACKSLASH_RE = re.compile(r"\\\\\\\\")
 # Double-escaped that should be single (but not in \\n, \\t, etc.)
 _DOUBLE_BACKSLASH_RE = re.compile(r"\\\\(?=[a-zA-Z{])")
 
+# All known explanation field names — LLM sometimes echoes these as literal placeholders
+_EXPLANATION_FIELD_NAMES = frozenset({
+    "what_it_computes", "symbol_meanings", "derivation", "intuition",
+    "proof_role", "prerequisites", "mathematical_significance",
+    "paper_relevance",
+})
+
+# Match placeholder patterns: {field_name}, {{field_name}}, or bare field_name as entire value
+_PLACEHOLDER_RE = re.compile(
+    r"^\s*\{?\{?\s*(" + "|".join(_EXPLANATION_FIELD_NAMES) + r")\s*\}?\}?\s*$",
+    re.I,
+)
+
+# JSON artifacts: leading ]] or [[ that leak from structured output
+_JSON_ARTIFACT_RE = re.compile(r"^\s*\]{1,2}\s*")
+
 
 def _wrap_bare_greek(text: str) -> str:
     """Replace Unicode Greek/math symbols outside $...$ with $\\symbol$."""
@@ -125,6 +141,10 @@ def _sanitize_explanation_field(value: str) -> str:
     if not value or not value.strip():
         return value
 
+    # Detect placeholder echoes: {what_it_computes}, {{symbol_meanings}}, etc.
+    if _PLACEHOLDER_RE.match(value):
+        return ""
+
     # Strip echoed field descriptions
     if _is_echoed_description(value):
         # Try to salvage: the LLM sometimes prefixes the description then adds real content
@@ -139,6 +159,11 @@ def _sanitize_explanation_field(value: str) -> str:
             value = cleaned
         else:
             return ""
+
+    # Strip JSON artifacts like leading ]]
+    value = _JSON_ARTIFACT_RE.sub("", value).strip()
+    if not value:
+        return ""
 
     value = _wrap_bare_greek(value)
     value = _fix_escaped_backslashes(value)
