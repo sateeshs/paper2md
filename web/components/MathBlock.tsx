@@ -504,11 +504,64 @@ type ExplanationV2 = {
   paper_relevance?: string; // legacy key — kept for backward compat
 };
 
+// Unicode Greek → LaTeX replacements for bare symbols outside $...$
+const GREEK_MAP: Record<string, string> = {
+  α: "\\alpha", β: "\\beta", γ: "\\gamma", δ: "\\delta",
+  ε: "\\varepsilon", ζ: "\\zeta", η: "\\eta", θ: "\\theta",
+  ι: "\\iota", κ: "\\kappa", λ: "\\lambda", μ: "\\mu",
+  ν: "\\nu", ξ: "\\xi", π: "\\pi", ρ: "\\rho",
+  σ: "\\sigma", τ: "\\tau", υ: "\\upsilon", φ: "\\varphi",
+  χ: "\\chi", ψ: "\\psi", ω: "\\omega",
+  Γ: "\\Gamma", Δ: "\\Delta", Θ: "\\Theta", Λ: "\\Lambda",
+  Ξ: "\\Xi", Π: "\\Pi", Σ: "\\Sigma", Φ: "\\Phi",
+  Ψ: "\\Psi", Ω: "\\Omega",
+  "∑": "\\sum", "∏": "\\prod", "∫": "\\int", "∞": "\\infty",
+  "∈": "\\in", "≤": "\\leq", "≥": "\\geq", "≠": "\\neq",
+  "≈": "\\approx", "→": "\\to", "∇": "\\nabla", "∂": "\\partial",
+  "×": "\\times", "·": "\\cdot",
+};
+
+const GREEK_RE = new RegExp(
+  Object.keys(GREEK_MAP).map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"),
+  "g",
+);
+
+const FIELD_DESC_RE = /^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*/i;
+
+function sanitizeField(value: string | undefined): string {
+  if (!value?.trim()) return "";
+  let v = value;
+  // Strip echoed DSPy field descriptions
+  if (FIELD_DESC_RE.test(v)) {
+    v = v.replace(FIELD_DESC_RE, "").trim();
+    if (!v) return "";
+  }
+  // Replace bare Unicode Greek outside $...$ with $\symbol$
+  const parts = v.split(/(\$[^$]+\$)/);
+  v = parts
+    .map((p, i) =>
+      i % 2 === 1 ? p : p.replace(GREEK_RE, (m) => `$${GREEK_MAP[m]}$`),
+    )
+    .join("");
+  // Fix quadruple-escaped backslashes
+  v = v.replace(/\\\\\\\\/g, "\\\\");
+  return v;
+}
+
+function sanitizeExplanation(parsed: ExplanationV2): ExplanationV2 {
+  const result: ExplanationV2 = {};
+  for (const key of Object.keys(parsed) as (keyof ExplanationV2)[]) {
+    const cleaned = sanitizeField(parsed[key]);
+    if (cleaned) result[key] = cleaned;
+  }
+  return result;
+}
+
 function ExplanationPanel({ explanation }: { explanation: string }) {
   // Explanation is a JSON string from DSPy structured output
   let parsed: ExplanationV2 | null = null;
   try {
-    parsed = JSON.parse(explanation);
+    parsed = sanitizeExplanation(JSON.parse(explanation));
   } catch {
     // plain text fallback
   }

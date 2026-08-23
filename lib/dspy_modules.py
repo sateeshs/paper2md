@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import re
 import time
 
 import dspy
@@ -38,6 +39,115 @@ from lib.dspy_signatures import (
     SummarizeChunk,
 )
 from lib.models import AlgorithmBlock, MathBlock, Paper, Section
+
+
+# ---------------------------------------------------------------------------
+# Explanation post-processing — sanitise LLM output before storing
+# ---------------------------------------------------------------------------
+
+# Unicode Greek → LaTeX mapping (outside $...$ these break KaTeX)
+_GREEK_MAP: dict[str, str] = {
+    "α": r"\alpha", "β": r"\beta", "γ": r"\gamma", "δ": r"\delta",
+    "ε": r"\varepsilon", "ζ": r"\zeta", "η": r"\eta", "θ": r"\theta",
+    "ι": r"\iota", "κ": r"\kappa", "λ": r"\lambda", "μ": r"\mu",
+    "ν": r"\nu", "ξ": r"\xi", "π": r"\pi", "ρ": r"\rho",
+    "σ": r"\sigma", "τ": r"\tau", "υ": r"\upsilon", "φ": r"\varphi",
+    "χ": r"\chi", "ψ": r"\psi", "ω": r"\omega",
+    "Γ": r"\Gamma", "Δ": r"\Delta", "Θ": r"\Theta", "Λ": r"\Lambda",
+    "Ξ": r"\Xi", "Π": r"\Pi", "Σ": r"\Sigma", "Φ": r"\Phi",
+    "Ψ": r"\Psi", "Ω": r"\Omega",
+    "∑": r"\sum", "∏": r"\prod", "∫": r"\int", "∞": r"\infty",
+    "∈": r"\in", "∉": r"\notin", "⊂": r"\subset", "⊃": r"\supset",
+    "≤": r"\leq", "≥": r"\geq", "≠": r"\neq", "≈": r"\approx",
+    "→": r"\to", "←": r"\leftarrow", "↔": r"\leftrightarrow",
+    "⊤": r"\top", "⊥": r"\bot", "∀": r"\forall", "∃": r"\exists",
+    "∇": r"\nabla", "∂": r"\partial", "×": r"\times", "⊗": r"\otimes",
+    "⊕": r"\oplus", "·": r"\cdot",
+}
+
+# Build a single regex that matches any bare Unicode math symbol NOT already inside $...$
+_GREEK_CHARS_RE = re.compile(
+    "|".join(re.escape(ch) for ch in _GREEK_MAP)
+)
+
+# Patterns that signal the LLM echoed a DSPy field description instead of generating content
+_FIELD_DESC_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*", re.I),
+    re.compile(r"^\s*list\s+the\s+\d+\s+most\s+important", re.I),
+    re.compile(r"^\s*comma[- ]separated\s+list\s+of", re.I),
+    re.compile(r"^\s*1-\d+\s+sentences?\.\s*", re.I),
+    re.compile(r"^\s*what\s+does\s+this\s+expression\s+compute", re.I),
+    re.compile(r"^\s*briefly\s+walk\s+through", re.I),
+    re.compile(r"^\s*explain\s+the\s+intuition\s+in\s+plain", re.I),
+    re.compile(r"^\s*what\s+logical\s+role", re.I),
+    re.compile(r"^\s*why\s+does\s+this\s+expression\s+matter", re.I),
+)
+
+# Quadruple-escaped backslashes (\\\\) that appear in LLM output
+_QUAD_BACKSLASH_RE = re.compile(r"\\\\\\\\")
+# Double-escaped that should be single (but not in \\n, \\t, etc.)
+_DOUBLE_BACKSLASH_RE = re.compile(r"\\\\(?=[a-zA-Z{])")
+
+
+def _wrap_bare_greek(text: str) -> str:
+    """Replace Unicode Greek/math symbols outside $...$ with $\\symbol$."""
+    # Split text on $...$ spans to avoid touching content already in math mode
+    parts = re.split(r"(\$[^$]+\$)", text)
+    result: list[str] = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Inside $...$ — leave as-is
+            result.append(part)
+        else:
+            # Outside math delimiters — wrap bare Greek
+            result.append(
+                _GREEK_CHARS_RE.sub(
+                    lambda m: f"${_GREEK_MAP[m.group()]}$",
+                    part,
+                )
+            )
+    return "".join(result)
+
+
+def _fix_escaped_backslashes(text: str) -> str:
+    """Fix over-escaped LaTeX backslashes from LLM output."""
+    text = _QUAD_BACKSLASH_RE.sub(r"\\\\", text)
+    return text
+
+
+def _is_echoed_description(text: str) -> bool:
+    """Return True if text looks like a parroted DSPy field description."""
+    return any(p.search(text) for p in _FIELD_DESC_PATTERNS)
+
+
+def _sanitize_explanation_field(value: str) -> str:
+    """Clean a single explanation field value from LLM output."""
+    if not value or not value.strip():
+        return value
+
+    # Strip echoed field descriptions
+    if _is_echoed_description(value):
+        # Try to salvage: the LLM sometimes prefixes the description then adds real content
+        # e.g. ": 2 sentences max. This formula defines..."
+        cleaned = re.sub(
+            r"^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*",
+            "",
+            value,
+            flags=re.I,
+        ).strip()
+        if cleaned and not _is_echoed_description(cleaned):
+            value = cleaned
+        else:
+            return ""
+
+    value = _wrap_bare_greek(value)
+    value = _fix_escaped_backslashes(value)
+    return value
+
+
+def _sanitize_explanation(fields: dict[str, str]) -> dict[str, str]:
+    """Post-process all explanation fields from LLM output."""
+    return {k: _sanitize_explanation_field(v) for k, v in fields.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +236,7 @@ class MathExplainer(dspy.Module):
                 context_after=block.context_after or "",
                 paper_type=block.paper_type,
             )
-            explanation = json.dumps({
+            raw_fields = {
                 "what_it_computes":        pred.what_it_computes,
                 "symbol_meanings":         pred.symbol_meanings,
                 "intuition":               pred.intuition,
@@ -134,7 +244,11 @@ class MathExplainer(dspy.Module):
                 "proof_role":              pred.proof_role,
                 "prerequisites":           pred.prerequisites,
                 "mathematical_significance": pred.mathematical_significance,
-            }, ensure_ascii=False)
+            }
+            explanation = json.dumps(
+                _sanitize_explanation(raw_fields),
+                ensure_ascii=False,
+            )
             return dataclasses.replace(
                 block,
                 explanation=explanation,
