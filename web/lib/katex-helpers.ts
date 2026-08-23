@@ -190,6 +190,10 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
     return "\\text{[diagram — xymatrix not supported by KaTeX]}";
   }
 
+  // Strip non-Latin/non-Math Unicode produced by pylatexenc bugs
+  // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
+  s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
+
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();
 

@@ -414,6 +414,12 @@ def _latex_to_text(latex: str) -> str:
     # Clean up any stray \x02 bytes that escaped the above patterns
     text = text.replace("\x02", " ")
 
+    # Strip non-Latin/non-Math Unicode characters that pylatexenc sometimes
+    # produces when it misinterprets custom LaTeX macros (e.g. \Ba, \a).
+    # Characters from Myanmar (U+1000-109F), Thai (U+0E00-0E7F), etc.
+    # should never appear in mathematical/CS paper text.
+    text = re.sub(r"[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]", "", text)
+
     return text
 
 
