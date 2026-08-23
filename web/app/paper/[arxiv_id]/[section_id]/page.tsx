@@ -220,6 +220,13 @@ function cleanPlainText(text: string): string {
   for (let i = 0; i < mathRegions.length; i++) {
     result = result.replace(`\x00MATH${i}\x00`, mathRegions[i]);
   }
+
+  // Strip non-Latin/non-Math Unicode characters that pylatexenc sometimes
+  // produces when it misinterprets custom LaTeX macros (e.g. \Ba, \a).
+  // Myanmar (U+1000-109F), Thai (U+0E00-0E7F), Tibetan (U+0F00-0FFF).
+  // eslint-disable-next-line no-control-regex
+  result = result.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
+
   return result;
 }
 
