@@ -251,10 +251,12 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // the letter after \ is followed by another letter so they don't match.
   // Exclude uppercase letters already defined in KATEX_OPTIONS macros
   // (R,N,Z,E,P,C,Q,K → mathbb sets) so those still resolve correctly.
+  // IMPORTANT: Use {letter} (braced) not bare letter, so a preceding command
+  // like \top doesn't merge: \top\a → \top{a} not \topa.
   const MACRO_DEFINED_LETTERS = new Set(["R", "N", "Z", "E", "P", "C", "Q", "K"]);
   s = s.replace(/\\([a-zA-Z])(?![a-zA-Z])/g, (match, letter: string) => {
     if (MACRO_DEFINED_LETTERS.has(letter)) return match;
-    return letter;
+    return `{${letter}}`;
   });
 
   // Strip LaTeX % comments (everything from % to end of line)
