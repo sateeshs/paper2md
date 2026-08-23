@@ -194,6 +194,14 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
   s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
 
+  // Resolve single-letter macros used as variable names in papers.
+  // Papers often define \a, \u, \x etc. as shorthand for bold/vector variables.
+  // When followed by _ ^ , ) } space or end-of-string (NOT {), they're variable
+  // names, not accent commands. Convert \x → x to let KaTeX render correctly.
+  // Multi-char commands like \alpha are safe — the letter after \ is followed
+  // by another letter, not by [_^,)}\s].
+  s = s.replace(/\\([a-z])(?=[_^,)}\s]|$)/g, "$1");
+
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
