@@ -131,6 +131,56 @@ export const KATEX_OPTIONS: KatexOptions = {
     "\\mN": "\\mathbb{N}",
     "\\mZ": "\\mathbb{Z}",
     "\\mQ": "\\mathbb{Q}",
+    // Bold Greek suffixed with "b" (common in ML/math textbooks, e.g. \Lambdab)
+    "\\Alphab": "\\boldsymbol{\\Alpha}",
+    "\\Betab": "\\boldsymbol{\\Beta}",
+    "\\Gammab": "\\boldsymbol{\\Gamma}",
+    "\\Deltab": "\\boldsymbol{\\Delta}",
+    "\\Epsilonb": "\\boldsymbol{\\Epsilon}",
+    "\\Zetab": "\\boldsymbol{\\Zeta}",
+    "\\Etab": "\\boldsymbol{\\Eta}",
+    "\\Thetab": "\\boldsymbol{\\Theta}",
+    "\\Iotab": "\\boldsymbol{\\Iota}",
+    "\\Kappab": "\\boldsymbol{\\Kappa}",
+    "\\Lambdab": "\\boldsymbol{\\Lambda}",
+    "\\Mub": "\\boldsymbol{\\Mu}",
+    "\\Nub": "\\boldsymbol{\\Nu}",
+    "\\Xib": "\\boldsymbol{\\Xi}",
+    "\\Omicronb": "\\boldsymbol{\\Omicron}",
+    "\\Pib": "\\boldsymbol{\\Pi}",
+    "\\Rhob": "\\boldsymbol{\\Rho}",
+    "\\Sigmab": "\\boldsymbol{\\Sigma}",
+    "\\Taub": "\\boldsymbol{\\Tau}",
+    "\\Upsilonb": "\\boldsymbol{\\Upsilon}",
+    "\\Phib": "\\boldsymbol{\\Phi}",
+    "\\Chib": "\\boldsymbol{\\Chi}",
+    "\\Psib": "\\boldsymbol{\\Psi}",
+    "\\Omegab": "\\boldsymbol{\\Omega}",
+    // Lowercase bold Greek suffixed with "b"
+    "\\alphab": "\\boldsymbol{\\alpha}",
+    "\\betab": "\\boldsymbol{\\beta}",
+    "\\gammab": "\\boldsymbol{\\gamma}",
+    "\\deltab": "\\boldsymbol{\\delta}",
+    "\\epsilonb": "\\boldsymbol{\\epsilon}",
+    "\\varepsilonb": "\\boldsymbol{\\varepsilon}",
+    "\\zetab": "\\boldsymbol{\\zeta}",
+    "\\etab": "\\boldsymbol{\\eta}",
+    "\\thetab": "\\boldsymbol{\\theta}",
+    "\\iotab": "\\boldsymbol{\\iota}",
+    "\\kappab": "\\boldsymbol{\\kappa}",
+    "\\lambdab": "\\boldsymbol{\\lambda}",
+    "\\mub": "\\boldsymbol{\\mu}",
+    "\\nub": "\\boldsymbol{\\nu}",
+    "\\xib": "\\boldsymbol{\\xi}",
+    "\\pib": "\\boldsymbol{\\pi}",
+    "\\rhob": "\\boldsymbol{\\rho}",
+    "\\sigmab": "\\boldsymbol{\\sigma}",
+    "\\taub": "\\boldsymbol{\\tau}",
+    "\\upsilonb": "\\boldsymbol{\\upsilon}",
+    "\\phib": "\\boldsymbol{\\phi}",
+    "\\chib": "\\boldsymbol{\\chi}",
+    "\\psib": "\\boldsymbol{\\psi}",
+    "\\omegab": "\\boldsymbol{\\omega}",
   },
 };
 
@@ -194,13 +244,18 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
   s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
 
-  // Resolve single-letter macros used as variable names in papers.
-  // Papers often define \a, \u, \x etc. as shorthand for bold/vector variables.
-  // When followed by _ ^ , ) } space or end-of-string (NOT {), they're variable
-  // names, not accent commands. Convert \x → x to let KaTeX render correctly.
-  // Multi-char commands like \alpha are safe — the letter after \ is followed
-  // by another letter, not by [_^,)}\s].
-  s = s.replace(/\\([a-z])(?=[_^,)}\s]|$)/g, "$1");
+  // Resolve single-letter macros used as variable/matrix names in papers.
+  // Papers define \a, \u, \A, \U, \V etc. as shorthand for vectors/matrices.
+  // When NOT followed by another letter, they're variable names, not LaTeX
+  // commands. Multi-char commands like \alpha, \frac, \Lambda are safe —
+  // the letter after \ is followed by another letter so they don't match.
+  // Exclude uppercase letters already defined in KATEX_OPTIONS macros
+  // (R,N,Z,E,P,C,Q,K → mathbb sets) so those still resolve correctly.
+  const MACRO_DEFINED_LETTERS = new Set(["R", "N", "Z", "E", "P", "C", "Q", "K"]);
+  s = s.replace(/\\([a-zA-Z])(?![a-zA-Z])/g, (match, letter: string) => {
+    if (MACRO_DEFINED_LETTERS.has(letter)) return match;
+    return letter;
+  });
 
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();
