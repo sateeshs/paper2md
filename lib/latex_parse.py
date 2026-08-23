@@ -522,6 +522,13 @@ _MAX_SECTION_CHARS = 30_000
 
 _SUBSECTION_RE = _section_pattern((r"\subsection",))
 
+# Fallback heading patterns for papers that don't use \subsection:
+# \ex{...}, \exercise{...}, \problem{...}, \topic{...}, \paragraph{...}
+_CUSTOM_HEADING_RE = re.compile(
+    r"(\\(?:ex|exercise|problem|topic|paragraph))\s*\{((?:[^{}]|\{[^{}]*\})*)\}",
+    re.MULTILINE,
+)
+
 
 def _split_on(latex_doc: str, pat: re.Pattern[str]) -> list[tuple[str, str]]:
     """Core splitter — split *latex_doc* on the given compiled pattern.
@@ -558,25 +565,40 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 
     First splits on \\chapter / \\section.  For any section whose body
     exceeds _MAX_SECTION_CHARS (survey / textbook papers), re-splits that
-    section on \\subsection to expose finer-grained structure.  The
+    section on \\subsection to expose finer-grained structure.  If no
+    \\subsection commands are found, falls back to custom heading patterns
+    like \\ex{}, \\exercise{}, \\problem{}, \\paragraph{}.  The
     pre-subsection text (if any) is kept under the original section title.
     """
     coarse = _split_on(latex_doc, _SECTION_RE)
 
     result: list[tuple[str, str]] = []
     for title, body in coarse:
+        split_done = False
         if len(body) > _MAX_SECTION_CHARS:
             sub_splits = _split_on(body, _SUBSECTION_RE)
             if len(sub_splits) > 1:
-                # First element is text before the first \subsection — keep
-                # under the parent section title.
                 pre_title, pre_body = sub_splits[0]
                 if pre_body.strip():
                     result.append((title, pre_body))
                 for sub_title, sub_body in sub_splits[1:]:
                     result.append((sub_title, sub_body))
-                continue
-        result.append((title, body))
+                split_done = True
+
+        # Always try custom heading commands when present — textbook exercises
+        # and problem sets often use \ex{}, \exercise{}, etc. regardless of size.
+        if not split_done and _CUSTOM_HEADING_RE.search(body):
+            sub_splits = _split_on(body, _CUSTOM_HEADING_RE)
+            if len(sub_splits) > 1:
+                pre_title, pre_body = sub_splits[0]
+                if pre_body.strip():
+                    result.append((title, pre_body))
+                for sub_title, sub_body in sub_splits[1:]:
+                    result.append((sub_title, sub_body))
+                split_done = True
+
+        if not split_done:
+            result.append((title, body))
 
     return result
 
