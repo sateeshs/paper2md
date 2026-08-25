@@ -168,9 +168,20 @@ def run(
         return 0
 
     from lib.math_block_selection import prioritize_and_cap
+    from lib.paper_type import infer_paper_type
     before = len(rows)
     rows = prioritize_and_cap(rows, max_blocks=max_blocks, max_blocks_per_section=max_blocks_per_section)
     tqdm.write(f"[INFO] Selected {len(rows)} of {before} candidate block(s)")
+
+    # Infer document type per paper from its section titles; the --paper-type
+    # CLI value remains the fallback for rows whose paper can't be resolved.
+    titles_by_paper: dict[str, list[str]] = {}
+    for r in rows:
+        sec = r.get("sections") or {}
+        pid = ((sec.get("papers") or {}).get("arxiv_id")) or "?"
+        titles_by_paper.setdefault(pid, []).append(sec.get("title") or "")
+    type_by_paper = {pid: infer_paper_type(titles) for pid, titles in titles_by_paper.items()}
+    tqdm.write(f"[INFO] paper types: {type_by_paper}")
 
     updated = skipped = failed = 0
 
@@ -188,7 +199,7 @@ def run(
             latex_expr=row["latex_expr"],
             context_before=row.get("context_before") or "",
             context_after=row.get("context_after") or "",
-            paper_type=paper_type,
+            paper_type=type_by_paper.get(paper.get("arxiv_id") or "?", paper_type),
         )
 
         # Skip trivially short inline expressions
