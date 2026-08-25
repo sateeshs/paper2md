@@ -34,6 +34,35 @@ def _get_client():
     return create_client(url, key)
 
 
+def _fetch_section(client, section_id: str) -> dict | None:
+    """Resolve a section row with nested paper data. Returns None if unknown."""
+    resp = (
+        client.table("sections")
+        .select("id, title, paper_id, papers(id, arxiv_id, title)")
+        .eq("id", section_id).maybeSingle().execute()
+    )
+    if not resp.data:
+        tqdm.write(f"[WARN] Section {section_id} not found in DB.")
+    return resp.data
+
+
+def _fetch_paper(client, arxiv_id: str) -> tuple[dict | None, list[str]]:
+    """Resolve a paper row + its section IDs. Returns (None, []) if unknown."""
+    resp = (
+        client.table("papers").select("id, arxiv_id, title")
+        .eq("arxiv_id", arxiv_id).maybeSingle().execute()
+    )
+    paper = resp.data
+    if not paper:
+        tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
+        return None, []
+    secs = client.table("sections").select("id, title, paper_id").eq("paper_id", paper["id"]).execute()
+    section_ids = [s["id"] for s in (secs.data or [])]
+    if not section_ids:
+        tqdm.write(f"[WARN] No sections found for {arxiv_id}.")
+    return paper, section_ids
+
+
 def fetch_unexplained_blocks(
     client,
     arxiv_id: str | None,
@@ -53,29 +82,15 @@ def fetch_unexplained_blocks(
 
     if section_id:
         # Single section mode — resolve paper via section
-        sec_resp = (
-            client.table("sections")
-            .select("id, title, paper_id, papers(id, arxiv_id, title)")
-            .eq("id", section_id)
-            .single()
-            .execute()
-        )
-        if not sec_resp.data:
-            tqdm.write(f"[WARN] Section {section_id} not found in DB.")
+        sec = _fetch_section(client, section_id)
+        if not sec:
             return []
         section_ids = [section_id]
-        paper_meta = sec_resp.data.get("papers")
-        tqdm.write(f"[INFO] Section: {sec_resp.data.get('title', '?')} (paper: {(paper_meta or {}).get('title', '?')})")
+        paper_meta = sec.get("papers")
+        tqdm.write(f"[INFO] Section: {sec.get('title', '?')} (paper: {(paper_meta or {}).get('title', '?')})")
     elif arxiv_id:
-        paper_resp = client.table("papers").select("id, arxiv_id, title").eq("arxiv_id", arxiv_id).single().execute()
-        if not paper_resp.data:
-            tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
-            return []
-        paper_meta = paper_resp.data
-        secs_resp = client.table("sections").select("id, title, paper_id").eq("paper_id", paper_meta["id"]).execute()
-        section_ids = [s["id"] for s in (secs_resp.data or [])]
-        if not section_ids:
-            tqdm.write(f"[WARN] No sections found for {arxiv_id}.")
+        paper_meta, section_ids = _fetch_paper(client, arxiv_id)
+        if not paper_meta:
             return []
 
     # Build base query
@@ -225,6 +240,9 @@ def main() -> int:
                     default="research_paper",
                     help="Document type for explanation framing (default: research_paper)")
     args = ap.parse_args()
+
+    if args.force and not (args.arxiv_id or args.section_id):
+        ap.error("--force requires --arxiv-id or --section-id (it would rewrite every block)")
 
     run(
         arxiv_id=args.arxiv_id,
