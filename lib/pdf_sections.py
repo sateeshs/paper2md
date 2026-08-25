@@ -153,9 +153,13 @@ def split_pdf_into_sections(text: str) -> tuple[Section, ...]:
     # Handles both well-spaced PDFs ("1 Introduction\n") and no-space PDFs where
     # headings are glued to body text ("2Background:PolicyOptimization...").
 
-    # 3a: standalone-line headings (well-formatted PDFs)
+    # 3a: standalone-line headings (well-formatted PDFs).
+    # Number may carry a trailing dot ("1. Introduction") or nested dots ("2.3 Model").
+    # Separator is [ \t]+ (NOT \s) so a bare page-number line followed by body text
+    # on later lines cannot anchor a section; the title class excludes newlines for
+    # the same reason.
     _NUMBERED_SEC_LINE = re.compile(
-        r"^(\d+(?:\.\d+)?|[A-Z])\s+([A-Z][A-Za-z\s:,&\-–—]{2,78})$", re.MULTILINE
+        r"^(\d+(?:\.\d+)*\.?|[A-Z])[ \t]+([A-Z][A-Za-z ,:&\-–—]{2,78})$", re.MULTILINE
     )
     line_matches = list(_NUMBERED_SEC_LINE.finditer(text))
     if len(line_matches) >= 3:

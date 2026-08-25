@@ -46,3 +46,41 @@ def test_long_roman_tokens_are_preserved_not_filtered():
     # "mcmxciv" is valid roman numeral (1999) but >6 chars
     # implausible as a page number; likely real content (e.g., years in prose)
     assert not is_roman_page_number("mcmxciv")
+
+
+def _body(words: int = 110) -> str:
+    return "word " * words  # ~550+ chars, above MIN_BODY so bodies are not merged
+
+
+def test_numbered_headings_with_trailing_dot_split():
+    """'N. Title' headings (common in PDF extraction) must split into sections."""
+    text = (
+        "Abstract paragraph.\n\n"
+        "1. Introduction\n\n" + _body() +
+        "\n\n2. Related Works\n\n" + _body() +
+        "\n\n3. Proposed Model\n\n" + _body()
+    )
+    sections = split_pdf_into_sections(text)
+    assert len(sections) >= 3
+    titles = [s.title for s in sections]
+    assert any("Introduction" in t for t in titles)
+    assert any("Related Works" in t for t in titles)
+
+
+def test_bare_page_number_lines_do_not_anchor_sections():
+    """Standalone page-number lines ('1', '4', '6') followed by unpunctuated
+    prose must not become section anchors that swallow body text.
+    Mirrors the real failure on arXiv 2512.21804."""
+    text = (
+        "1. Introduction\n\n" + _body() +
+        "\n\n4\n\nFinancial institutions banks and dealers trade large volumes of\n" + _body() +
+        "\n\n5\n\nThe training procedure uses Adam optimizer with learning rate\n" + _body() +
+        "\n\n6\n\nHYPERPARAMETERS TUNING:\nFollowing are the tuned values\n" + _body()
+    )
+    sections = split_pdf_into_sections(text)
+    # The real heading is "1. Introduction"; a bare '4'/'6' line must not
+    # start a section whose first line is just the page number.
+    for s in sections:
+        first_line = s.title.strip().splitlines()[0]
+        assert not first_line.isdigit(), f"page number became title: {s.title!r}"
+
