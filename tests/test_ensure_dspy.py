@@ -29,6 +29,8 @@ def _load_summarize_papers():
     module_path = project_root / "summarize_papers.py"
     spec = importlib.util.spec_from_file_location("summarize_papers_test", module_path)
     module = importlib.util.module_from_spec(spec)
+    # Register in sys.modules so decorators (e.g. @dataclass) resolve the module
+    sys.modules["summarize_papers_test"] = module
     # Patch configure_dspy during module execution to intercept the import
     with patch("lib.dspy_config.configure_dspy"):
         spec.loader.exec_module(module)

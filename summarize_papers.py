@@ -221,6 +221,13 @@ def build_markdown(papers: list[Paper]) -> str:
 # ArXiv pipeline
 # ---------------------------------------------------------------------------
 
+@dataclasses.dataclass(frozen=True)
+class ProcessResult:
+    """Outcome of processing one paper in a batch run."""
+
+    status: str  # "processed" | "skipped" | "error"
+
+
 def download_pdf_with_retry(
     arxiv_id: str, attempts: int = 3, sleep_fn=time.sleep
 ) -> bytes:
@@ -261,11 +268,11 @@ def process_arxiv_id(
     force: bool = False,
     vision_math: bool = False,
     vision_pages: int = 5,
-) -> Paper | None:
+) -> ProcessResult:
     """
     Full pipeline for a single ArXiv paper.
 
-    Returns the processed Paper, or None on fatal error.
+    Returns a ProcessResult: "processed", "skipped", or "error".
     """
     from lib.arxiv_source import fetch_arxiv_latex_full
     from lib.latex_parse import parse_latex_sections
@@ -278,7 +285,7 @@ def process_arxiv_id(
         status = get_paper_status(arxiv_id)
         if status == "complete" and not force:
             tqdm.write(f"[INFO] {label} already complete in Supabase — skipping (use --force to re-process)")
-            return None
+            return ProcessResult("skipped")
         mark_processing(arxiv_id)
 
     # Fetch LaTeX source
@@ -289,7 +296,7 @@ def process_arxiv_id(
         _report_error("fetch", label, e)
         if push_supabase:
             mark_error(arxiv_id, _format_exc(e))
-        return None
+        return ProcessResult("error")
 
     latex = latex_result[0] if latex_result else None
     full_latex_source = latex_result[1] if latex_result else None
@@ -373,7 +380,7 @@ def process_arxiv_id(
             _report_error("pdf_fallback", label, e)
             if push_supabase:
                 mark_error(arxiv_id, _format_exc(e))
-            return None
+            return ProcessResult("error")
         finally:
             shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
 
@@ -431,7 +438,7 @@ def process_arxiv_id(
             save_failed_push(paper, _format_exc(e))
             mark_error(arxiv_id, _format_exc(e))
 
-    return paper
+    return ProcessResult("processed")
 
 
 def _arxiv_api_title(arxiv_id: str) -> str | None:
@@ -562,9 +569,9 @@ def main() -> int:
         print(f"[INFO] {len(arxiv_ids)} pending paper(s) to process")
 
     if arxiv_ids:
-        processed = 0
+        counts = {"processed": 0, "skipped": 0, "error": 0}
         for i, arxiv_id in enumerate(tqdm(arxiv_ids, desc="ArXiv papers")):
-            paper = process_arxiv_id(
+            result = process_arxiv_id(
                 arxiv_id=arxiv_id,
                 no_math_explain=args.no_math_explain,
                 max_math_blocks=args.max_math_blocks,
@@ -575,12 +582,14 @@ def main() -> int:
                 vision_math=args.vision_math,
                 vision_pages=args.vision_pages,
             )
-            if paper:
-                processed += 1
+            counts[result.status] += 1
             if i < len(arxiv_ids) - 1:
                 time.sleep(5)  # polite gap between papers
-        print(f"[INFO] Processed {processed}/{len(arxiv_ids)} ArXiv papers")
-        return 0
+        print(
+            f"[INFO] Processed {counts['processed']}/{len(arxiv_ids)} ArXiv papers "
+            f"(skipped={counts['skipped']}, errors={counts['error']})"
+        )
+        return 1 if counts["error"] and not counts["processed"] else 0
 
     # ── PDF mode (original behaviour) ─────────────────────────────────────
     papers_dir = Path(args.papers_dir)
