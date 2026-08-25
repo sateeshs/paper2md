@@ -711,6 +711,8 @@ def _expand_custom_macros(latex_doc: str) -> str:
         last = 0
         changed = False
         for m in pattern.finditer(result):
+            if m.start() < last:
+                continue  # inside args already consumed by the previous expansion
             replacement, consumed = _expand_match(result, m)
             parts.append(result[last:m.start()])
             parts.append(replacement)

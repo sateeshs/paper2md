@@ -34,3 +34,18 @@ def test_macro_used_inside_another_macro_body():
     )
     out = _expand_custom_macros(src)
     assert "\\mathbf{R}^{n}" in out
+
+
+def test_macro_as_argument_not_duplicated():
+    src = (
+        r"\newcommand{\al}{\alpha}"
+        r"\newcommand{\norm}[1]{\left\|#1\right\|}"
+        r" $\norm{\al}$"
+    )
+    out = _expand_custom_macros(src)
+    # The argument \al is consumed by \norm and expanded inside its body
+    # exactly once at the use site — never re-emitted at its original position.
+    # (Definition-line text may still contain \alpha; only the use region counts.)
+    usage_region = out[out.index("$"):]
+    assert usage_region.count("\\alpha") == 1
+    assert "\\left\\|\\alpha\\right\\|" in out
