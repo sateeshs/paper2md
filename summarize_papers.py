@@ -73,22 +73,36 @@ def _report_error(stage: str, label: str, e: Exception) -> None:
         tqdm.write(traceback.format_exc())
 
 
+# Module-level guard to ensure configure_dspy() is called exactly once per process
+_dspy_configured: bool = False
+
+
+def _ensure_dspy() -> None:
+    """Ensure DSPy is configured exactly once per process."""
+    global _dspy_configured
+    if not _dspy_configured:
+        from lib.dspy_config import configure_dspy
+        configure_dspy()
+        _dspy_configured = True
+
+
 def _get_summarizer():
     """Lazy-load DSPy summarizer (configures provider on first call)."""
-    from lib.dspy_config import configure_dspy
+    _ensure_dspy()
     from lib.dspy_modules import PaperSummarizer
-    configure_dspy()
     return PaperSummarizer()
 
 
 def _get_explainer():
     """Lazy-load DSPy math explainer."""
+    _ensure_dspy()
     from lib.dspy_modules import MathExplainer
     return MathExplainer()
 
 
 def _get_algorithm_explainer():
     """Lazy-load DSPy algorithm explainer."""
+    _ensure_dspy()
     from lib.dspy_modules import AlgorithmExplainer
     return AlgorithmExplainer()
 
