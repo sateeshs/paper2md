@@ -39,3 +39,10 @@ def test_actual_roman_numerals_still_filtered():
     assert is_roman_page_number("iv")
     assert is_roman_page_number("XII")
     assert is_roman_page_number("xlv")
+
+
+def test_long_roman_tokens_are_preserved_not_filtered():
+    """Tokens ≥7 chars are kept because they're implausible as page numbers."""
+    # "mcmxciv" is valid roman numeral (1999) but >6 chars
+    # implausible as a page number; likely real content (e.g., years in prose)
+    assert not is_roman_page_number("mcmxciv")

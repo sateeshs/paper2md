@@ -17,6 +17,8 @@ def is_roman_page_number(token: str) -> bool:
     """True if a standalone line is plausibly a roman-numeral page number.
 
     Filters out common English words that happen to be spelled with roman letters.
+    Tokens longer than 6 chars are preserved (not filtered) as they are implausible
+    page numbers and may be real prose content (e.g., years, indices).
     """
     t = token.strip()
     if not t or len(t) > 6 or not re.fullmatch(r"[ivxlcdm]+", t, re.IGNORECASE):
