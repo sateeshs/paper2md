@@ -608,18 +608,18 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # ---------------------------------------------------------------------------
 
 def _expand_custom_macros(latex_doc: str) -> str:
-    """Expand simple (zero-argument) custom macros defined in the document.
+    """Expand custom macros defined in the document, including argument-taking ones.
 
-    Handles \\newcommand, \\renewcommand, \\providecommand, and \\DeclareMathOperator.
-    Only expands macros with no arguments (no [n] or #1 in the body).
+    Handles \\newcommand, \\renewcommand, \\providecommand (zero-argument bodies
+    and [n]-arity forms with #1..#N substitution), and \\DeclareMathOperator.
     Leaves the original definitions in place (harmless for downstream parsing).
     """
-    # Match: \newcommand{\name}{body}, \providecommand{\name}{body}, etc.
+    # Match: \newcommand{\name}{body}, \providecommand{\name}[2]{body}, etc.
     # Also handles \newcommand\name{body} (no braces around name)
     _MACRO_DEF_RE = re.compile(
         r"\\(?:new|renew|provide)command\s*"
         r"\{?(\\[a-zA-Z]+)\}?"       # \macroName (with or without outer braces)
-        r"(?:\s*\[\d+\])?"           # optional [num_args] — if present, skip expansion
+        r"(?:\s*\[(\d)\])?"          # optional [num_args] — capture arity
         r"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",   # {body} with one level of nesting
     )
     _DECLARE_OP_RE = re.compile(
@@ -627,21 +627,21 @@ def _expand_custom_macros(latex_doc: str) -> str:
         r"\{?(\\[a-zA-Z]+)\}?"
         r"\s*\{([^}]+)\}",
     )
+    # One macro argument: {braced, one nesting level} or a single non-space token
+    _ARG_RE = re.compile(r"\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|(\S))")
 
-    macros: dict[str, str] = {}
+    macros: dict[str, tuple[int, str]] = {}
 
     for m in _MACRO_DEF_RE.finditer(latex_doc):
-        name = m.group(1)   # e.g. \PtwoB
-        body = m.group(2)   # e.g. \mathcal B
-        # Skip macros that take arguments (#1 in body)
-        if "#" in body:
-            continue
-        macros[name] = body
+        name = m.group(1)     # e.g. \PtwoB
+        arity_s = m.group(2)  # e.g. "2" or None
+        body = m.group(3)     # e.g. \{#1,#2\}
+        macros[name] = (int(arity_s) if arity_s else 0, body)
 
     for m in _DECLARE_OP_RE.finditer(latex_doc):
         name = m.group(1)
         body = m.group(2)
-        macros[name] = rf"\operatorname{{{body}}}"
+        macros[name] = (0, rf"\operatorname{{{body}}}")
 
     if not macros:
         return latex_doc
@@ -653,14 +653,41 @@ def _expand_custom_macros(latex_doc: str) -> str:
         "(" + "|".join(re.escape(n) for n in sorted_names) + r")(?![a-zA-Z])"
     )
 
-    def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
-        return macros[m.group(1)]
+    def _expand_match(text: str, m: re.Match[str]) -> tuple[str, int]:
+        """Expand one macro use; return (replacement, chars consumed after m.end())."""
+        arity, body = macros[m.group(1)]
+        if arity == 0:
+            return body, 0
+        args: list[str] = []
+        pos = m.end()
+        for _ in range(arity):
+            am = _ARG_RE.match(text[pos:])
+            if not am:
+                break
+            args.append(am.group(1) if am.group(1) is not None else am.group(2))
+            pos += am.end()
+        consumed = pos - m.end()
+        for i, a in enumerate(args, 1):
+            body = body.replace(f"#{i}", a)
+        return body, consumed
 
-    # Limit to 3 passes for macros that expand into other macros
+    # Limit to 3 passes for macros that expand into other macros. Manual
+    # advance/rebuild loop because argument consumption extends past m.end(),
+    # which re.sub cannot express.
     result = latex_doc
     for _ in range(3):
-        new_result = pattern.sub(_replace, result)
-        if new_result == result:
+        parts: list[str] = []
+        last = 0
+        changed = False
+        for m in pattern.finditer(result):
+            replacement, consumed = _expand_match(result, m)
+            parts.append(result[last:m.start()])
+            parts.append(replacement)
+            last = m.end() + consumed
+            changed = True
+        parts.append(result[last:])
+        new_result = "".join(parts)
+        if not changed or new_result == result:
             break
         result = new_result
 
