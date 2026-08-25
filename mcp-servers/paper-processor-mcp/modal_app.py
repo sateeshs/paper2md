@@ -137,8 +137,8 @@ async def process_pending_batch() -> None:
     print(f"[batch] Processing {len(pending)} pending papers: {pending}")
     for arxiv_id in pending:
         try:
-            await asyncio.to_thread(process_arxiv_id, arxiv_id, push_supabase=True)
-            print(f"[batch] Done: {arxiv_id}")
+            result = await asyncio.to_thread(process_arxiv_id, arxiv_id, push_supabase=True)
+            print(f"[batch] {result.status}: {arxiv_id}")
         except Exception as exc:
             print(f"[batch] Error processing {arxiv_id}: {exc}")
 
