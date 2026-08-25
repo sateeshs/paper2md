@@ -373,10 +373,15 @@ def create_app():
         return JSONResponse({"status": "ok", "server": "paper-processor-mcp"})
 
     mcp_app = mcp.streamable_http_app()
-    return Starlette(routes=[
-        Route("/health", health),
-        Mount("/", app=mcp_app),
-    ])
+    return Starlette(
+        routes=[
+            Route("/health", health),
+            Mount("/", app=mcp_app),
+        ],
+        # The MCP session manager only starts via its lifespan; a plain
+        # Starlette() would 500 with "Task group is not initialized".
+        lifespan=mcp_app.router.lifespan_context,
+    )
 
 
 if __name__ == "__main__":

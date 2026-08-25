@@ -47,10 +47,10 @@ _MANIM_ROOT = Path.home() / "__myworkarea" / "projects" / "genai" / "agentic-ai"
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install_from_requirements(str(_REPO_ROOT / "requirements.txt"))
-    .copy_local_dir(str(_REPO_ROOT / "lib"), "/app/lib")
-    .copy_local_file(str(_REPO_ROOT / "summarize_papers.py"), "/app/summarize_papers.py")
-    .copy_local_file(str(_REPO_ROOT / "prompts.json"), "/app/prompts.json")
-    .copy_local_dir(
+    .add_local_dir(str(_REPO_ROOT / "lib"), "/app/lib")
+    .add_local_file(str(_REPO_ROOT / "summarize_papers.py"), "/app/summarize_papers.py")
+    .add_local_file(str(_REPO_ROOT / "prompts.json"), "/app/prompts.json")
+    .add_local_dir(
         str(_REPO_ROOT / "mcp-servers" / "paper-processor-mcp"),
         "/app/mcp-servers/paper-processor-mcp",
     )
@@ -76,7 +76,7 @@ manim_image = (
         "supabase>=2.0.0",
         "httpx>=0.27.0",
     )
-    .copy_local_dir(str(_MANIM_ROOT), "/app/manim")
+    .add_local_dir(str(_MANIM_ROOT), "/app/manim")
     .run_commands(
         "cd /app/manim && pip install -e .",
     )
@@ -475,7 +475,7 @@ def _update_math_block(block_id: str, url: str, manim_code: str, mode: str = "st
     timeout=120,
     memory=4096,
 )
-@modal.web_endpoint(method="POST")
+@modal.fastapi_endpoint(method="POST")
 def render_math_visual(request: dict) -> dict:
     """Generate a ManimGL visualization for a math block.
 
