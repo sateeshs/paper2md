@@ -39,7 +39,7 @@ def prioritize_and_cap(
             named = [r for r in sec_rows if r["env_type"] != "inline"]
             inline = [r for r in sec_rows if r["env_type"] == "inline"]
             capped.extend(named[:max_blocks_per_section])
-            capped.extend(inline)  # no cap on inline
+            capped.extend(inline[:max_blocks_per_section])
         rows = sorted(capped, key=priority)
 
     return rows[:max_blocks]

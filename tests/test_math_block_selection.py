@@ -19,14 +19,24 @@ def test_named_envs_sort_before_inline():
 
 
 def test_per_section_cap_applies_to_named_and_inline_separately():
+    # Arrange: 2 named + 2 inline in section s1, 1 named in s2
     rows = [
         _row(1, "equation"), _row(2, "align"), _row(3, "equation", sec="s2"),
         _row(4, "inline"), _row(5, "inline"),
     ]
+
+    # Act: Apply per-section cap of 1
     out = prioritize_and_cap(rows, max_blocks=100, max_blocks_per_section=1)
-    ids = {r["id"] for r in out}
-    assert ids >= {"1", "3", "4", "5"}   # 1 named + 1 inline per section kept
-    assert len([r for r in out if r["env_type"] != "inline" and r["sections"]["id"] == "s1"]) == 1
+
+    # Assert: 1 named + 1 inline per section, so: 1 from s1 named, 1 from s1 inline, 1 from s2
+    s1_named = [r for r in out if r["sections"]["id"] == "s1" and r["env_type"] != "inline"]
+    s1_inline = [r for r in out if r["sections"]["id"] == "s1" and r["env_type"] == "inline"]
+    s2_named = [r for r in out if r["sections"]["id"] == "s2" and r["env_type"] != "inline"]
+
+    assert len(s1_named) == 1, f"Expected 1 named block in s1, got {len(s1_named)}"
+    assert len(s1_inline) == 1, f"Expected 1 inline block in s1, got {len(s1_inline)}"
+    assert len(s2_named) == 1, f"Expected 1 named block in s2, got {len(s2_named)}"
+    assert len(out) == 3
 
 
 def test_global_cap_applies_last():
