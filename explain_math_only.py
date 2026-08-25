@@ -27,6 +27,19 @@ from tqdm import tqdm
 load_dotenv(Path(__file__).parent / ".env")
 
 
+# Module-level guard to ensure configure_dspy() is called exactly once per process
+_dspy_configured: bool = False
+
+
+def _ensure_dspy() -> None:
+    """Ensure DSPy is configured exactly once per process."""
+    global _dspy_configured
+    if not _dspy_configured:
+        from lib.dspy_config import configure_dspy
+        configure_dspy()
+        _dspy_configured = True
+
+
 def _get_client():
     from supabase import create_client  # type: ignore
     url = os.environ["SUPABASE_URL"].strip()
@@ -140,11 +153,10 @@ def run(
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
 ) -> int:
-    from lib.dspy_config import configure_dspy
     from lib.dspy_modules import MathExplainer
     from lib.models import MathBlock
 
-    configure_dspy()
+    _ensure_dspy()
     explainer = MathExplainer()
     client = _get_client()
 
