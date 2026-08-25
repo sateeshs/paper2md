@@ -33,8 +33,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import httpx
 import os
 import re
+import shutil
+import tempfile
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -217,6 +221,36 @@ def build_markdown(papers: list[Paper]) -> str:
 # ArXiv pipeline
 # ---------------------------------------------------------------------------
 
+def download_pdf_with_retry(
+    arxiv_id: str, attempts: int = 3, sleep_fn=time.sleep
+) -> bytes:
+    """Download https://arxiv.org/pdf/<id> with exponential backoff (3s/9s/27s) on 429/5xx."""
+    url = f"https://arxiv.org/pdf/{arxiv_id}"
+    delay = 3.0
+    last_err: Exception | None = None
+    for attempt in range(attempts):
+        resp: httpx.Response | None = None
+        try:
+            resp = httpx.get(
+                url,
+                follow_redirects=True,
+                timeout=120,
+                headers={"User-Agent": "paper2md/1.0 (research summarizer)"},
+            )
+            resp.raise_for_status()
+            return resp.content
+        except Exception as e:  # noqa: BLE001 — retried below when status is retryable
+            last_err = e
+            if attempt >= attempts - 1:
+                break
+            status = resp.status_code if resp is not None else 0
+            if status not in (429, *range(500, 600)):
+                raise  # non-retryable client error — fail fast
+            sleep_fn(delay)
+            delay *= 3
+    raise last_err if last_err else RuntimeError("download failed")
+
+
 def process_arxiv_id(
     arxiv_id: str,
     no_math_explain: bool = False,
@@ -294,33 +328,57 @@ def process_arxiv_id(
             _needs_pdf_fallback = True
 
     if not latex or _needs_pdf_fallback:
-        # Fall back to direct PDF download (no API call — avoids rate limits)
+        # Fall back to direct PDF download (no API call — avoids rate limits).
+        # The temp dir lives until vision-math is done; cleaned in `finally` below.
         if not latex:
             tqdm.write(f"[WARN] {label}: no LaTeX source — falling back to PDF")
+        _pdf_tmpdir = tempfile.mkdtemp(prefix="paper2md_pdf_")
         try:
-            import tempfile
-            import time
-            import httpx
+            pdf_path_for_vision = Path(_pdf_tmpdir) / f"{arxiv_id}.pdf"
             pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
             tqdm.write(f"[INFO] {label}: downloading PDF from {pdf_url}")
-            time.sleep(3)  # polite delay
-            resp = httpx.get(pdf_url, follow_redirects=True, timeout=120)
-            resp.raise_for_status()
-            # Keep the PDF on disk if vision-math is requested (temp dir stays open)
-            _pdf_tmpdir = tempfile.mkdtemp(prefix="paper2md_pdf_")
-            pdf_path_for_vision = Path(_pdf_tmpdir) / f"{arxiv_id}.pdf"
-            pdf_path_for_vision.write_bytes(resp.content)
-            paper_pdf = extract_paper_from_pdf(pdf_path_for_vision)
-            paper = paper_pdf
+            pdf_path_for_vision.write_bytes(download_pdf_with_retry(arxiv_id))
+            paper = extract_paper_from_pdf(pdf_path_for_vision)
             source_type = "pdf"
+
+            # Split plain text into sections heuristically
+            pdf_sections = split_pdf_into_sections(paper.text)
+            tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
+
+            # Vision math extraction (optional, PDF-only papers)
+            if vision_math and pdf_sections:
+                try:
+                    from lib.pdf_vision_math import extract_vision_math_for_sections
+                    tqdm.write(f"[INFO] {label}: running vision math extraction…")
+                    pdf_sections = extract_vision_math_for_sections(
+                        pdf_path=pdf_path_for_vision,
+                        sections=pdf_sections,
+                        max_pages_per_section=vision_pages,
+                        verbose=True,
+                    )
+                    total_blocks = sum(len(s.math_blocks) for s in pdf_sections)
+                    tqdm.write(f"[INFO] {label}: {total_blocks} math block(s) extracted via vision")
+                except Exception as e:
+                    _report_error("vision_math", label, e)
+
+            paper = Paper(
+                title=paper.title,
+                text=paper.text,
+                pdf_path=paper.pdf_path,
+                arxiv_id=arxiv_id,
+                source_type=source_type,
+                sections=pdf_sections,
+            )
         except Exception as e:
             _report_error("pdf_fallback", label, e)
             if push_supabase:
                 mark_error(arxiv_id, _format_exc(e))
             return None
+        finally:
+            shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
 
-    # Build Paper object from LaTeX path
-    if latex and not _needs_pdf_fallback:
+    elif latex:
+        # Build Paper object from LaTeX path.
         # For arXiv papers prefer the API title (authoritative, avoids template placeholders).
         # Fall back to LaTeX \title{} extraction if the API call fails.
         title = _arxiv_api_title(arxiv_id) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
@@ -332,41 +390,6 @@ def process_arxiv_id(
             source_type=source_type,
             sections=sections,
             citations=citations,
-        )
-    else:
-        # PDF fallback — split plain text into sections heuristically
-        pdf_sections = split_pdf_into_sections(paper.text)
-        tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
-
-        # Vision math extraction (optional, PDF-only papers)
-        if vision_math and pdf_sections:
-            try:
-                from lib.pdf_vision_math import extract_vision_math_for_sections
-                tqdm.write(f"[INFO] {label}: running vision math extraction…")
-                pdf_sections = extract_vision_math_for_sections(
-                    pdf_path=pdf_path_for_vision,
-                    sections=pdf_sections,
-                    max_pages_per_section=vision_pages,
-                    verbose=True,
-                )
-                total_blocks = sum(len(s.math_blocks) for s in pdf_sections)
-                tqdm.write(f"[INFO] {label}: {total_blocks} math block(s) extracted via vision")
-            except Exception as e:
-                _report_error("vision_math", label, e)
-            finally:
-                import shutil
-                shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
-        else:
-            import shutil
-            shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
-
-        paper = Paper(
-            title=paper.title,
-            text=paper.text,
-            pdf_path=paper.pdf_path,
-            arxiv_id=arxiv_id,
-            source_type=source_type,
-            sections=pdf_sections,
         )
 
     # Summarise
@@ -417,7 +440,8 @@ def _arxiv_api_title(arxiv_id: str) -> str | None:
         import urllib.request
         import xml.etree.ElementTree as ET
         url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
-        with urllib.request.urlopen(url, timeout=10) as r:
+        req = urllib.request.Request(url, headers={"User-Agent": "paper2md/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
             root = ET.fromstring(r.read().decode())
         ns = {"a": "http://www.w3.org/2005/Atom"}
         entry = root.find("a:entry", ns)
@@ -425,8 +449,8 @@ def _arxiv_api_title(arxiv_id: str) -> str | None:
             t = entry.find("a:title", ns)
             if t is not None and t.text:
                 return re.sub(r"\s+", " ", t.text.strip()).strip()
-    except Exception:
-        pass
+    except Exception as e:
+        tqdm.write(f"[WARN] arXiv API title lookup failed: {_format_exc(e)}")
     return None
 
 
@@ -539,7 +563,7 @@ def main() -> int:
 
     if arxiv_ids:
         processed = 0
-        for arxiv_id in tqdm(arxiv_ids, desc="ArXiv papers"):
+        for i, arxiv_id in enumerate(tqdm(arxiv_ids, desc="ArXiv papers")):
             paper = process_arxiv_id(
                 arxiv_id=arxiv_id,
                 no_math_explain=args.no_math_explain,
@@ -553,6 +577,8 @@ def main() -> int:
             )
             if paper:
                 processed += 1
+            if i < len(arxiv_ids) - 1:
+                time.sleep(5)  # polite gap between papers
         print(f"[INFO] Processed {processed}/{len(arxiv_ids)} ArXiv papers")
         return 0
 
