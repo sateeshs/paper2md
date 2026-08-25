@@ -52,7 +52,7 @@ def _fetch_section(client, section_id: str) -> dict | None:
     resp = (
         client.table("sections")
         .select("id, title, paper_id, papers(id, arxiv_id, title)")
-        .eq("id", section_id).maybeSingle().execute()
+        .eq("id", section_id).maybe_single().execute()
     )
     if not resp.data:
         tqdm.write(f"[WARN] Section {section_id} not found in DB.")
@@ -63,7 +63,7 @@ def _fetch_paper(client, arxiv_id: str) -> tuple[dict | None, list[str]]:
     """Resolve a paper row + its section IDs. Returns (None, []) if unknown."""
     resp = (
         client.table("papers").select("id, arxiv_id, title")
-        .eq("arxiv_id", arxiv_id).maybeSingle().execute()
+        .eq("arxiv_id", arxiv_id).maybe_single().execute()
     )
     paper = resp.data
     if not paper:

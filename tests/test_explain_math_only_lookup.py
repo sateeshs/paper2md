@@ -28,7 +28,7 @@ class FakeQuery:
     def single(self):
         return self
 
-    def maybeSingle(self):
+    def maybe_single(self):
         return self
 
     def execute(self):
@@ -47,7 +47,7 @@ class FakeClient:
 
 
 def test_fetch_paper_returns_none_for_unknown_id():
-    client = FakeClient(data=None)  # maybeSingle → None
+    client = FakeClient(data=None)  # maybe_single → None
     paper, section_ids = emo._fetch_paper(client, "9999.99999")
     assert paper is None
     assert section_ids == []
