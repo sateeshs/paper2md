@@ -123,6 +123,14 @@ def fetch_unexplained_blocks(
     return rows
 
 
+def _format_exc(e: Exception) -> str:
+    """Format exception for logging."""
+    msg = str(e).strip()
+    if msg:
+        return f"{type(e).__name__}: {msg}"
+    return type(e).__name__
+
+
 def run(
     arxiv_id: str | None,
     max_blocks: int,
@@ -131,7 +139,7 @@ def run(
     paper_type: str,
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
-) -> None:
+) -> int:
     from lib.dspy_config import configure_dspy
     from lib.dspy_modules import MathExplainer
     from lib.models import MathBlock
@@ -145,37 +153,12 @@ def run(
 
     if not rows:
         tqdm.write("[INFO] No unexplained blocks found.")
-        return
+        return 0
 
-    # Section-aware cap: limit blocks per section before applying global cap
-    if max_blocks_per_section:
-        from collections import defaultdict
-        by_section: dict[str, list[dict]] = defaultdict(list)
-        for r in rows:
-            sid = (r.get("sections") or {}).get("id") or ""
-            by_section[sid].append(r)
-
-        filtered: list[dict] = []
-        for sec_rows in by_section.values():
-            named = [r for r in sec_rows if r["env_type"] != "inline"][:max_blocks_per_section]
-            inline_r = [r for r in sec_rows if r["env_type"] == "inline"][:max_blocks_per_section]
-            filtered.extend(named)
-            filtered.extend(inline_r)
-        rows = filtered
-        tqdm.write(f"[INFO] After per-section cap ({max_blocks_per_section}/section): {len(rows)} candidates")
-
-    # Prioritise named envs (equation/align) over inline
-    def priority(r: dict) -> int:
-        return 0 if r["env_type"] != "inline" else 1
-
-    rows.sort(key=priority)
-
-    # Apply global cap
-    if len(rows) > max_blocks:
-        tqdm.write(f"[INFO] {len(rows)} blocks found — capping at {max_blocks}")
-        rows = rows[:max_blocks]
-
-    tqdm.write(f"[INFO] Will explain {len(rows)} block(s)")
+    from lib.math_block_selection import prioritize_and_cap
+    before = len(rows)
+    rows = prioritize_and_cap(rows, max_blocks=max_blocks, max_blocks_per_section=max_blocks_per_section)
+    tqdm.write(f"[INFO] Selected {len(rows)} of {before} candidate block(s)")
 
     updated = skipped = failed = 0
 
@@ -209,16 +192,20 @@ def run(
             continue
 
         # UPDATE in-place — never touch sections or papers rows
-        client.table("math_blocks").update({
-            "explanation":       explained.explanation,
-            "explanation_model": explained.explanation_model,
-        }).eq("id", row["id"]).execute()
-
-        updated += 1
+        try:
+            client.table("math_blocks").update({
+                "explanation":       explained.explanation,
+                "explanation_model": explained.explanation_model,
+            }).eq("id", row["id"]).execute()
+            updated += 1
+        except Exception as e:
+            failed += 1
+            tqdm.write(f"[ERROR] update failed for block {row['id']}: {_format_exc(e)}")
 
     tqdm.write(
         f"[INFO] Done — updated: {updated}, skipped (trivial): {skipped}, failed: {failed}"
     )
+    return 1 if failed else 0
 
 
 def main() -> int:
@@ -244,7 +231,7 @@ def main() -> int:
     if args.force and not (args.arxiv_id or args.section_id):
         ap.error("--force requires --arxiv-id or --section-id (it would rewrite every block)")
 
-    run(
+    return run(
         arxiv_id=args.arxiv_id,
         max_blocks=args.max_blocks,
         force=args.force,
@@ -253,7 +240,6 @@ def main() -> int:
         max_blocks_per_section=args.max_blocks_per_section,
         section_id=args.section_id,
     )
-    return 0
 
 
 if __name__ == "__main__":
