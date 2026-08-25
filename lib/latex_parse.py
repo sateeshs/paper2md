@@ -486,6 +486,32 @@ def _extract_math_matches(latex_body: str) -> list[_RawMatch]:
     return matches
 
 
+_THEOREM_LIKE_RE = re.compile(
+    r"\\begin\{(theorem|lemma|proposition|corollary|definition|conjecture|claim|fact)\}\*?"
+    r"(?:\s*\[[^\]]*\])?",
+)
+
+
+def _enclosing_theorem_context(
+    body: str, pos: int, window: int = 400
+) -> tuple[str, str] | None:
+    """If pos lies inside a theorem-like env, return (env_name, opening_prose).
+
+    The opening prose is the plain-text content between the environment's
+    \\begin header and either the math position or `window` chars, whichever
+    comes first.
+    """
+    spans = [
+        (m.group(1), m.end(), body.find(r"\end{" + m.group(1), m.start()))
+        for m in _THEOREM_LIKE_RE.finditer(body)
+    ]
+    for name, open_end, end in spans:
+        if end != -1 and open_end <= pos < end:
+            opening = _latex_to_text(body[open_end:min(end, open_end + window)]).strip()
+            return name, (opening[:300] or "")
+    return None
+
+
 def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
     """Extract all math blocks from a section body.
 
@@ -502,6 +528,11 @@ def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
 
     for idx, raw in enumerate(raw_matches):
         ctx_before, ctx_after = _extract_context(clean, raw.start, raw.end, raw.env_type)
+        theorem_tag = _enclosing_theorem_context(clean, raw.start)
+        if theorem_tag:
+            env_name, opening = theorem_tag
+            if opening:
+                ctx_before = f"[Inside {env_name}: {opening}]\n\n{ctx_before}"
         blocks.append(MathBlock(
             order_idx=idx,
             env_type=raw.env_type,
