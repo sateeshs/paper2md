@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import collections
 import dataclasses
 import re
 
 from lib.models import Section
+
+# Identical heading text appearing ≥ this many times is treated as a running
+# page header (textbook chapter title on every page), not section starts.
+RUNNING_HEADER_MIN_REPEATS = 3
 
 _ENGLISH_WORDS_OF_ROMAN_LETTERS = frozenset({
     "did", "dim", "mix", "civil", "mil", "lid", "vim", "mid", "ill", "id",
@@ -162,14 +167,24 @@ def split_pdf_into_sections(text: str) -> tuple[Section, ...]:
         r"^(\d+(?:\.\d+)*\.?|[A-Z])[ \t]+([A-Z][A-Za-z ,:&\-–—]{2,78})$", re.MULTILINE
     )
     line_matches = list(_NUMBERED_SEC_LINE.finditer(text))
-    if len(line_matches) >= 3:
+    # Drop running headers: a textbook repeats the chapter title at the top of
+    # every page; the identical heading line appearing ≥3 times is a page
+    # header, not N section starts (real headings repeat ≤2×: TOC entry + body).
+    title_counts = collections.Counter(
+        m.group(0).strip().lower() for m in line_matches
+    )
+    line_matches = [
+        m for m in line_matches
+        if title_counts[m.group(0).strip().lower()] < RUNNING_HEADER_MIN_REPEATS
+    ]
+    if len(line_matches) >= 2:
         positions = [
             (m.end(), m.end(), m.group(0).strip())
             for m in line_matches
             if len(m.group(0).strip()) <= 100
         ]
         sections = _build_from_positions(text, positions)
-        if len(sections) >= 3:
+        if len(sections) >= 2:
             return tuple(sections)
 
     # 3b: no-space PDFs — find top-level section markers using known heading keywords.

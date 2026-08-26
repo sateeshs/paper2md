@@ -84,3 +84,27 @@ def test_bare_page_number_lines_do_not_anchor_sections():
         first_line = s.title.strip().splitlines()[0]
         assert not first_line.isdigit(), f"page number became title: {s.title!r}"
 
+
+def test_running_headers_not_treated_as_sections():
+    """A textbook running header (chapter title repeated on every page) must
+    not spawn one section per page. Mirrors arXiv 2403.02467 where the header
+    '1 Predictive Inference ...' repeated ~40 times produced hundreds of junk
+    sections."""
+    header = "1 Predictive Inference with Linear Regression in Moderately High Dimensions"
+    text = ""
+    for _ in range(8):
+        text += f"\n\n{header}\n\n" + _body()
+    # Distinct subsection headings appear once each — these are real anchors.
+    text = (
+        "1.1 Foundation of Linear Regression\n\n" + _body() +
+        "\n\n" + header + "\n\n" + _body() +
+        "\n\n" + header + "\n\n" + _body() +
+        "\n\n1.2 Statistical Properties of Least Squares\n\n" + _body() +
+        "\n\n" + header + "\n\n" + _body()
+    )
+    sections = split_pdf_into_sections(text)
+    titles = [s.title for s in sections]
+    assert sum(1 for t in titles if "Predictive Inference" in t) == 0, titles
+    assert any("Foundation of Linear Regression" in t for t in titles)
+    assert any("Statistical Properties of Least Squares" in t for t in titles)
+
