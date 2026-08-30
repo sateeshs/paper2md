@@ -234,6 +234,10 @@ class MathExplainer(dspy.Module):
     def __init__(self) -> None:
         super().__init__()
         self.explain = dspy.ChainOfThought(ExplainMathBlock)
+        # Fallback for blocks whose ChainOfThought output overruns max_tokens.
+        # Predict drops the `reasoning` field, which is by far the largest part
+        # of the response, so the seven real fields fit in the same budget.
+        self.explain_terse = dspy.Predict(ExplainMathBlock)
 
     def _should_skip(self, block: MathBlock) -> bool:
         """Skip trivially short inline expressions like $n$, $x$, $i$."""
@@ -241,48 +245,66 @@ class MathExplainer(dspy.Module):
             return True
         return False
 
+    def _run(
+        self,
+        module: dspy.Module,
+        block: MathBlock,
+        paper_title: str,
+        section_title: str,
+    ) -> str:
+        """Call one predictor and return the sanitized explanation JSON."""
+        pred = _call_with_tracking(
+            module,
+            paper_title=paper_title,
+            section_title=section_title or "Unknown Section",
+            context_before=block.context_before or "",
+            latex_expr=block.latex_expr,
+            context_after=block.context_after or "",
+            paper_type=block.paper_type,
+        )
+        raw_fields = {
+            "what_it_computes":          pred.what_it_computes,
+            "symbol_meanings":           pred.symbol_meanings,
+            "intuition":                 pred.intuition,
+            "derivation":                pred.derivation,
+            "proof_role":                pred.proof_role,
+            "prerequisites":             pred.prerequisites,
+            "mathematical_significance": pred.mathematical_significance,
+        }
+        return json.dumps(_sanitize_explanation(raw_fields), ensure_ascii=False)
+
     def explain_block(
         self,
         block: MathBlock,
         paper_title: str,
         section_title: str,
     ) -> MathBlock:
-        """Return a new MathBlock with explanation filled in."""
+        """Return a new MathBlock with explanation filled in.
+
+        Large display equations make ChainOfThought overrun max_tokens; the
+        provider then returns an empty response and the block gets no
+        explanation at all. Retrying the same module is useless — DSPy caches
+        the truncated result and replays it instantly — so the retry uses a
+        different predictor, which is both a smaller response and a distinct
+        cache key.
+        """
         if self._should_skip(block):
             return block
 
-        try:
-            pred = _call_with_tracking(
-                self.explain,
-                paper_title=paper_title,
-                section_title=section_title or "Unknown Section",
-                context_before=block.context_before or "",
-                latex_expr=block.latex_expr,
-                context_after=block.context_after or "",
-                paper_type=block.paper_type,
-            )
-            raw_fields = {
-                "what_it_computes":        pred.what_it_computes,
-                "symbol_meanings":         pred.symbol_meanings,
-                "intuition":               pred.intuition,
-                "derivation":              pred.derivation,
-                "proof_role":              pred.proof_role,
-                "prerequisites":           pred.prerequisites,
-                "mathematical_significance": pred.mathematical_significance,
-            }
-            explanation = json.dumps(
-                _sanitize_explanation(raw_fields),
-                ensure_ascii=False,
-            )
+        for module, label in ((self.explain, "chain-of-thought"), (self.explain_terse, "terse")):
+            try:
+                explanation = self._run(module, block, paper_title, section_title)
+            except Exception as e:
+                tqdm.write(
+                    f"[WARN] MathExplainer ({label}) failed for block {block.order_idx}: {e}"
+                )
+                continue
             return dataclasses.replace(
                 block,
                 explanation=explanation,
                 explanation_model=_active_provider(),
             )
-        except Exception as e:
-            # Non-fatal: log and continue without explanation
-            tqdm.write(f"[WARN] MathExplainer failed for block {block.order_idx}: {e}")
-            return block
+        return block
 
     def forward(
         self,
