@@ -12,8 +12,12 @@ from __future__ import annotations
 
 import re
 
-# Passes for macros whose bodies reference other macros
-_MAX_MACRO_PASSES = 3
+# Recursion depth for macro bodies that use other macros. Real papers chain
+# deeply — \providecommandordefault{\x}{\defaultx} -> \mathscr{x} inside an
+# equation-defining macro already costs four levels — and a too-small cap
+# silently leaves the innermost macro unexpanded. Bounded, so self-referential
+# definitions still terminate.
+_MAX_MACRO_PASSES = 12
 
 
 def _match_braced(text: str, i: int) -> tuple[str, int] | None:

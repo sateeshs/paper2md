@@ -1,45 +1,44 @@
 {
- "arxiv_id": "2310.20360",
  "blocks": [
   {
    "env_type": "inline",
-   "latex_expr": "$\\epsilon \\in C^1([0,T],[0,\\infty))$"
+   "latex_expr": "$\\Theta \\in C^1([0,T], \\mathbb{R}^\\mathfrak{d})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d},\\mathbb{R})$"
+   "latex_expr": "$\\vartheta \\in \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ L, \\mathfrak{d} \\in \\mathbb{N} \\backslash \\{ 1 \\} $"
+   "latex_expr": "$ M, l_0, l_1, \\dots, l_L \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\Omega,\\mathcal{F},\\mathbb{P})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{l}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\mathbb{N}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\mathbb{P}\\Biggl(\n    \\frac1N\\Biggl\\lvert\n      \\sum_{i=1}^N(X_n-\\mathbb{E}[X_n])\n    \\Biggr\\rvert\n    \\geq\n    \\varepsilon\n  \\Biggr)\n  \\leq\n  2\\exp\\biggl(\n    \\frac{\n      -\\varepsilon^2N\n    }{\n      2\n    }\n  \\biggr).\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta\\in\\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathcal{L} \\in C( \\mathbb{R}^{ \\mathfrak{d} }, \\mathbb{R} ) $"
+   "latex_expr": "\\begin{equation}\n\\label{Momentum2vs3:eq4}\n\\begin{split}\n\t\\mathfrak{b}^{(2)}_n \\mathfrak{c}^{(2)}_n \n=\n\t\\gamma^{(2)}_n\n=\n\t\\gamma^{(3)}_n (1-\\alpha^{(3)}_n)\n=\n\t\\mathfrak{b}^{(3)}_n \\mathfrak{c}^{(3)}_n.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
    "latex_expr": "$(\\beta_n)_{n \\in \\mathbb{N}} \\subseteq [0,1]$"
   },
   {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\mathscr{L}( \\Phi_t ) = \\mathscr{L}( \\Phi_0 ) - \\int_0^t \\left\\lVert   (\\nabla \\mathscr{L})( \\Phi_s )  \\right\\rVert_{2}^2 \\, \\mathrm{d} s ,\n\\;\\;\\;\n  \\Phi_t = \\Phi_0 - \\int_0^t (\\nabla \\mathscr{L}) ( \\Phi_s ) \\, \\mathrm{d} s ,\n\\;\\;\\;\\text{and}\\;\\;\\;\n  \\mathscr{L}( \\Phi_t ) \n  \\ge \\mathscr{L}( \\vartheta )\n  .\n\\end{equation}"
+   "env_type": "inline",
+   "latex_expr": "$ \\mathbb{M}_{ X, \\mathbb{P} } $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ u \\in C([a,b]^d , \\mathbb{R}) $"
+   "latex_expr": "$ v \\in \\{ w \\in \\mathbb{R}^\\mathfrak{d} \\colon \\left\\lVert   w - \\theta  \\right\\rVert_{2} < \\varepsilon \\} $"
   },
   {
    "env_type": "equation",
@@ -47,11 +46,11 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^{\\mathfrak{d}}, \\mathbb{R})$"
+   "latex_expr": "$\\leftrightarrow$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$t \\in [0,\\tau]$"
+   "latex_expr": "$t \\in [0,T]$"
   },
   {
    "env_type": "inline",
@@ -59,175 +58,19 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathbf{m} \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$i \\in \\{1,2,\\ldots,\\mathfrak{d}\\}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{explicit_bias_RMSprop:eq2}\n\\begin{split} \n  \\Theta_n^{(i)}\n&= \n  \\Theta_{n-1}^{(i)} \n  - \n  \\gamma_n \n  \\left[ \\textstyle\n    \\varepsilon \n    + \n    \\left[ \n      \\frac{ \n        \\mathbb{M}_n^{ (i) } \n      }{ \n        1 - \\prod_{k = 1}^n \\beta_k\n      }\n     \\right]^{ 1 / 2 }\n   \\right]^{ - 1 } \n  (\\nabla \\mathscr{L})_i( \\Theta_{ n - 1 } ) \n\\\\\n&\n=\n\t\\Theta_{n-1}^{(i)} \n\t- \n\t\\gamma_n \n\t\\left[ \\textstyle\n\t\t\\varepsilon \n\t\t+ \n\t\t\\left[ \n\t\t\\frac{ \n\t\t\t\\sum_{k = 0}^{n-1} B_{n, k} \\left\\lvert \\defaultGradientFunction_i(\\Theta_k) \\right\\rvert^2\n\t\t}{ \n\t\t\t1 - \\prod_{k = 1}^n \\beta_k\n\t\t}\n\t\t \\right]^{ 1 / 2 }\n\t \\right]^{ - 1 } \n\t(\\nabla \\mathscr{L})_i( \\Theta_{ n - 1 } ) \n\\\\\n&\n=\n\t\\Theta_{n-1}^{(i)} \n\t-\n\t\\gamma_n \n\t\\left[ \n\t\t\\varepsilon \n\t\t+ \n\t\t\\left[ \n\t\t\\sum_{k = 0}^{n-1} \\textstyle\n\t\t\\left( \n\t\t\t\\frac{ \n\t\t\t\t(1-\\beta_{k+1})\n\t\t\t\t\\left[ \n\t\t\t\t\t\\prod_{l = k + 2}^n\n\t\t\t\t\t\t\\beta_l\n\t\t\t\t \\right]\n\t\t\t}{ \n\t\t\t\t1 - \\prod_{l = 1}^n \\beta_l\n\t\t\t}\n\t\t \\right)\n\t\t\\left\\lvert \\defaultGradientFunction_i(\\Theta_k) \\right\\rvert^2\n\t\t \\right]^{ 1 / 2 }\n\t \\right]^{ - 1 } \n\t(\\nabla \\mathscr{L})_i( \\Theta_{ n - 1 } ) \n\\\\\n&\n=\n  \\Theta_{n-1}^{(i)} \n  - \n  \\gamma_n \n  \\left[ \n    \\varepsilon \n    + \n    \\left[ \n      \\sum_{k = 0}^{n-1}\n      b_{n, k}\n      \\left\\lvert \\defaultGradientFunction_i(\\Theta_k) \\right\\rvert^2\n     \\right]^{ 1 / 2 }\n   \\right]^{ \\! - 1 } \n  (\\nabla \\mathscr{L})_i( \\Theta_{ n - 1 } ) \n  . \n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$t\\in[0,T]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ Z = ( Z_1, Z_2 ) \\colon \\mathbb{N} \\to \\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^\\mathfrak{d} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n        (\\nabla \\mathscr{L})( \\theta ) = ( \\nabla \\mathscr{L} )( \\theta ),\n        \\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$B(\\mathcal{E})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{M} = (\\mathfrak{M}^{(1)},\\ldots,\\mathfrak{M}^{(\\mathfrak{d})}) \\colon \\mathbb{N}_0\\times \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\lvert f( x ) - f( y ) \\rvert \\leq L \\left\\lVert  x - y  \\right\\rVert_{1} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\left\\lVert  \\Theta_1 - \\vartheta  \\right\\rVert_{2} \\mathbf{l}^{(\\varepsilon)} \\left\\lVert  \\Theta_1 - \\Theta_0  \\right\\rVert_{2} + \\left\\lVert  \\Theta_0 - \\vartheta  \\right\\rVert_{2} = \\gamma \\left\\lVert  (\\nabla \\mathscr{L}) ( \\Theta_0 )  \\right\\rVert_{2} + \\left\\lVert  \\Theta_0 - \\vartheta \\right\\rVert_{2} \\mathbf{l}^{(\\varepsilon)} (\\gamma L + 1) \\left\\lVert  \\Theta_0 - \\vartheta \\right\\rVert_{2}  < \\varepsilon\n\t\\end{equation}"
+   "latex_expr": "$\\varepsilon$"
   },
   {
    "env_type": "inline",
    "latex_expr": "$n \\in \\mathbb{N}$"
   },
   {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation} \\label{prop:gd:eq:limitpsi}\n\t\\limsup\\nolimits_{n \\to \\infty} \\left\\lVert  \\Theta_n - \\psi  \\right\\rVert_{2} = 0.\n\t\\end{equation}"
+   "env_type": "inline",
+   "latex_expr": "$ i \\in \\{1, 2, \\dots, \\mathfrak{d}\\} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\varepsilon \\in (0,\\infty) $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\tf^{ (k) }( \\theta )( v^1, v^2, \\dots, v^k )\n=\n\t\\sum_{i_1, i_2, \\dots, i_k \\in \\{ 1, \\dots, m \\} }\n\tv^{ 1 }_{ i_1 } v^{ 2 }_{ i_2 } \\cdots v^{ k }_{ i_k }\n\t\\left( \n\t\t\\tfrac{ \\partial^k f }{ \\partial \\theta_{ i_1 } \\partial \\theta_{ i_2 } \\cdots \\partial \\theta_{ i_k } }\n\t \\right)( \\theta )\n\t.\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$u\\in C^{1,2}([0,T]\\times\\mathbb{R}^d,\\mathbb{R})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\left\\vvvert \\ifblank{ \\mathcal{W}_{1, \\Xi}}{\\:\\cdot\\:}{ \\mathcal{W}_{1, \\Xi}} \\right\\vvvert = 1$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathcal{G}^{ k, n } \\colon \\mathbb{R}^{\\mathbf{d}} \\times \\Omega \\to \\mathbb{R}^{\\mathbf{d}} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta \\in \\mathbb B_r(\\vartheta)$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$k,n\\in\\mathbb{N}_0$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\left\\lVert (\\nabla \\mathscr{L})(\\theta) \\right\\rVert_{2} = \\left\\lVert (\\nabla \\mathscr{L})(\\theta) - (\\nabla \\mathscr{L})(\\vartheta) \\right\\rVert_{2} \\leq L \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}^\\rho.\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$u(x)=\\mathbb{E}[X_x]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ ( \\alpha_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\xi \\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\min (\\mathscr{S}) \\left\\lVert v \\right\\rVert_{2}^2 \\leq \\left\\langle  v , Av  \\right\\rangle \\leq \\max (\\mathscr{S}) \\left\\lVert v \\right\\rVert_{2}^2\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\rightarrow$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Omega\\ni \\omega\\mapsto (t_2-t_1)^{-\\nicefrac 12}(W_{t_2}(\\omega)-W_{t_1}(\\omega))\\in\\mathbb{R}^m$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ x \\in \\mathbb{R}^d $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathbf{m} = (\\mathbf{m}^{(1)},\\ldots,\\mathbf{m}^{(\\mathfrak{d})}) \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\theta \\in \\mathbb{R}^{\\mathbf{d}} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x\\in\\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x\\in\\mathbb{R}^{l_L}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\forall\\,x\\in\\mathbb{R}^d\\colon(\\mathcal{R}^{\\mathbf{N}}_{a}(\\mathbb{I}^{\\bullet n}))(x)=x$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ x, y \\in \\mathbb{R}^d $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x \\in (\\mathbb{R}^d)^M$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ L \\in \\mathbb{N} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathbf{m} \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{LB_log:eq1}\n\t\\operatorname{ln}(x) \n= \n\t\\operatorname{ln}(x) - \\operatorname{ln}(1)\n=\n\t\\int_1^x \\frac{1}{t} \\, \\mathrm{d} t\n\\geq\n \t\\int_1^x \\frac{1}{x} \\, \\mathrm{d} t\n=\n\t\\frac{(x-1)}{x}.\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$A = O\\Lambda O^*$"
+   "latex_expr": "$\\alpha \\in \\mathbb{R}$"
   },
   {
    "env_type": "inline",
@@ -235,7 +78,163 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\varepsilon \\in (0,\\infty) $"
+   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ t \\in (0,T] $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathbf{d}, K \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{l}(\\cdot,x)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathbf{l}_\\mathbf{L} = 1 $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\mathbb{Y} \\ni y \\mapsto \\phi(y)= \\mathbb{E} \\left[ \n\t\n\t \\Phi(X,y) \n \\right] = \\int_\\Omega \\Phi(X(\\omega),y) \\,\\mathbb{P}(\\mathrm{d} \\omega) \\in [0,\\infty]\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n        (\\nabla \\mathscr{L})( \\theta ) = ( \\nabla \\mathscr{L} )( \\theta ),\n        \\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation} \n\\label{eq:KL_inequality_1d_polynomial_1B}\n  \\left\\lvert  p(\\theta) - p( \\vartheta )  \\right\\rvert^{ \\alpha }\n\\leq \n  c \\left\\lvert  p'(\\theta)  \\right\\rvert\n  .\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ Z = ( Z_1, Z_2 ) \\colon \\mathbb{N} \\to \\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^\\mathfrak{d} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$g\\in C^2(\\mathbb{R}^d,\\mathbb{R})$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}  \\label{proof:eqphi}\n\\begin{split}\n    \\Phi \n\t\t=\n\t\t\\bigl( &( \\mathcal{W}_{1, \\Xi},  \\mathcal{B}_{1, \\Xi}),( \\mathcal{W}_{1, \\mathbb{M}_{K}}  \\mathcal{W}_{2, \\Xi},  \\mathcal{W}_{1,  \\mathbb{M}_{K}}  \\mathcal{B}_{2, \\Xi}), \\\\\n    &( \\mathcal{W}_{2, \\mathbb{M}_{K}}, 0), \\ldots, ( \\mathcal{W}_{\\mathcal{L}(\\mathbb{M}_{K}), \\mathbb{M}_{K}}, 0) \\bigr).\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N, K \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta\\in\\mathbb B_r(\\vartheta)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\ensuremath{\\mathbb B} \\colon ( 0, \\infty )^2 \\to ( 0, \\infty ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\varepsilon $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\nu \\colon \\mathcal{B}( V ) \\to [0,\\infty] $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{eq:covering_in_proof}\n  X \\subseteq \n  \\left[  \n    \\bigcup_{ m = 1 }^n \n            \\left\\{  \n              v \\in X \\colon\n              d( x_m , v ) \\leq r\n             \\right\\}\n   \\right]\n  ,\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{S} = \\{\\lambda \\in \\mathbb{R} \\colon (\\exists \\, v \\in \\mathbb{R}^\\mathfrak{d}\\backslash \\{0\\} \\colon Av = \\lambda v) \\}  \\subseteq \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x \\in S$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta \\in \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\rightarrow$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n\\in\\{3,4,5,\\dots\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k \\in \\{1, 2, \\ldots, L\\}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{variance_bd_ab:concl}\n\t\\operatorname{Var}(X) \\leq \\frac{(b-a)^2}{4}.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\times \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x\\in\\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\vartheta \\in \\mathbb{R}^{\\mathfrak{d}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$d\\curvearrowleft l_L$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\forall\\,x\\in\\mathbb{R}^d\\colon(\\mathcal{R}^{\\mathbf{N}}_{a}(\\mathbb{I}^{\\bullet n}))(x)=x$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\nabla \\mathscr{L})=((\\nabla \\mathscr{L})_1,\\dots,(\\nabla \\mathscr{L})_{\\mathfrak{d}}) \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ L \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{Nesterov3vs4:eq5}\n\\begin{split} \n\t\\frac{\n\t\t\\mathfrak{a}^{(3)}_{n+1} \\mathfrak{b}^{(3)}_{n}\n\t}{\n\t\t\\mathfrak{b}^{(3)}_{n+1}\n\t}\n=\n\t\\frac{\n\t\t\\alpha^{(3)}_{n+1} (1-\\alpha^{(3)}_{n})\\gamma^{(3)}_{n} \n\t}{\n\t\t(1-\\alpha^{(3)}_{n+1}) \\gamma^{(3)}_{n+1} \n\t}\n=\n\t\\frac{\n\t\t\\alpha^{(4)}_{n+1} \\gamma^{(4)}_{n} \n\t}{\n\t\t\\gamma^{(4)}_{n+1}\n\t}\n=\n\t\\frac{\n\t\t\\mathfrak{a}^{(4)}_{n+1} \\mathfrak{b}^{(4)}_{n}\n\t}{\n\t\t\\mathfrak{b}^{(4)}_{n+1}\n\t}.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\Omega, \\mathcal{F}, \\mathbb{P})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{S} = \\{\\Lambda_{1,1},\\Lambda_{2,2}\\ldots,\\Lambda_{\\mathfrak{d},\\mathfrak{d}} \\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ u \\in C([a,b]^d, \\mathbb{R}) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\alpha \\in (0,1) $"
   },
   {
    "env_type": "inline",
@@ -243,51 +242,51 @@
   },
   {
    "env_type": "inline",
+   "latex_expr": "$\\xi \\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+  },
+  {
+   "env_type": "inline",
    "latex_expr": "$(S, \\mathcal{S})$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\t\t\\label{#2.eq:1}\\ignorespaces\n\t\t\t\\mathbf{L}^{(m)}(\\Psi)\n\t\t\t=\n\t\t\t\\mathfrak{C} ((\\mathcal{R}^{\\mathbf{N}}_{a}(\\Psi))(\\mathfrak{x}^{(m)}_0), \\mathfrak{y}^{(m)})\n\t\t\t.\n\t\t\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\\label{backprop_for_ANNs_minibatch_quadr_loss:concl2}\n\\begin{split} \n\t\\left( \n\t\t\\nabla_{W_k} f\n\t \\right)\n\t(\\Phi)\n=\n\t\\frac{1}{M}\n\t\\left[ \n\t\t\\operatorname{\\textstyle\\sum}_{m = 1}^M\n\t\t\t[\n\t\t\t\t\\operatorname{diag}(\n\t\t\t\t\t\\mathfrak M_{a', l_k}(\n\t\t\t\t\t\t\\mathbf{W}_{k} \\mathfrak{x}^{(m)}_{k-1} + \\mathbf{B}_{k}\n\t\t\t\t\t)\n\t\t\t\t)\n\t\t\t]\n\t\t\tD^{(m)}_{k+1}\n\t\t\t[\\mathfrak{x}^{(m)}_{k-1}]^*\n\t \\right]\n\t.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathbb X_m=(X_m,Y_m) \\colon \\Omega \\to (D \\times\\mathbb{R}) $"
+   "latex_expr": "$ \\mathcal{B}(\\mathbb{R})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\Theta $"
+   "latex_expr": "$\\xi \\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N, K \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split} \n\t\\mathscr{L}_{\\alpha, s}(\\theta) \n=\n\t\\begin{cases}\n\t\t\\theta &\\colon \\theta> 0 \\\\\n\t\ts\\left\\lvert \\theta \\right\\rvert^\\alpha &\\colon \\theta \\leq 0.\n\t\\end{cases}\n\\end{split}\n\\end{equation}"
+   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2 \\in \\mathbb{N}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\theta\\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+   "latex_expr": "$(S, \\mathcal{S})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\theta\\in \\mathbb{R}^\\mathfrak{d}$"
+   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mu \\in \\mathfrak{C}$"
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\Theta_{ 1, 0 } $"
+   "latex_expr": "$ [ -c, c ]^\\mathbf{d} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ k \\in \\mathbb{N} $"
+   "latex_expr": "$ \\vartheta \\in \\mathbb{R}^\\mathbf{d} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(\\beta_n)_{n \\in \\mathbb{N}}$"
+   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}}$"
   },
   {
    "env_type": "equation",
@@ -295,59 +294,7 @@
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split}\nV'(\\theta) \\mathscr{G}(\\theta) \n&= \n\\left\\langle (\\nabla V)(\\theta) , \\mathscr{G}(\\theta) \\right\\rangle\n= \n\\left\\langle 2(\\theta - \\vartheta) , \\mathscr{G}(\\theta)  \\right\\rangle\\\\\n&=\n-2\\left\\langle \\theta - \\vartheta , (\\nabla \\mathscr{L})(\\theta)  \\right\\rangle\n\\leq \n-2c \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}^2 \n= \n-2c V(\\theta).\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\\label{eq:definition_of_D}\n\tD(x)\n\t=\n\t\\left( \n\tD_1(x),\n\tD_2(x),\n\t\\ldots,\n\tD_n(x)\n\t \\right)\n\t=\n\t\\left( \n\td(x, e_1),\n\td(x, e_2),\n\t\\ldots,\n\td(x, e_n)\n\t \\right) .\n\t\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\int_{[a,b]^d} \n  \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - u(x)  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x\n  = \n  \\inf_{v\\in C([a,b]^d,\\mathbb{R})} \n  \\left( \n    \\int_{[a,b]^d}\\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - v(x)  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x\n   \\right) \n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Theta$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Theta^{(r)} \\colon \\mathbb{N}_0 \\to \\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\beta_n)_{n \\in \\mathbb{N}} \\subseteq [0,1)$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{G}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ f \\colon [ a, b ]^d \\to \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathbb{R} \\ni x \\mapsto t^x \\in ( 0, \\infty ) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$s \\leq t$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:momentum_2_2}\n\t\\mathbf{m}_n = \\alpha_n \\mathbf{m}_{n-1} + (\\nabla \\mathscr{L})(\\Theta_{n-1}),\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ [ r , \\infty ) \\ni y \\mapsto y^{ 1 - \\alpha } \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathcal{A}_{m,n}^{\\theta, s}\\colon \\mathbb{R}^{n} \\to \\mathbb{R}^{m}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} \\in C( \\mathbb{R}^\\mathfrak{d} , \\mathbb{R} ) $"
+   "latex_expr": "\\begin{equation}\n  V(\\theta) = \\left\\lVert \\theta - \\vartheta \\right\\rVert_{2}^2 .\n\\end{equation}"
   },
   {
    "env_type": "inline",
@@ -355,51 +302,87 @@
   },
   {
    "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N, K \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ c \\curvearrowleft c $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta \\in \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ x, y \\in [ 0, 1 ]^d $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{def:monotonically_increasing_1:eq1}\n\t\t\\left\\langle \n\t\t\t\\mathscr{G} (v) - \\mathscr{G} (w), v - w\n\t\t \\right\\rangle \n\t\t\\geq \n\t\t\t0\n\t\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n  \\sup\\nolimits_{ x \\in [a,b]^d } \n  \\left[  \n    \\min\\nolimits_{k  \\in \\{1,2, \\ldots, K \\}} \\delta (x,  \\mathfrak{x}_k) \n   \\right] \n  \\leq (b - a) r\n  .\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ p \\in ( 0, \\infty ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ t \\in [0, \\tau) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathcal{A}_{m,n}^{\\theta, s}\\colon \\mathbb{R}^{n} \\to \\mathbb{R}^{m}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x \\in S$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n(\\nabla_\\theta \\mathscr{l}) (\\theta,x) = \\tfrac{1}{2}(2(\\theta-x)) = \\theta - x.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
    "latex_expr": "$x_1 = (x_{1,1}, \\ldots, x_{1,l_{1}}) \\in (\\mathbb{R}^{ \\mathfrak{d}_{1,1} \\times \\mathfrak{d}_{1,2} \\times \\ldots \\times \\mathfrak{d}_{1, T}})^{l_1}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathbf{L}$"
+   "latex_expr": "$x\\in\\mathbb{R}^{l_0}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{example_GD_equal_momentum:ass2}\n\t\\Theta_0  \n= \n\t\\xi \n\\qquad\\text{and}\\qquad \n\t\\Theta_n \n= \n\t\\Theta_{n-1} -  \\tfrac{ 2 }{ ( \\alpha + \\alpha ) }  (\\nabla \\mathscr{L})(\\Theta_{n-1}),\n\\end{equation}"
+   "latex_expr": "$\\vartheta \\in \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ x \\in \\mathbb{R}^d $"
+   "latex_expr": "$ \\Theta $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} $"
+   "latex_expr": "$(\\gamma^{(4)}_n)_{n \\in \\mathbb{N}} \\subseteq (0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathbb{R}^d\\times\\mathbb{R}^d$"
+   "latex_expr": "$(\\gamma_n)_{n\\in\\mathbb{N}}\\subseteq[0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ j \\in \\{ 1, 2 \\} $"
+   "latex_expr": "$\\mathbf L$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$d\\colon E\\times E\\to [0,\\infty)$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}_0$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\Phi = \\mathbb{M}_{K}  \\bullet \\mathbf{A}_{-L \\operatorname{I}_{K}, \\mathfrak{y}}  \\bullet \\mathbf{P}_{K}  \\bigl( \\mathbb{L}_d  \\bullet \\mathbf{A}_{\\operatorname{I}_d, -\\mathfrak{x}_1}, \\mathbb{L}_d  \\bullet \\mathbf{A}_{\\operatorname{I}_d, -\\mathfrak{x}_2}, \\ldots, \\mathbb{L}_d  \\bullet \\mathbf{A}_{\\operatorname{I}_d, -\\mathfrak{x}_K} \\bigr)  \\bullet \\mathbb{T}_{d,K}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
+   "latex_expr": "$\\xi\\in\\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
@@ -407,11 +390,27 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\Theta $"
+   "latex_expr": "$\\Theta_0=\\xi$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{Shifted_Nesterov_2:ass2}\n\\begin{split}\n\t\\Psi_n\n=\n\t\\Theta_n - \\gamma_{n+1} \\alpha_{n+1} \\mathbf{m}_{n}\n\\end{split}\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n    \\sup\\nolimits_{x \\in E}  \\left\\lvert  f(x)- \\mathscr{N}^{\\theta,\\mathbf{l}}_{\\mkern-2mu -\\infty, \\infty}(x)  \\right\\rvert \\leq 2L \\left[ \\sup\\nolimits_{x \\in E} \\left(  \\inf\\nolimits_{k  \\in \\{1,2, \\ldots, K \\}} \\left\\lVert x- \\mathfrak{x}_k \\right\\rVert_{1} \\right) \\right]\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x \\in S$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d}, \\mathbb{R})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$X_{n,j}\\colon \\Omega \\to S$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\Psi \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
@@ -419,47 +418,47 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\theta\\in\\mathbb{R}^{\\mathfrak d}$"
+   "latex_expr": "$x_1,x_2,\\dots,x_M\\in\\mathbb{R}^d$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ n \\in \\mathbb{N} $"
+   "latex_expr": "$\\mathscr{L}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ r \\in ( 0, \\infty ) $"
+   "latex_expr": "$\\left\\lVert v \\right\\rVert_{2}\\leq r$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\xi \\curvearrowleft \\Theta_m $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$L\\curvearrowleft 2L$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split}\n\\left\\lVert \\Theta_{m+n}-\\vartheta \\right\\rVert_{2} \n&\\leq \n\\left[ \\prod_{k = 1}^{n} (1-2c\\gamma_{m+k} + (\\gamma_{m+k})^2 L^2)^{\\nicefrac{1}{2}} \\right] \\left\\lVert \\Theta_m - \\vartheta \\right\\rVert_{2} \\\\\n&= \n\\left[ \\prod_{k = 1}^{n} (h(\\gamma_{m+k}))^{\\nicefrac{1}{2}} \\right] \\left\\lVert \\Theta_m - \\vartheta \\right\\rVert_{2} \\\\\n&\\leq\n(\\max \\{h(\\alpha), h(\\beta) \\})^{\\nicefrac{n}{2}} \\left\\lVert \\Theta_m - \\vartheta \\right\\rVert_{2} \\\\\n&\\leq \n\\varepsilon^{\\nicefrac{n}{2}} \\left\\lVert \\Theta_m - \\vartheta \\right\\rVert_{2}.\n\\end{split}\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n  \\begin{split}\n    \\left\\lvert Z_{x} \\right\\rvert\n    =\n    \\left\\lvert Z_{x}-Z_{z_i}+Z_{z_i} \\right\\rvert\n    \\leq\n    \\left\\lvert Z_{x}-Z_{z_i} \\right\\rvert + \\left\\lvert Z_{z_i} \\right\\rvert\n    \\leq\n    L\\delta(x,z_i) + \\left\\lvert Z_{z_i} \\right\\rvert\n    \\leq \\tfrac\\varepsilon2+\\left\\lvert Z_{z_i} \\right\\rvert\n    .\n  \\end{split}\n  \\end{equation}"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\mathscr{R}^{ k, n }_{ \\smash{J} }( \\theta, \\omega )\n=\n\\frac{1}{J}\n\\biggl[\n\\operatorname{\\textstyle\\sum}_{j=1}^{J}\n    \\lvert \\mathscr{N}^{\\theta,\\mathbf{l}}_{\\mkern-2mu u,v}( X^{ k, n }_{ \\smash{j} }( \\omega ) ) - Y^{ k, n }_{ \\smash{j} }( \\omega ) \\rvert^2\n\\biggr]\n,\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\t\\label{eq:weak_chain_rule}\n\t\\mathcal{L}( \\Theta_t ) = \\mathcal{L}( \\Theta_0 ) - \\int_0^t \\left\\lVert  (\\nabla \\mathscr{L})( \\Theta_s )  \\right\\rVert_{2}^2 \\, \\mathrm{d} s\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$x\\in B_i$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split}\n\t&\\int_{\\mathbb{R}^d}\n\t\t\\left\\langle D_2(s,x+\\sqrt{2\\rho(t-s)}z),\\tfrac{-\\rho z}{\\sqrt{2\\rho(t-s)}} \\right\\rangle \n\t\\gamma(z)\t\\,\\mathrm{d} z\n\t\\\\&= \n\t-\\rho\\sum\\nolimits_{i=1}^d \\int_{\\mathbb{R}^d} H_{i,i}(s,x+\\sqrt{2\\rho(t-s)}(z))\\gamma(z)\\,\\mathrm{d} z\n\t\\\\&= \n\t-\\int_{\\mathbb{R}^d} \\rho\\operatorname{Trace}\\left( H(s,x+\\sqrt{2\\rho(t-s)}(z)) \\right)\\gamma(z)\\,\\mathrm{d} z\n\t.\t\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$X_{n,j}\\colon \\Omega \\to \\mathbb{R}^{\\mathbf{d}}$"
+   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
    "latex_expr": "$\\mathbb{R}$"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} \\in C^1( \\mathbb{R}^{ \\mathfrak{d} }, \\mathbb{R} ) $"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n  \\textstyle\n  \\mathbf{l}_0 = d ,\\qquad\n  \\mathbf{l}_\\mathbf{L} = 1 ,\\qquad\n \\text{and}\\qquad\n  \\mathbf{d} \\geq \\sum_{i=1}^{\\mathbf{L}} \\mathbf{l}_i( \\mathbf{l}_{ i - 1 } + 1 ) ,\n\\end{equation}"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$k \\in \\{0, 1, \\ldots, n-1\\}$"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n  \\mathbb{E} \\left[   \\left\\vvvert \\ifblank{\\Theta_n-\\vartheta}{\\:\\cdot\\:}{\\Theta_n-\\vartheta} \\right\\vvvert^2  \\right] \n\\geq\n  \\mathbb{E} \\left[ \n\t\n\t \n      \\left( \\tfrac{(\\gamma_n)^2}{J_n}  \\right)\n\t\\mathcal{V}(\\Theta_{n-1})\n   \n \\right]\n=\n\t\\left( \\tfrac{(\\gamma_n)^2}{J_n}  \\right)\n\t\\mathbb{E} \\left[   \\mathcal{V}(\\Theta_{n-1})  \\right].\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
@@ -471,251 +470,7 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x,y\\in E$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$t\\in[0,T]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, \\mathbf{d}, N \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\label{#2.eq:real0}\\ignorespaces\n    \\mathcal{R}^{\\mathbf{N}}_{a}({\\Phi \\bullet \\Psi})\n    \\in\n    C(\\mathbb{R}^{\\mathcal{I}({\\Phi \\bullet \\Psi})},\\mathbb{R}^{\\mathcal{O}({\\Phi \\bullet \\Psi})})\n    =\n    C(\\mathbb{R}^{\\mathcal{I}(\\Psi)},\\mathbb{R}^{\\mathcal{O}(\\Phi)})\n    .\n  \\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$V \\in C^{\\infty}(\\mathbb{R}^\\mathfrak{d}, \\mathbb{R})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$t\\in[0,T]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathfrak{C} \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{Shifted_Nesterov_2:eq4.2}\n\\begin{split}\n\t\\mathbf{m}_n \n&=\n\t\\alpha_n \\mathbf{m}_{n-1} + (\\nabla \\mathscr{L})(\\Theta_{n-1} - \\gamma_n \\alpha_n \\mathbf{m}_{n-1})\\\\\n&=\n\t\\alpha_n \\mathbf{m}_{n-1} + (\\nabla \\mathscr{L})(\\Psi_{n-1}).\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\mathbf{m}_n = \\alpha_n  \\mathbf{m}_{ n - 1 } \n\t+ ( 1 - \\alpha_n ) (\\nabla \\mathscr{L})( \\Theta_{ n - 1 } ),\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\theta \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\Omega, \\mathcal{F}, \\mathbb{P})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\tfrac{c^2}{L^2} \\leq 1$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(S, \\mathcal{S})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\rightarrow$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{l}_i\\geq l_i$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\Theta_0 = \\xi \\qquad\\text{and}\\qquad \\Theta_n = \\Theta_{n-1} - \\gamma (\\nabla \\mathscr{L})(\\Theta_{n-1})\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ w_{\\mkern-1mu f} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x = ((x^{(m)}_i)_{i \\in \\{1, 2, \\ldots, d\\}})_{m \\in \\{1, 2, \\ldots, M\\}} \\in (\\mathbb{R}^d)^M$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split} \n\t\\mathfrak M_{a, d}(x)\n=\n\t(\n\t\t\\operatorname{ln}(1 + \\exp(x_1)),\n\t\t\\operatorname{ln}(1 + \\exp(x_2)),\n\t\t\\ldots, \n\t\t\\operatorname{ln}(1 + \\exp(x_d))\n\t)\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ j \\in \\{ 1, 2, \\dots, n + 1 \\} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ x, y \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{fcond2:assumption1}\n\\left\\lVert (\\nabla \\mathscr{L})(\\theta) \\right\\rVert_{2} \\leq L \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}} \\to \\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta \\in \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{generalParallelization:DefinitionFormula}\n  \\operatorname{P}_{ n, \\Psi }( \\Phi ) \n  = \\mathbf{P}_{ n }\\left( \n    \\mathcal{E}_{ \n      \\max_{ k \\in \\{ 1, 2, \\dots, n \\} }\n      \\cfadd{def:ANN}\\deflink{def:ANN}{\\mathcal{L}}( \\Phi_k ), \n      \\Psi_1 }({\\Phi_1}),\\dots,\\mathcal{E}_{\\max_{k\\in\\{1,2,\\dots,n\\}}\\cfadd{def:ANN}\\deflink{def:ANN}{\\mathcal{L}}(\\Phi_k),\\Psi_n}({\\Phi_n})\n   \\right)\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$c_{1, 2} = 2$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$l_0,l_1,\\ldots, l_L \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{eq:clipped_parameters}\n\\begin{split}\n\\mathscr{R}( \\theta, \\omega )\n& =\n\\frac{1}{M}\n\\biggl[\n\\operatorname{\\textstyle\\sum}_{j=1}^M\n    \\lvert \\mathscr{N}^{\\theta,\\mathbf{l}}_{\\mkern-2mu u,v}( X_j( \\omega ) ) - Y_j( \\omega ) \\rvert^2\n\\biggr]\n\\\\ &\n=\n\\frac{1}{M}\n\\biggl[\n\\operatorname{\\textstyle\\sum}_{j=1}^M\n    \\lvert \\mathscr{N}^{ P( \\theta ) ,\\mathbf{l}}_{\\mkern-2mu u,v}( X_j( \\omega ) ) - Y_j( \\omega ) \\rvert^2\n\\biggr]\n=\nR( P( \\theta ), \\omega )\n.\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\t\\label{#2.eq.2}\\ignorespaces\n\t\tg'(h)\n\t\t=\n\t\tg'(0) + \\int_{0}^h g''(\\mathfrak{h})\\,\\mathrm{d}\\mathfrak{h}\n\t\t>\n\t\tg'(0)\n\t\t.\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\beta_0, \\beta_1, \\dots, \\beta_N \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\label{eq:defCompANN}\n    ( \\mathcal{W}_{k, {\\Phi \\bullet \\Psi}}, \\mathcal{B}_{k, {\\Phi \\bullet \\Psi}})\n    =\n    \\begin{cases}\n      ( \\mathcal{W}_{k, \\Psi}, \\mathcal{B}_{k, \\Psi})&\\colon k<\\mathcal{L}(\\Psi)\\\\\n      ( \\mathcal{W}_{1, \\Phi} \\mathcal{W}_{\\mathcal{L}(\\Psi), \\Psi}, \\mathcal{W}_{1, \\Phi} \\mathcal{B}_{\\mathcal{L}(\\Psi), \\Psi}+ \\mathcal{B}_{1, \\Phi})&\\colon k=\\mathcal{L}(\\Psi)\\\\\n      ( \\mathcal{W}_{k-\\mathcal{L}(\\Psi)+1, \\Phi}, \\mathcal{B}_{k-\\mathcal{L}(\\Psi)+1, \\Phi})&\\colon k>\\mathcal{L}(\\Psi)\n    \\end{cases}\n  \\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{l} = (\\mathscr{l}(\\theta,x))_{(\\theta,x) \\in \\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^{\\mathbf{d}}} \\in C^1(\\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^{\\mathbf{d}}, \\mathbb{R})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{B}_k=(\\mathscr{B}_{k,i})_{i\\in\\{1,2,\\dots,\\mathfrak{l}_k\\}}\\in\\mathbb{R}^{\\mathfrak{l}_k}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{L}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\mathbb{M}_n^{(i)} \n\t= \\beta_n\\mathbb{M}_{n-1}^{(i)} \n\t+ (1-\\beta_n)\n\t\\left\\lvert  \n\t\t(\\nabla \\defaultLossFunction)_i( \\Theta_{n-1} ) \n\t \\right\\rvert^2\n\t, \\qquad\\text{and}\n\t\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{Momentum1vs2:eq5}\n\\begin{split} \n\t\\frac{\n\t\t\\mathfrak{a}^{(1)}_{n+1} \\mathfrak{b}^{(1)}_{n}\n\t}{\n\t\t\\mathfrak{b}^{(1)}_{n+1}\n\t}\n=\n\t\\frac{\n\t\t\\alpha^{(1)}_{n+1} (1-\\alpha^{(1)}_{n})\n\t}{\n\t\t1-\\alpha^{(1)}_{n+1}\n\t}\n=\n\t\\alpha^{(2)}_{n+1}\n=\n\t\\frac{\n\t\t\\mathfrak{a}^{(2)}_{n+1} \\mathfrak{b}^{(2)}_{n}\n\t}{\n\t\t\\mathfrak{b}^{(2)}_{n+1}\n\t}.\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\label{eq:corheat.3}\n    F(u)\n    =\\!\\!\\!\n    \\inf_{v\\in C([0,T]\\times[a,b]^d,\\mathbb{R})}\\!\\!\\! F(v)\n    .\n  \\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$k\\in\\{1,2,\\dots,\\mathcal{L}(\\Phi_1)\\}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ ( \\gamma_n )_{ n \\in \\mathbb{N} } \\subseteq [0,\\infty) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(S, \\mathcal{S})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ ( \\Omega , \\mathcal{F}, \\mathbb{P}) $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\label{#2.eq:claim}\\ignorespaces\n\\begin{split}\n&\n\\mathbb{E}\\Bigl[\n{\\stretchrel*{\\scalerel*[2ex]{\\int}{\\int}}{\\sum}}_{ \\mkern-10mu \\smash{[ 0, 1 ]^d} }\n        \\lvert \\mathscr{N}^{\\Theta_{\\mathbf{k}},\\mathbf{l}}_{\\mkern-2mu 0,1}( x ) - \\mathcal{E}( x ) \\rvert\n    \\, \\mathbb{P}_{ X^{ 0, 0 }_{ \\smash{1}\\vphantom{x} } }( \\mathrm{d} x )\n\\Bigr]\n\\\\ & \n\\leq\n\\frac{\n6d c^2\n}{\n[ \\min\\{ \\mathbf{L}, \\mathbf{l}_1, \\mathbf{l}_2, \\ldots, \\mathbf{l}_{ \\mathbf{L} - 1 } \\} ]^{ \\nicefrac{1}{d} }\n}\n+\n\\frac{\n    5c^2\n    \\mathbf{L} ( \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty} + 1 )\n    \\ln( e M )\n}{ M^{ \\nicefrac{1}{4} } }\n+\n\\frac{\n\\mathbf{L}\n( \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty} + 1 )^\\mathbf{L}\nc^{ \\mathbf{L} + 1 }\n}{\nK^{ [ ( 2 \\mathbf{L} )^{-1} ( \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty} + 1 )^{-2} ] }\n}\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{Nesterov1vs3:ass1}\n\\begin{split}\n\t\\gamma^{(1)}_n (1-\\alpha^{(1)}_n)\n=\n\t\\gamma^{(3)}_n (1-\\alpha^{(3)}_n)\n\\qquad\\text{and}\\qquad\n\t\\frac{\n\t\t\\gamma^{(1)}_{n+1} \\alpha^{(1)}_{n+1}\n\t}{\n\t\t\\gamma^{(1)}_{n}\n\t}\n=\n\t\\alpha^{(3)}_{n+1},\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x,y\\in\\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$l_0,l_1,\\ldots, l_L \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\Theta_t=\\Theta_0+\\int_0^t \\mathscr{G}(\\Theta_s)\\,\\mathrm{d} s$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split} \n\tx_{1, 2}\n&=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t(-1)\n\t\t\\mathbf{I}^{2, 2}\n\t\t+\n\t\tx_0 \n\t\t\\ast\n\t\t\\begin{pmatrix}\n\t\t\t1 & 0\\\\\n\t\t\t0 & 1\n\t\t\\end{pmatrix}\n\t \\right)\n=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t\\begin{pmatrix}\n\t\t\t-1 & -1\\\\\n\t\t\t-1 & -1\n\t\t\\end{pmatrix}\n\t\t+\n\t\t\\begin{pmatrix}\n\t\t\t6 & 8\\\\\n\t\t\t12 & 14\n\t\t\\end{pmatrix}\n\t \\right)\\\\\n&=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t\\begin{pmatrix}\n\t\t\t5 & 7\\\\\n\t\t\t11 & 13\n\t\t\\end{pmatrix}\n\t \\right)\n=\n\t\\begin{pmatrix}\n\t\t5 & 7\\\\\n\t\t11 & 13\n\t\\end{pmatrix}.\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathscr{S} = \\{\\lambda \\in \\mathfrak{C} \\colon (\\exists \\, v \\in \\mathfrak{C}^\\mathfrak{d}\\backslash \\{0\\} \\colon Av = \\lambda v) \\}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\Omega \\times D \\ni ( \\omega, x )\n\\mapsto\n\\lvert \\mathscr{N}^{ \\smash{ \\Theta_{ \\smash{ \\mathbf{k}( \\omega ) } }( \\omega ) } , \\smash{ \\mathbf{l} } }_{\\mkern-2mu u,v}( x ) - \\mathcal{E}( x ) \\rvert^p\n\\in [ 0, \\infty )\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\theta = ( \\theta_1, \\dots, \\theta_\\mathfrak d ) \\in \\mathbb{R}^\\mathfrak d $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{eq:minimizingPropertyQuantified_4}\n  \\int_{[a,b]^d} \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - u(x)  \\right\\rvert^2  \n \\right] \\,\\mathrm{d} x\n  = \n  \\inf_{v\\in C([a,b]^d,\\mathbb{R})} \n  \\left( \n    \\int_{[a,b]^d} \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - v(x)  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x\n   \\right) .\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$i \\in \\{2,3\\}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{Momentum2vs4:setting1}\n\\begin{split}\n\t\\mathfrak{a}^{(2)}_n = \\alpha^{(2)}_n, \\qquad \\mathfrak{b}^{(2)}_n = 1, \\qquad \\mathfrak{c}^{(2)}_n = \\gamma^{(2)}_n,\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathbf L\\colon [0,\\infty)^d\\times[0,\\infty)^d\\to(-\\infty,\\infty]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}} \\subseteq \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$l_0,l_1,\\ldots, l_L \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathbf{d}\\in\\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{backprop_with_loss_gradients:eq1}\n\\begin{split} \n\t[D_k]^*\n=\n\t\\left[ \n\t\t\\left( \n\t\t\t\\frac{\\partial \\mathfrak{C} }{\\partial x}\n\t\t \\right)\n\t\t(\\mathfrak{x}_L, \\mathfrak{y})\n\t \\right]\n\t\\mathbf{D}_k.\n\\end{split}\n\\end{equation}"
+   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
   },
   {
    "env_type": "inline",
@@ -723,87 +478,267 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{l}(\\cdot,x)$"
+   "latex_expr": "$\\Theta\\in C([0,T],O)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\theta\\in(\\vartheta-\\delta,\\vartheta+\\delta)$"
+   "latex_expr": "$ \\theta \\in \\mathbb{R} $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n    \\label{#2.eq:real0}\\ignorespaces\n    \\mathcal{R}^{\\mathbf{N}}_{a}({\\Phi \\bullet \\Psi})\n    \\in\n    C(\\mathbb{R}^{\\mathcal{I}({\\Phi \\bullet \\Psi})},\\mathbb{R}^{\\mathcal{O}({\\Phi \\bullet \\Psi})})\n    =\n    C(\\mathbb{R}^{\\mathcal{I}(\\Psi)},\\mathbb{R}^{\\mathcal{O}(\\Phi)})\n    .\n  \\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ Y \\colon \\Omega \\to \\mathbb{R} $"
+   "latex_expr": "$\\theta = (\\theta_1,\\ldots,\\theta_\\mathfrak{d}) \\in \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ t \\in [ \\tau, \\infty) $"
+   "latex_expr": "$\\epsilon'(t)\\leq \\alpha \\epsilon(t)+\\beta(t)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ t \\in [0,\\infty) $"
+   "latex_expr": "$k\\in\\{0,1,\\dots,K\\}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{Shifted_Nesterov_2:eq4.1}\n\\begin{split}\n\t\\Psi_0\n=\n\t\\Theta_0 - \\gamma_1 \\alpha_1 \\mathbf{m}_0\n=\n\t\\xi.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{eq:minimize}\n  \\inf_{ \n    \\lambda \\in [0,\\infty)\n  }\n  f( \\lambda )\n  =\n  f( \n    \\tfrac{ \n      \\varepsilon\n    }{\n      2 \\beta\n    }\n  )  \n  =\n  -\n    \\tfrac{ \n      \\varepsilon^2\n    }{\n      4 \\beta\n    }\n  .\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}, \\mathbf{d}, N \\in \\mathbb{N}$"
+   "latex_expr": "$ \\theta \\in \\mathbb{R} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathfrak{d} \\in \\mathbb{N} $"
+   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}} \\subseteq \\mathbb{N}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ k \\in \\{ 1, 2, \\dots, L \\} \\cap (1,\\infty) $"
+   "latex_expr": "$\\gamma \\in [0,\\infty)$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:momentum_4_1}\n\t\\Theta_0 = \\xi, \\qquad \\mathbf{m}_0 = 0,\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ n \\in \\{ 1, 2, \\dots, N \\} $"
+   "latex_expr": "$\\rightarrow$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\omega \\in \\Omega $"
+   "latex_expr": "$\\theta\\in\\mathbb{R}^d$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{GD_convergence_constant:assumption1}\n\\left\\langle \\theta-\\vartheta, (\\nabla \\mathscr{L})(\\theta)  \\right\\rangle \\geq  c \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}^2 \\qquad\\text{and}\\qquad \\left\\lVert (\\nabla \\mathscr{L})(\\theta) \\right\\rVert_{2} \\leq L \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2},\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L}(\\theta) < \\mathscr{L}(\\vartheta)$"
+   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+   "latex_expr": "$ w_{\\mkern-1mu f} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ L \\in \\mathbb{N} $"
+   "latex_expr": "$Y_m\\colon \\Omega\\to\\mathbb{R}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split} \n\t\\mathfrak M_{a, d}(x)\n=\n\t(\n\t\t\\operatorname{ln}(1 + \\exp(x_1)),\n\t\t\\operatorname{ln}(1 + \\exp(x_2)),\n\t\t\\ldots, \n\t\t\\operatorname{ln}(1 + \\exp(x_d))\n\t)\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathbf{L}(t) = 0 $"
+   "latex_expr": "$ ( \\beta_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1) $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}_0$"
+   "latex_expr": "$ x, y \\in \\mathbb{R} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ n \\in \\mathbb{N} $"
+   "latex_expr": "$\\mathbb{B} = \\{w \\in \\mathbb{R}^\\mathfrak{d} \\colon \\left\\lVert w-\\vartheta \\right\\rVert_{2} \\leq r \\}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\liminf_{ t \\to \\infty } \\left\\lVert   \\Theta_t  \\right\\rVert_{2} < \\infty$"
+   "latex_expr": "$t \\in (0,1)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ U \\in \\mathcal{B}( \\mathbb{R}^\\mathbf{d} ) $"
+   "latex_expr": "$\\theta \\in \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{generalParallelization:DefinitionFormula}\n  \\operatorname{P}_{ n, \\Psi }( \\Phi ) \n  = \\mathbf{P}_{ n }\\left( \n    \\mathcal{E}_{ \n      \\max_{ k \\in \\{ 1, 2, \\dots, n \\} }\n      \\mathcal{L}( \\Phi_k ), \n      \\Psi_1 }({\\Phi_1}),\\dots,\\mathcal{E}_{\\max_{k\\in\\{1,2,\\dots,n\\}}\\mathcal{L}(\\Phi_k),\\Psi_n}({\\Phi_n})\n   \\right)\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ t \\in [0, \\infty) $"
+   "latex_expr": "$c_{1, 2} = 2$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split} \n\t\\operatorname{Batchnorm}_{\\beta, \\gamma, \\varepsilon}(x)\n=\n\t\\left( \n\t\t\\left( \n\t\t\t\\gamma_i\n\t\t\t\\left[ \n\t\t\t\t\\frac{x^{(m)}_i - \\operatorname{Batchmean}_i(x)}{\\sqrt{\\smash[b]{\\operatorname{Batchvar}_i(x) + \\varepsilon}} }\n\t\t\t \\right]\n\t\t\t+\n\t\t\t\\beta_i\n\t\t \\right)_{i \\in \\{1, 2, \\ldots, d\\}}\n\t \\right)_{m \\in \\{1, 2, \\ldots, M\\}},\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\t\\label{#2.eq:conv}\\ignorespaces\n\t\t\\limsup_{r\\to\\infty}\\int_r^\\infty \\left\\lVert  (\\nabla\\mathscr{L})(\\Theta_s) \\right\\rVert_{2}\\,\\mathrm{d} s\n\t\t=\n\t\t0\n\t\t.\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^{\\mathfrak{d}_1} \\times \\mathbb{R}^{\\mathfrak{d}_2}, \\mathbb{R})$"
+   "latex_expr": "$h\\in[0,1)$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:momentum_2_3}\n\t\\text{and}\\qquad \\Theta_n = \\Theta_{n-1} - \\gamma_n  \\mathbf{m}_n.\n\t\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{gradient_one_step_midpoint:ass0}\n\\begin{split} \n  \\Theta_t = \\Theta_0 - \\int_0^t (\\nabla \\mathscr{L})( \\Theta_s ) \\, \\mathrm{d} s,\n\\qquad\n  \\theta\n=\n  \\Theta_T \n  - \\gamma \n  ( \\nabla \\mathscr{L} )\\bigl(\n    \\Theta_T - \\tfrac{ \\gamma }{ 2 } ( \\nabla \\mathscr{L} )( \\Theta_T )\n  \\bigr) ,\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n    \\label{eq:defCompANN}\n    ( \\mathcal{W}_{k, {\\Phi \\bullet \\Psi}}, \\mathcal{B}_{k, {\\Phi \\bullet \\Psi}})\n    =\n    \\begin{cases}\n      ( \\mathcal{W}_{k, \\Psi}, \\mathcal{B}_{k, \\Psi})&\\colon k<\\mathcal{L}(\\Psi)\\\\\n      ( \\mathcal{W}_{1, \\Phi} \\mathcal{W}_{\\mathcal{L}(\\Psi), \\Psi}, \\mathcal{W}_{1, \\Phi} \\mathcal{B}_{\\mathcal{L}(\\Psi), \\Psi}+ \\mathcal{B}_{1, \\Phi})&\\colon k=\\mathcal{L}(\\Psi)\\\\\n      ( \\mathcal{W}_{k-\\mathcal{L}(\\Psi)+1, \\Phi}, \\mathcal{B}_{k-\\mathcal{L}(\\Psi)+1, \\Phi})&\\colon k>\\mathcal{L}(\\Psi)\n    \\end{cases}\n  \\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$x \\in \\mathfrak{C}$"
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k\\in\\{1,2,\\dots,L\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{convergencerate_momentum:eq2.2}\n\t\\left\\vvvert \\ifblank{A^n}{\\:\\cdot\\:}{A^n} \\right\\vvvert \n\\leq \n\t\\left[ \\varepsilon + \\max_{\\mu \\in \\mathscr{S}\\cup \\{0\\}} \\left\\lvert \\mu \\right\\rvert    \\right]^{n}.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathcal{V} \\colon \\mathbb{R}^\\mathfrak{d} \\to [0,\\infty]$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k\\in\\{1,2,\\dots,\\mathcal{L}(\\Phi_1)\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d}, \\mathbb{R})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ c \\in ( 0, \\infty ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, K \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$j \\in \\{1, 2, \\ldots, J\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\colon \\mathbb{R}^2 \\to \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d}, \\mathbb{R})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathbb{D}_1(\\mathbf{F}) \\le L(b-a)\\varepsilon^{-1} + 2$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$N \\subseteq \\{0, 1, \\ldots, L\\}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\t\\label{#2.eq:assum}\\ignorespaces\n\t\tV'(\\theta)\\mathscr{G}(\\theta)\n\t\t=\n\t\t\\left\\langle (\\nabla V)(\\theta),\\mathscr{G}(\\theta) \\right\\rangle\n\t\t\\leq\n\t\t\\alpha V(\\theta)+\\beta(\\theta),\n\t\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split} \n\tx_{1, 2}\n&=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t(-1)\n\t\t\\mathbf{I}^{2, 2}\n\t\t+\n\t\tx_0 \n\t\t\\ast\n\t\t\\begin{pmatrix}\n\t\t\t1 & 0\\\\\n\t\t\t0 & 1\n\t\t\\end{pmatrix}\n\t \\right)\n=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t\\begin{pmatrix}\n\t\t\t-1 & -1\\\\\n\t\t\t-1 & -1\n\t\t\\end{pmatrix}\n\t\t+\n\t\t\\begin{pmatrix}\n\t\t\t6 & 8\\\\\n\t\t\t12 & 14\n\t\t\\end{pmatrix}\n\t \\right)\\\\\n&=\n\t\\mathfrak M_{\n\t\t\\mathfrak r\n\t\t,\n\t\t2 \\times 2\n\t}\n\t\\left( \n\t\t\\begin{pmatrix}\n\t\t\t5 & 7\\\\\n\t\t\t11 & 13\n\t\t\\end{pmatrix}\n\t \\right)\n=\n\t\\begin{pmatrix}\n\t\t5 & 7\\\\\n\t\t11 & 13\n\t\\end{pmatrix}.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$A = O \\Lambda O^*$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$X_n \\colon \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\theta = ( \\theta_1, \\dots, \\theta_\\mathfrak d ) \\in \\mathbb{R}^\\mathfrak d $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{l} = \\allowbreak (\\mathscr{l}(\\theta,x))_{(\\theta,x) \\in \\mathbb{R}^\\mathfrak{d} \\times S} \\colon \\allowbreak \\mathbb{R}^\\mathfrak{d} \\times S \\to \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\left\\lVert A \\right\\rVert_{HS} \\in \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\ln\\left( \\tfrac zx \\right)x = \\ln(z)x  - \\ln(x)x$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ i, j \\in \\{ 1, 2, \\dots, n + 1 \\} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$N \\subseteq \\{0, 1, \\ldots, L\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathbf{d} \\geq \\sum_{i=1}^{\\mathbf{L}} \\mathbf{l}_i( \\mathbf{l}_{ i - 1 } + 1 ) $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{equivalent_conditions4_2:conclusion1}\n\\left\\lVert (\\nabla \\mathscr{L})(\\theta) \\right\\rVert_{2} \\leq L \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta \\in \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ x, y \\in ( 0, \\infty ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathcal C_{ ( X, d ), n } < \\infty $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$z_1,z_2,\\dots,\\allowbreak z_N\\in E$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\vartheta $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathcal{L}( \\psi ) $"
   },
   {
    "env_type": "inline",
@@ -811,23 +746,87 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}, \\mathbf{d}, N \\in \\mathbb{N}$"
+   "latex_expr": "$(\\nabla \\mathscr{L})=((\\nabla \\mathscr{L})_1,\\dots,(\\nabla \\mathscr{L})_{\\mathfrak{d}}) \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\Omega \\times \\mathbb{R}^d \\ni ( \\omega, x )\n\\mapsto\n\\mathscr{N}^{ \\smash{ \\Theta_{ \\smash{ \\mathbf{k}( \\omega ) } }( \\omega ) } , \\smash{ \\mathbf{l} } }_{\\mkern-2mu u,v}( x )\n\\in \\mathbb{R}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{G}$"
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n  \\mathfrak{e}_k\n& \n\\leq \n  \\mathfrak{m}_{ j, k - 1 } \n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left( \n    l_{ k - 1 } + 1 \n   \\right)\n  + \n  l_{ k - 1 } \n  \\, \\left\\lVert  \\theta_{ 3 - j }  \\right\\rVert_{\\infty}\n  \\, \\mathfrak{e}_{ k - 1 }\n  .\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split} \n \t\\Theta_t = \\Theta_0 - \\int_0^t (\\nabla \\mathscr{L})( \\Theta_s ) \\, \\mathrm{d} s,\n\\qquad\n\t\\theta\n=\n\t\\Theta_T - \\gamma (\\nabla \\mathscr{L})(\\Theta_T),\n\\end{split}\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n  \\mathbb{P}\\left( \n      \\left[ \n        \\sum_{ n = 1 }^N\n        \\left( \n          X_n\n          -\n          \\mathbb{E}[ X_n ]\n         \\right)\n       \\right]\n    \\leq \n    - \\varepsilon\n   \\right)\n  \\leq\n  \\exp\\left( \n    \\frac{\n      - 2 \\varepsilon^2 \n    }{\n      \\sum_{ n = 1 }^N\n      ( b_n - a_n )^2\n    }\n   \\right)\n  .\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{l}$"
+   "latex_expr": "$x \\in S$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\nabla \\mathscr{L})(\\vartheta) = 0$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ L \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ l \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\left\\lvert X_{x,m}-X_{y,m} \\right\\rvert\\leq L\\delta(x,y)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{S} \\subseteq \\mathfrak{C}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n, j \\in\\mathbb{N}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n\\Xi^{ -1 }( U )\n& =\n\\{ \\omega \\in \\Omega \\colon\n\\Xi( \\omega ) \\in U \\}\n=\n\\{ \\omega \\in \\Omega \\colon\n\\Theta_{ \\mathbf{k}( \\omega ) }( \\omega ) \\in U \\}\n\\\\ &\n=\n\\bigl\\{ \\omega \\in \\Omega \\colon\n\\bigl[ \\exists \\, k, n \\in \\mathbb{N}_0 \\colon\n( [ \\Theta_{ k, n }( \\omega ) \\in U ]\n\\land\n[ \\mathbf{k}( \\omega ) = ( k, n ) ]\n) \\bigr] \\bigr\\}\n\\\\ &\n=\n\\operatorname{\\textstyle\\bigcup}_{ k = 0 }^\\infty\n\\operatorname{\\textstyle\\bigcup}_{ n = 0 }^\\infty\n    \\bigl(\n        \\{ \\omega \\in \\Omega \\colon \\Theta_{ k, n }( \\omega ) \\in U \\}\n        \\cap\n        \\{ \\omega \\in \\Omega \\colon \\mathbf{k}( \\omega ) = ( k, n ) \\}    \n    \\bigr)\n\\\\ &\n=\n\\operatorname{\\textstyle\\bigcup}_{ k = 0 }^\\infty\n\\operatorname{\\textstyle\\bigcup}_{ n = 0 }^\\infty\n    \\bigl(\n         [ ( \\Theta_{ k, n } )^{ -1 }( U ) ]\n        \\cap\n        [ \\mathbf{k}^{ -1 }( \\{ ( k, n ) \\} ) ]\n    \\bigr)\n\\in\n\\mathcal{F}\n.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "align",
+   "latex_expr": "\\begin{align}\n\\begin{split}\n &\\int_{[a,b]^d} \n  \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - \\mathbb{E}[X_x]  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x\n\\\\&=\n  \\inf_{v\\in C([a,b]^d,\\mathbb{R})} \n  \\left( \n    \\int_{[a,b]^d}\n    \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - v(x)  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x\n   \\right)\n  =\n  \\int_{ [a,b]^d }\n  \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - u(x)  \\right\\rvert^2 \n \\right] \\, \\mathrm{d} x\n\\\\&= \n  \\int_{ [a,b]^d }\n  \\mathbb{E}\\mkern-1mu \\left[ \n\t\n\t  \\left\\lvert  X_x - \\mathbb{E}[X_x]  \\right\\rvert^2  \n \\right] \\, \\mathrm{d} x \n  + \n  \\int_{ [a,b]^d }\n  \\left\\lvert  \\mathbb{E}[X_x]- u(x)  \\right\\rvert^2 \\, \\mathrm{d} x \n  .\n\\end{split}\n\\end{align}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ B \\in [ 1, \\infty ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d}, \\mathbb{R})$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{def:generalized_convex:eq1}\n\t\\begin{split} \n\t\t\\mathbb{R}^{\\mathfrak{d}} \\ni \\theta \\mapsto \\mathscr{L}(\\theta) - \\tfrac{c}{2} \\left\\lVert \\theta \\right\\rVert_{2}^2 \\in \\mathbb{R}\n\t\\end{split}\n\t\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n  \\mathfrak{e}_k\n& \n\\leq\n  \\mathfrak{m}_{ 1, 0 }\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left[ \n    \\prod_{ n = 0 }^{ k - 1 }\n    ( l_n + 1 )\n   \\right]\n  \\left[  \n    \\sum_{ n = 0 }^{ k - 1 }\n    \\left( \n      \\left[ \n        \\prod_{ m = n + 1 }^{ k - 1 }\n        \\left\\lVert  \\theta_{ 3 - j }  \\right\\rVert_{\\infty}\n       \\right]\n      \\max\\{1,\\left\\lVert  \\theta_{ j }  \\right\\rVert_{\\infty}^n\\}\n     \\right)\n   \\right]\n\\\\\n& \n=\n  \\mathfrak{m}_{ 1, 0 }\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left[ \n    \\prod_{ n = 0 }^{ k - 1 }\n    ( l_n + 1 )\n   \\right]\n  \\left[  \n    \\sum_{ n = 0 }^{ k - 1 }\n    \\left( \n\t\t\\max\\{1,\\left\\lVert  \\theta_{ j }  \\right\\rVert_{\\infty}^n\\}\n      \\,\n      \\left\\lVert  \\theta_{ 3 - j }  \\right\\rVert_{\\infty}^{ k - 1 - n }\n     \\right)\n   \\right]\n\\\\\n& \n\\leq\n  k \\,\n  \\mathfrak{m}_{ 1, 0 }\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left(  \n    \\max\\{ 1, \\left\\lVert  \\theta_1  \\right\\rVert_{\\infty}, \\left\\lVert  \\theta_2  \\right\\rVert_{\\infty} \\}\n   \\right)^{ k - 1 }\n      \\left[ \n        \\prod_{ m = 0 }^{ k - 1 }\n        \\left( \n          l_m + 1 \n         \\right)\n       \\right]\n  .\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{lowerbound_convergencerate:eq3}\n\\max\\{\\alpha\\mathcal{K} - 1, 1- \\alpha\\kappa \\} \n\\geq \n1 - \\alpha\\kappa \\geq 1- \\left[ \\tfrac{2}{\\mathcal{K} + \\kappa}  \\right] \\kappa = \\tfrac{\\mathcal{K} + \\kappa-2\\kappa}{\\mathcal{K} + \\kappa} = \\tfrac{\\mathcal{K} - \\kappa}{\\mathcal{K} + \\kappa}.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta \\in\\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n,j \\in \\mathbb{N}$"
   },
   {
    "env_type": "inline",
@@ -835,35 +834,35 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ m \\in \\{ 1, 2, \\ldots, M \\} $"
+   "latex_expr": "$ \\Theta $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$t_1,t_2,\\dots,t_n\\in[0,T]$"
+   "latex_expr": "$ v \\curvearrowleft v $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$k \\in \\{1, 2, \\ldots, L \\}$"
+   "latex_expr": "$m\\in\\{1,2,\\dots,M\\}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{eq:def_Yn_Chernoff}\n  Y_n = X_n - \\mathbb{E}[ X_n ]\n  .\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:nesterov_shifted_four_1}\n\t\\Theta_0 = \\xi, \\qquad \\mathbf{m}_0 = 0,\n\t\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n&\n  \\mathbb{P}\\left(  \n    \\left[  \n      \\sum_{ n = 1 }^N \\left(  X_n - \\mathbb{E}[ X_n ]  \\right) \n     \\right] \n    \\geq \\varepsilon\n   \\right)\n  =\n  \\mathbb{P}\\left(  \n    \\left[  \n      \\sum_{ n = 1 }^N Y_n \n     \\right] \n    \\geq \\varepsilon\n   \\right)\n  \\leq \n  \\inf_{ \\lambda \\in [0,\\infty) }\n  \\left( \n    e^{ - \\lambda \\varepsilon }\n    \\,\n    \\mathbb{M}_{ \\sum_{ n = 1 }^N Y_n }( \\lambda )\n   \\right)\n\\\\ & =\n  \\inf_{ \\lambda \\in [0,\\infty) }\n  \\left( \n    e^{ - \\lambda \\varepsilon }\n    \\left[ \n      \\prod_{ n = 1 }^N\n      \\mathbb{M}_{ Y_n }( \\lambda )\n     \\right]\n   \\right)\n  =\n  \\inf_{ \\lambda \\in [0,\\infty) }\n  \\left( \n    e^{ - \\lambda \\varepsilon }\n    \\left[ \n      \\prod_{ n = 1 }^N\n      \\mathbb{M}_{ X_n - \\mathbb{E}[ X_n ] }( \\lambda )\n     \\right]\n   \\right)\n  .\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathcal{D}(\\Phi)=(l_0,l_1,\\dots,l_L)$"
+   "latex_expr": "$ Z_x \\colon \\Omega \\to \\mathbb{R} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$l_0,l_1,\\dots,l_L,\\mathfrak{l}_0,\\mathfrak{l}_1,\\dots,\\mathfrak{l}_L\\in\\mathbb{N}$"
   },
   {
    "env_type": "inline",
    "latex_expr": "$m, i \\in \\{1, 2, \\ldots, l_{L}\\}$"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{NesterovGeneral:eq4}\n\\begin{split}\n\t\\mathfrak{c}^{(1)}_{n+1} \\mathbf{m}^{(1)}_{n+1}\n&=\n\t\\mathfrak{c}^{(1)}_{n+1} (\\mathfrak{a}^{(1)}_{n+1} \\mathbf{m}^{(1)}_{n} + \\mathfrak{b}^{(1)}_{n+1} (\\nabla \\mathscr{L})\\left( \\Theta^{(1)}_{n} - \\mathfrak{c}^{(1)}_{n+1} \\mathfrak{a}^{(1)}_{n+1} \\mathbf{m}^{(1)}_{n} \\right)\\\\\n&=\n\t\\frac{\\mathfrak{c}^{(1)}_{n+1} \\mathfrak{a}^{(1)}_{n+1} \\mathfrak{c}^{(2)}_{n}}{\\mathfrak{c}^{(1)}_{n}} \\mathbf{m}^{(2)}_{n} + \\mathfrak{c}^{(1)}_{n+1} \\mathfrak{b}^{(1)}_{n+1} (\\nabla \\mathscr{L})\\left( \\Theta^{(2)}_{n} - \\frac{\\mathfrak{c}^{(1)}_{n+1} \\mathfrak{a}^{(1)}_{n+1} \\mathfrak{c}^{(2)}_{n}}{\\mathfrak{c}^{(1)}_{n}} \\mathbf{m}^{(2)}_{n} \\right)\\\\\n&=\n\t\\mathfrak{c}^{(2)}_{n+1} \\mathfrak{a}^{(2)}_{n+1} \\mathbf{m}^{(2)}_{n} + \\mathfrak{c}^{(2)}_{n+1} \\mathfrak{b}^{(2)}_{n+1} (\\nabla \\mathscr{L})\\left( \\Theta^{(2)}_{n} - \\mathfrak{c}^{(2)}_{n+1} \\mathfrak{a}^{(2)}_{n+1} \\mathbf{m}^{(2)}_{n} \\right)\\\\\n&=\n\t\\mathfrak{c}^{(2)}_{n+1} (\\mathfrak{a}^{(2)}_{n+1} \\mathbf{m}^{(2)}_{n} + \\mathfrak{b}^{(2)}_{n+1} (\\nabla \\mathscr{L})\\left( \\Theta^{(2)}_{n} - \\mathfrak{c}^{(2)}_{n+1} \\mathfrak{a}^{(2)}_{n+1} \\mathbf{m}^{(2)}_{n} \\right)\\\\\n&=\n\t\\mathfrak{c}^{(2)}_{n+1} \\mathbf{m}^{(2)}_{n+1}.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
@@ -874,16 +873,16 @@
    "latex_expr": "$\\mathcal{D}(\\mathbf{F}) = (1,K+1,1) \\in \\mathbb{N}^3$"
   },
   {
+   "env_type": "inline",
+   "latex_expr": "$i \\in \\{1,2,\\ldots,\\mathfrak{d}\\}$"
+  },
+  {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{def:determ_Shampoo:eq3}\n\t\\begin{split} \n\t\t\\mathbf{R}_n = \\mathbf{R}_{n-1} + ((\\nabla \\mathscr{L})(\\Theta_{n-1}))^\\ast (\\nabla \\mathscr{L})(\\Theta_{n-1}),\n\t\\end{split}\n\t\\end{equation}"
+   "latex_expr": "\\begin{equation}\n \\label{def:covering_number:eq1}\n \\begin{split}\n \\mathcal C^{ ( E, \\delta ), r }\n =\n \\min\\biggl(\n     \\biggl\\{\n         n \\in \\mathbb{N}_0 \\colon\n         \\biggl[\n         \\exists \\, A \\subseteq E \\colon\n         \\biggl(\n         \\arraycolsep=0pt \\begin{array}{c}\n             ( \\lvert A \\rvert \\leq n )\n             \\land\n             ( \\forall \\, x \\in E \\colon \\\\\n             \\exists \\, a \\in A \\colon \\delta( a, x ) \\leq r )\n         \\end{array}\n         \\biggr)\n         \\biggr]\n     \\biggr\\}\n     \\cup \\{ \\infty \\}\n \\biggr)\n \\end{split}\n \\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n\\in\\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ p \\in [ 2, \\infty ) $"
+   "latex_expr": "$ c \\in ( 0, \\infty ) $"
   },
   {
    "env_type": "inline",
@@ -891,19 +890,19 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\theta \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\Xi \n\t\t= \n\t\t\\mathbf{A}_{-L \\operatorname{I}_{K}, \\mathfrak{y}}  \\bullet \\mathbf{P}_{K}  \\bigl( \\Psi_1, \\Psi_2, \\ldots, \\Psi_{K} \\bigr)  \\bullet \\mathbb{T}_{d, K},\n\\end{equation}"
+   "latex_expr": "$ v \\in ( u, \\infty ) $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\alpha \\in (-\\infty, \\tfrac{2}{\\mathcal{K} + \\kappa}] $"
+   "latex_expr": "$k \\in \\{1,2, \\ldots, K\\}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
+   "latex_expr": "$\\leftrightarrow$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$i \\in \\{1, 2, \\ldots, \\mathfrak{d} \\}$"
   },
   {
    "env_type": "inline",
@@ -911,11 +910,123 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ i \\in \\{ 1, 2, \\ldots, N \\} $"
+   "latex_expr": "$(\\Omega,\\mathcal{F},\\mathbb{P})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\mathfrak{a}^{(4)}_n)_{n \\in \\mathbb{N}} \\subseteq (0,\\infty)$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n        (\\nabla \\mathscr{L})( \\theta ) = ( \\nabla \\mathscr{L} )( \\theta ),\n        \\end{equation}"
   },
   {
    "env_type": "inline",
    "latex_expr": "$\\mathscr{l}(\\cdot,x)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\varepsilon $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\Omega, \\mathcal{F}, \\mathbb{P})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ m \\in \\{ 1, 2, \\ldots, M \\} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\mathfrak{a}^{(1)}_n)_{n \\in \\mathbb{N}} \\subseteq (0,\\infty)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\alpha \\in [ 0, 1 ] $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ (X, d) $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n    \\label{eq:extension3}\n    \\left\\lVert \\mathcal{T}\\bigl((\\mathfrak I_d)^{ \\bullet ( L-\\mathcal{L}(\\Phi))}\\bigr) \\right\\rVert_{\\infty}\n    =\n    1\n  \\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k\\in\\{1,2,\\dots,L\\}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n&\n\\int_D\n    \\lvert \\mathscr{N}^{\\Theta_\\mathbf{k},\\mathbf{l}}_{\\mkern-2mu u,v}( x ) - \\mathcal{E}( x ) \\rvert^2\n\\, \\mathbb{P}_{ X_1 }( \\mathrm{d} x )\n\\\\ &\n\\leq\n\\bigl[\n\\sup\\nolimits_{ x \\in D }\n    \\lvert \\mathscr{N}^{\\vartheta,\\mathbf{l}}_{\\mkern-2mu u,v}( x ) - \\mathcal{E}( x ) \\rvert^2\n\\bigr]\n+\n2\\bigl[\n\\sup\\nolimits_{ \\theta \\in [ -B, B ]^\\mathbf{d} }\n\\lvert\n    \\mathscr{R}( \\theta )\n    -\n    \\mathbf{R}( \\theta )\n\\rvert\n\\bigr]\n\\\\ & \\quad\n+\n\\min\\nolimits_{ ( k, n ) \\in \\{ 1, 2, \\ldots, K \\} \\times \\mathbf{T}, \\, \\left\\lVert  \\Theta_{ k, n }  \\right\\rVert_{\\infty} \\leq B }\n\\left[  \\mathscr{R}( \\Theta_{ k, n } )\n-\n\\mathscr{R}( \\vartheta )  \\right]\n.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\gamma \\in [0,\\infty)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ Y \\colon \\Omega \\to \\mathbb{Y}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathbb{M} = (\\mathbb{M}^{(1)},\\ldots,\\mathbb{M}^{(\\mathfrak{d})}) \\colon \\mathbb{N}_0\\times \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}, N \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\liminf_{n \\to \\infty} |\\Theta^{(r)}_n| > 0.\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\{ f_n \\in F \\colon n \\in \\mathbb{N} \\} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\lvert Z_x - Z_y \\rvert \\leq L \\delta( x, y ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k\\in\\{0,1,\\dots,K\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n  \\mathfrak{d} \\leq\n\\mathbf{L} \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty}( \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty} + 1 )\n\\leq\n\\mathbf{L} ( \\left\\lVert  \\mathbf{l}  \\right\\rVert_{\\infty} + 1 )^2\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ n \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathcal{H}(\\mathbb{M}_d) = \\left\\lceil \\operatorname{log}_2(d) \\right\\rceil$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x \\in S$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\Theta \\colon \\mathbb{N}_0 \\times \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "inline",
@@ -923,71 +1034,7 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{g} = (\\mathscr{g}_1,\\dots,\\mathscr{g}_{\\mathfrak{d}}) \\colon \\mathbb{R}^\\mathfrak{d} \\times S \\to \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ u \\in C^{1,2}([0,T] \\times \\mathbb{R}^d, \\mathbb{R}) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$h\\in\\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ n \\in \\mathbb{N} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\xi \\in \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathcal{B}( [ u, v ] ) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ ( \\beta_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1] $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{B}=(b_1,b_2,\\dots,b_d)\\in\\mathbb{R}^{d}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\mathcal{D}\\bigl(((\\mathfrak{W}_1,\\mathfrak{B}_1),(\\mathfrak{W}_2,\\mathfrak{B}_2),\\dots,(\\mathfrak{W}_L,\\mathfrak{B}_L))\\bigr)\n    =\n    (\\mathfrak{l}_0,\\mathfrak{l}_1,\\dots,\\mathfrak{l}_{L}).\n  \\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\mathbf{m}_n = \\alpha_n \\mathbf{m}_{n-1} + \n\t\\gamma_n \n\t\\left[ \n\t\t\\frac{1}{J_n} \\sum_{j=1}^{J_n} \\mathscr{g}(\\Theta_{n-1}, X_{n,j})\n\t \\right],\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\gamma \\in [0,\\infty)$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\t\\left\\lvert \\mathscr{L} ( \\theta ) - \\mathscr{L} ( \\vartheta )  \\right\\rvert ^\\alpha \n\t\t\\leq \n\t\t\\mathfrak{C} \\left\\lVert  (\\nabla\\mathscr{L})( \\theta )  \\right\\rVert_{2}\n\t\t.\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathfrak{C} \\in \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ x, y \\in E $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ (\\gamma_n )_{ n \\in \\mathbb{N} } \\subseteq \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x \\in S$"
+   "latex_expr": "$k \\in \\{1,2, \\ldots, K \\}$"
   },
   {
    "env_type": "inline",
@@ -995,47 +1042,7 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$m\\in\\{1,2,\\dots,M\\}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathbf{L} \\geq 1 $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\mathbf{F} \n\t= \n\t{\n\t\t\\mathbf{A}_{1,f(\\mathfrak{x}_0)}\n\t \\bullet \n\t\t\\left( {\\mathop{\\textstyle\\bigoplus}\\limits_{k=0}^K} \\left( \n\t\t\t\\cfadd{def:ANNscalar}\n\t\t\t\tc_k\n\t\t\t\\deflink{def:ANNscalar}{\\circledast}\n\t\t\t\t(\\compANN{\\ii_{1} }{ \\AffineANN_{1,-\\fx_k}})\n\t\t\t\n\t\t \\right) \\right)\n\t}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\varepsilon \\in (0,\\infty) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$v\\in C^{1,2}([0,T]\\times\\mathbb{R}^d,\\mathbb{R})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ n \\in \\mathbb{N} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x = (x_1, \\dots, x_d) \\in \\mathbb{R}^d$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{l}(\\cdot,x)$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{L}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$t\\in[0,T]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$k \\in \\{1,2, \\ldots, K \\}$"
+   "latex_expr": "$(R, K) \\in S$"
   },
   {
    "env_type": "inline",
@@ -1043,63 +1050,55 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(R, K) \\in S$"
+   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$u(T, \\cdot)|_{[a,b]^d} \\colon [a,b]^d \\to \\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{l}(\\cdot,x)$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\gamma_\\sigma\\colon \\mathbb{R}^d\\to\\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta \\in \\{ v \\in \\mathbb{R}^\\mathfrak{d} \\colon \\left\\lVert v-\\vartheta \\right\\rVert_{2} < \\epsilon \\}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x \\in \\mathfrak{C}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\varepsilon$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\sup_{x\\in[a,b]}\\left\\lvert (\\mathcal{R}^{\\mathbf{N}}_{\\cfadd{def:relu1}\\deflink{def:relu1}{\\mathfrak r}}(\\mathbf{F}))(x)-f(x) \\right\\rvert \\le \\varepsilon$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\{1,2,\\dots,M\\}$"
+   "latex_expr": "$\\mathbb{M} = (\\mathbb{M}^{(1)},\\ldots,\\mathbb{M}^{(\\mathfrak{d})}) \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\mathbb{M}_n^{(i)} \n\t= \\beta_n\\mathbb{M}_{n-1}^{(i)} \n\t+ (1-\\beta_n)\n\t\\left\\lvert  (\\nabla \\defaultLossFunction)_i( \\Theta_{n-1} )  \\right\\rvert^2\n\t, \n\t\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\t\\Theta_0 = \\xi, \\qquad \\mathbf{m}_0 = 0,\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{ \\mathfrak{d} } \\to \\mathbb{R} $"
+   "latex_expr": "$ d( v, w ) = \\left\\vvvert \\ifblank{ v - w }{\\:\\cdot\\:}{ v - w } \\right\\vvvert $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$u\\in C^{1,2}([0,T]\\times\\mathbb{R}^d,\\mathbb{R})$"
+   "latex_expr": "$H_\\theta$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\varepsilon \\in (0,\\infty)$"
+   "latex_expr": "$x,y\\in\\mathbb{R}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(H_\\theta(X_m),Y_m)$"
+   "latex_expr": "${\\mathsf m}_{n,j}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ X_n \\colon \\Omega \\to [ a_n, b_n ] $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ c \\curvearrowleft \\frac{\\alpha}{2} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$t\\in(0,T)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\textstyle \n   \\beta_{ \\mathscr{m} } \\neq 0 \n  = \\sum_{ n = 1 }^{ \\mathscr{m} - 1 } \\left\\lvert  \\beta_n  \\right\\rvert \n  ,\n  \\qquad \n  \\alpha \\geq 1 - \\mathscr{m}^{ - 1 }\n  ,\n  \\qquad \n  c = \n  2\n  \\bigl[ \n    \\sum_{ n = 1 }^N\n    \\frac{ \n      \\left\\lvert  \\beta_n  \\right\\rvert^{ \\alpha } \n    }{\n      \\left\\lvert  \\beta_{ \\mathscr{m} } \\mathscr{m}  \\right\\rvert\n    }\n  \\bigr]   \n  ,\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n        (\\nabla \\mathscr{L})( \\theta ) = ( \\nabla \\mathscr{L} )( \\theta ),\n        \\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\rho \\in [ 0, \\mathcal P_{ (S,d|_{S \\times S}), n } ) $"
   },
   {
    "env_type": "inline",
@@ -1110,8 +1109,8 @@
    "latex_expr": "$i \\in \\{2, 3, 4, \\ldots \\}$"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$\\nicefrac{1}{\\varepsilon}$"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\\label{eq:first_ineq_for_k_and_min}\n\tk\\geq \\min\\{l\\in\\{1,2,\\ldots,n\\}\\colon d(x,e_l) \n\t= \\min\\{d(x,e_1),d(x,e_2),\\ldots,d(x,e_n)\\}\\} . \n\t\\end{equation}"
   },
   {
    "env_type": "equation",
@@ -1122,16 +1121,24 @@
    "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, \\mathbf{d}, N, K \\in \\mathbb{N}$"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{Nesterov1vs4:setting2}\n\\begin{split} \n\t\\mathfrak{a}^{(4)}_n = \\alpha^{(4)}_n, \\qquad \\mathfrak{b}^{(4)}_n = \\gamma^{(4)}_n, \\qquad\\text{and}\\qquad \\mathfrak{c}^{(4)}_n = 1.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathcal P_{ (X,d), n } \\geq r $"
+   "latex_expr": "$T \\in \\mathbb{N}_0 \\cup \\left\\{ \\infty \\right\\}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{backprop_with_loss_gradients:eq1}\n\\begin{split} \n\t[D_k]^*\n=\n\t\\left[ \n\t\t\\left( \n\t\t\t\\frac{\\partial \\mathfrak{C} }{\\partial x}\n\t\t \\right)\n\t\t(\\mathfrak{x}_L, \\mathfrak{y})\n\t \\right]\n\t\\mathbf{D}_k.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}} \\subseteq \\mathbb{N}$"
+   "latex_expr": "$ f \\curvearrowleft \\mathcal{E} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}, \\mathbb{R})$"
   },
   {
    "env_type": "inline",
@@ -1139,35 +1146,27 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\psi_{t,x} \\colon \\mathbb{R}^m \\to \\mathbb{R} $"
+   "latex_expr": "$ \\mathscr{L} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(S, \\mathcal{S})$"
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\t\\label{#2.eq:defL}\\ignorespaces\n\t\t\\mathscr L(\\theta)\n\t\t=\n\t\t\\frac1M\\left[ \\sum_{m=1}^{M}\n\t\t\\left\\lvert  \\left(  \\mathcal{N}^{ \\theta,d}_{ \\mathfrak M_{a, l_1}, \\mathfrak M_{a, l_2}, \\dots, \\mathfrak M_{a, l_h} , \\operatorname{id}_{ \\mathbb{R} } }  \\right) ( \\mathscr{x}_m ) - \\mathscr{y}_m  \\right\\rvert^2\n\t\t \\right]\n\t\t,\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\theta = (\\theta_1,\\ldots,\\theta_\\mathfrak{d}) \\in \\mathbb{R}^\\mathfrak{d}$"
+   "latex_expr": "$ \\varepsilon \\in (0,\\infty) $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}} \\subseteq \\mathbb{N}$"
+   "latex_expr": "$ x \\in \\mathbb{R} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\xi \\in \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\theta \\in [ -B, B ]^\\mathbf{d} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x \\in S$"
+   "latex_expr": "$N = \\{0, 1\\}$"
   },
   {
    "env_type": "inline",
@@ -1175,7 +1174,7 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\theta, \\vartheta \\in [ \\alpha, \\beta ]^\\mathbf{d} $"
+   "latex_expr": "$ \\varepsilon \\in [0,\\infty) $"
   },
   {
    "env_type": "inline",
@@ -1183,51 +1182,51 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\in C^2(\\mathbb{R}^\\mathfrak{d},\\mathbb{R})$"
+   "latex_expr": "$ \\lambda, \\alpha \\in (0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, K \\in \\mathbb{N}$"
+   "latex_expr": "$ ( \\alpha_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1] $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{l}$"
+   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\rightarrow$"
+   "latex_expr": "$v, w \\in \\mathbb{R}^{\\mathfrak{d}}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\Theta $"
+   "latex_expr": "$ ( \\beta_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1) $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\left\\vvvert \\ifblank{\\cdot}{\\:\\cdot\\:}{\\cdot} \\right\\vvvert \\colon \\mathbb{R}^\\mathfrak{d} \\to [0,\\infty)$"
+   "latex_expr": "$A \\in \\mathbb{R}^{\\mathfrak{d} \\times \\mathfrak{d}}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(\\nabla \\mathscr{L})=((\\nabla \\mathscr{L})_1,\\dots,(\\nabla \\mathscr{L})_{\\mathfrak{d}}) \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R}^\\mathfrak{d}$"
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\label{#2.eq:Lip}\\ignorespaces\n \\lvert X_{ x, m } - Y_m \\rvert \\leq b\n  \\qquad\\text{and}\\qquad\n \\lvert X_{ x, m } - X_{ y, m } \\rvert \\leq L \\delta( x, y )\n ,    \n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n  \\mathbb{M}_{ \\sum_{ n = 1 }^N X_n }( t ) \n  =\n  \\prod\\nolimits_{ n = 1 }^N\n  \\mathbb{M}_{ X_n }( t )   \n  .\n\\end{equation}"
   },
   {
    "env_type": "inline",
    "latex_expr": "$k\\in \\{1,2,\\dots,\\mathcal{L}(\\Phi_1)+\\mathcal{L}(\\Phi_2)+\\mathcal{L}(\\Phi_3)-2\\}$"
   },
   {
-   "env_type": "inline",
-   "latex_expr": "$(\\Phi, x, a, \\varepsilon)$"
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{BNANNsDataAssociated_property:concl1}\n\\begin{split} \n\t(\\mathcal{R}^{\\mathbf{B}}_{a, \\varepsilon}(\\Phi))(x)\n=\n\t((\\mathcal{R}^{\\mathbf{b}}_{a, \\varepsilon}(\\Psi))(x^{(m)}))_{m \\in \\{1, 2, \\ldots, M\\}}\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{L}$"
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}} \\subseteq [0,1)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
+   "latex_expr": "$\\mathscr{G}$"
   },
   {
    "env_type": "inline",
@@ -1235,35 +1234,35 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ t \\in [0,\\tau) $"
+   "latex_expr": "$k\\in\\{1,2,\\ldots,n\\}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\varepsilon \\in (0,\\infty)$"
+   "latex_expr": "$Y_{x}\\colon\\Omega\\to\\mathbb{R}$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{approximation_error_structured_rsmall:eq8}\n\\begin{split} \n\t&2d \\left(   \\tfrac{3d}{4r}   \\right)^{ d } ( d + 1)\n\t+\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ d } {3} \\left(  2d \\left(   \\tfrac{3d}{4r}   \\right)^{ d } + 1 \\right)\n\t+\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ d } \\tfrac{3}{2^{\\mathcal{L}(\\mathbf{F})-3}} + 1\\\\\n&\\leq\n\t\\left(   \\tfrac{3d}{4r}   \\right)^{ 2d }\n\t\\left( \n\t\t2d  ( d + 1)\n\t\t+\n\t\t 3 ( 2d  + 1)\n\t\t+\n\t\t\\tfrac{3}{2^{1-3}} \n\t\t+ \n\t\t1\n\t \\right)\\\\\n&\\leq\n\t\\left(   \\tfrac{3d}{4r}   \\right)^{ 2d }d^2\n\t\t(\n\t\t\t4\n\t\t\t+\n\t\t\t9\n\t\t\t+\n\t\t\t12\n\t\t\t+ \n\t\t\t1\n\t\t)\n=\n\t26 \\left(   \\tfrac{3d}{4r}   \\right)^{ 2d }d^2.\n\\end{split}\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\t\t\\textstyle\n\t\t\\sup\\nolimits_{x \\in [a,b]^d} \\left[  \\min\\nolimits_{k  \\in \\{1,2, \\ldots, K \\}} \\delta (x,  \\mathfrak{x}_k)  \\right] \\leq (b-a)r\n\t\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ y, z \\in \\mathcal{M} $"
+   "latex_expr": "$x\\in D$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ x \\in E $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\sup\\nolimits_{x \\in E}  \\left\\lvert  f(x)- \\mathscr{N}^{\\theta,\\mathbf{l}}_{\\mkern-2mu -\\infty, \\infty}(x)  \\right\\rvert \\leq 2L \\left[ \\sup\\nolimits_{x \\in E} \\left(  \\inf\\nolimits_{k  \\in \\{1,2, \\ldots, K \\}} \\left\\lVert x- \\fx_k \\right\\rVert_{1} \\right) \\right]\n\\end{equation}"
+   "latex_expr": "$\\mathscr{L}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ B \\curvearrowleft c $"
+   "latex_expr": "$x, y \\in E$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ ( \\mathcal{B}( [ \\alpha, \\beta ]^\\mathbf{d} ) \\otimes \\mathcal{F} ) $"
+   "latex_expr": "$ \\mathscr{R} \\curvearrowleft \\mathscr{R} \\vert_{ [ -c, c ]^\\mathbf{d} \\times \\Omega } $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathcal{B}( \\mathbb{R} ) $"
   },
   {
    "env_type": "equation",
@@ -1271,243 +1270,71 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ ( \\beta_n )_{ n \\in \\mathbb{N} } \\subseteq [0,1] $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{L} \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\begin{split}\n&\n\\textstyle\n  \\liminf_{\n    \\mathbb{R}^\\mathfrak{d} \\backslash \\left\\{  0  \\right\\} \\ni h \\to 0 \n  } \n  \\left(  \n    \\frac{ \\left\\langle  w, h  \\right\\rangle }{ \\left\\lVert  h \\right\\rVert_{2} } \n   \\right) \n  =\n  \\sup_{ \\varepsilon \\in (0,\\infty) }\n  \\inf_{ \n    h \\in \\{ u \\in \\mathbb{R}^\\mathfrak{d} \\colon \\left\\lVert  u  \\right\\rVert_{2} \\leq \\varepsilon \\}\n  }\n  \\left(  \n    \\frac{ \\left\\langle  w, h  \\right\\rangle }{ \\left\\lVert  h \\right\\rVert_{2} } \n   \\right) \n\\\\ &\n\\textstyle\n\\leq\n  \\sup_{ \\varepsilon \\in (0,\\infty) }\n  \\left(  \n    \\frac{ \\left\\langle  w, - \\varepsilon \\left\\lVert  \\altpointThree  \\right\\rVert_{2}^{ - 1 } w  \\right\\rangle }{ \\left\\lVert   - \\varepsilon \\left\\lVert  \\altpointThree  \\right\\rVert_{2}^{ - 1 } w  \\right\\rVert_{2} } \n   \\right) \n=\n  \\sup_{ \\varepsilon \\in (0,\\infty) }\n  \\left(  \n    \\left\\langle  w, - \\left\\lVert  \\altpointThree  \\right\\rVert_{2}^{ - 1 } w  \\right\\rangle \n   \\right) \n=\n  - \\left\\lVert  w  \\right\\rVert_{2} \n  < 0\n  .\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
    "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^{\\mathfrak{d}_1} \\times \\mathbb{R}^{\\mathfrak{d}_2}, \\mathbb{R})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathfrak{y} \\in \\mathbb{R}^{K}$"
+   "latex_expr": "$\\mathfrak{d}, N \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d} \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\colon \\Omega \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\left\\lvert  f( x ) - f( y )  \\right\\rvert \\leq L \\left\\lVert  x - y  \\right\\rVert_{1} $"
   },
   {
    "env_type": "inline",
    "latex_expr": "$\\mathcal{I}(\\Phi) = mn$"
   },
   {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation} \\label{prop:gd:eq:limit:gradient}\n\t(\\nabla \\mathscr{L})( \\psi ) \n\t=\n\t\\lim\\nolimits_{ n \\to \\infty } (\\nabla \\mathscr{L})( \\Theta_n )\n\t= \n\t\\lim\\nolimits_{ n \\to \\infty } \n\t( \\gamma^{ - 1 } ( \\Theta_{ n } - \\Theta_{n+1} ) ) \n\t= 0 .\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\t\\mathbf L'(x,y)(h,k)\n\t\t=\n\t\t\\left\\langle 2(x-y),h \\right\\rangle + \\left\\langle -2(x,y),k \\right\\rangle\n\t\t=\n\t\t2\\left\\langle x-y,h-k \\right\\rangle\n\t\t.\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\alpha^{(i)}_n)_{n \\in \\mathbb{N}}$"
-  },
-  {
-   "env_type": "display",
-   "latex_expr": "\\[\n\\mathscr{L}(\\theta) = (\\theta_1 - 3)^2 + \\tfrac{1}{2}(\\theta_2 - 2)^2 + \\theta_1 + \\theta_2\n,\\]"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ t \\in [0,\\infty) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$i \\in \\{1,2,\\ldots,\\mathfrak{d}\\}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x\\in\\mathbb{R}^d$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\rightarrow$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$m \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\label{eq:minrisk.claim}\n    \\begin{split}\n    &\\bigl\\{f\\in\\mathcal{L}^2(\\mathbb{P}_X;\\mathbb{R})\\colon \\mathcal{E}(f)=\\inf\\nolimits_{g\\in \\mathcal{L}^2(\\mathbb{P}_X;\\mathbb{R})}\\mathcal{E}(g)\\bigr\\}\n    \\\\&=\n    \\bigl\\{f\\in\\mathcal{L}^2(\\mathbb{P}_X;\\mathbb{R})\\colon \\mathcal{E}(f)=\\mathbb{E}\\bigl[\n    \\left\\lvert  \\mathbb{E} \\left[ \n\t\n\t  Y \\conditionSymbol[\\delimsize] X  \n \\right] - Y  \\right\\rvert^2\n    \\bigr]\\bigr\\}\n    \\\\&=\n    \\{f\\in\\mathcal{L}^2(\\mathbb{P}_X;\\mathbb{R})\\colon \\text{$f(X)=\\mathbb{E} \\left[ \n\t\n\t Y\\delimsize\\vert\\mathopen{} X \n \\right]$ $\\mathbb{P}$-a.s.}\\}\n    .\n    \\end{split}\n  \\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta\\in \\mathbb{R}^\\mathfrak{d}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\rho \\in [0, \\mathcal P_{ (X,d) , n }) $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\lambda x \n  =\n  \\left( \n    \\frac{ b - x }{ b - a }\n   \\right)\n  \\lambda a\n  +\n  \\left[  \n    1\n    -\n    \\left( \n      \\frac{ b - x }{ b - a }\n     \\right)\n   \\right]\n  \\lambda b\n  .\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathscr{x}\\in C(\\mathbb{R}^d,(0,\\infty))$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$v = (v_1, \\ldots, v_d) \\in \\mathbb{R}^d$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{eq:e0_estimate_DNN}\n\\begin{split}\n  \\mathfrak{e}_1\n& \n  =\n  \\sup_{ x \\in D }\n  \\,\n  \\left\\lVert \n    ( \\cfadd{def:ANNrealization}\\deflink{def:ANNrealization}{\\mathcal{R}}^{\\mathbf{N}}_{\\rect}( \\phi_{ 1, 1 } ) )( x ) \n    -\n    ( \\cfadd{def:ANNrealization}\\deflink{def:ANNrealization}{\\mathcal{R}}^{\\mathbf{N}}_{\\rect}( \\phi_{ 2, 1 } ) )( x ) \n   \\right\\rVert_{\\infty}\n\\\\&=\n  \\sup_{ x \\in D }\n  \\,\n  \\left\\lVert \n    \\left( \n      W_{ 1, 1 } x + B_{ 1, 1 }\n     \\right)\n    -\n    \\left( \n      W_{ 2, 1 } x + B_{ 2, 1 }\n     \\right)\n   \\right\\rVert_{\\infty}\n\\\\ &\n\\leq\n  \\left[ \n    \\sup_{ x \\in D }\n    \\,\n    \\left\\lVert \n      (\n        W_{ 1, 1 } - W_{ 2, 1 }\n      )\n      x\n     \\right\\rVert_{\\infty}\n   \\right]\n  +\n  \\left\\lVert \n    B_{ 1, 1 }\n    -\n    B_{ 2, 1 }\n   \\right\\rVert_{\\infty}\n\\\\ & \n\\leq \n  \\left[ \n    \\sup_{ v \\in \\mathbb{R}^{ l_0 } \\backslash \\{ 0 \\} }\n    \\left( \n      \\frac{\n        \\cfadd{def:p-norm}\\lnorm{\n          (\n            W_{ 1, 1 } - W_{ 2, 1 }\n          )\n          v\n        }{\\infty}\n      }{\n        \\cfadd{def:p-norm}\\lnorm{ v }{\\infty}\n      }\n     \\right)\n   \\right]\n  \\left[  \n    \\sup_{ x \\in D }\n    \\,\n    \\left\\lVert  x  \\right\\rVert_{\\infty}\n   \\right]\n  +\n  \\left\\lVert \n    B_{ 1, 1 }\n    -\n    B_{ 2, 1 }\n   \\right\\rVert_{\\infty}\n\\\\ & \n\\leq \n  l_0\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\max\\{ \\left\\lvert  a  \\right\\rvert , \\left\\lvert  b  \\right\\rvert \\}\n  +\n  \\left\\lVert \n    B_{ 1, 1 }\n    -\n    B_{ 2, 1 }\n   \\right\\rVert_{\\infty}\n\\\\&\n\\leq \n  l_0\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\max\\{ \\left\\lvert  a  \\right\\rvert , \\left\\lvert  b  \\right\\rvert \\}\n  +\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n\\\\ &\n=\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left( \n    l_0\n    \\max\\{ \\left\\lvert  a  \\right\\rvert , \\left\\lvert  b  \\right\\rvert \\}\n    +\n    1\n   \\right)\n\\leq \n  \\mathfrak{m}_{ 1, 0 }\n  \\,\n  \\left\\lVert  \\theta_1 - \\theta_2  \\right\\rVert_{\\infty}\n  \\left( \n    l_0\n    +\n    1\n   \\right)\n  .\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathcal{B}(\\mathbb{R})$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathscr{L} $"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{convergencerate_momentum:eq2}\n\\begin{split}\n\t\\left\\lVert \\Theta_n-\\vartheta \\right\\rVert_{2} &\\leq \\sqrt{\\left\\lVert \\Theta_n-\\vartheta \\right\\rVert_{2}^2 + \\left\\lVert \\Theta_{n-1}-\\vartheta \\right\\rVert_{2}^2} \\\\\n&= \n\t\\left\\lVert \n\t\t\\begin{pmatrix}\n\t\t\t\\Theta_n - \\vartheta  \\\\\n\t\t\t\\Theta_{n-1} - \\vartheta \n\t\t\\end{pmatrix}\n\t \\right\\rVert_{2} \\\\\n&= \n\t\\left\\lVert \n\t\tA^n\n\t\t\\begin{pmatrix}\n\t\t\t\\xi - \\vartheta  \\\\\n\t\t\t\\xi - \\vartheta \n\t\t\\end{pmatrix}\n\t \\right\\rVert_{2} \\\\\n&\\leq \n\t\\left\\vvvert \\ifblank{A^n}{\\:\\cdot\\:}{A^n} \\right\\vvvert\n\t\\left\\lVert \n\t\t\\begin{pmatrix}\n\t\t\t\\xi - \\vartheta  \\\\\n\t\t\t\\xi - \\vartheta \n\t\t\\end{pmatrix}\n\t \\right\\rVert_{2} \\\\\n&= \n\t\\left\\vvvert \\ifblank{A^n}{\\:\\cdot\\:}{A^n} \\right\\vvvert \\sqrt{\\left\\lVert \\xi-\\vartheta \\right\\rVert_{2}^2 + \\left\\lVert \\xi-\\vartheta \\right\\rVert_{2}^2} \\\\\n&= \n\t\\left\\vvvert \\ifblank{A^n}{\\:\\cdot\\:}{A^n} \\right\\vvvert \\sqrt{2}\\left\\lVert \\xi-\\vartheta \\right\\rVert_{2}.\n\\end{split}\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:Muon_2}\n\t\\mathbf{m}_n = \\alpha_n \\mathbf{m}_{n-1} + (\\nabla \\mathscr{L})(\\Theta_{n-1}),\n\t\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\ldots$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:nesterov_shifted_two_3}\n\t\\Theta_n = \\Theta_{n-1} - \\gamma_{n+1} \\alpha_{n+1} \\mathbf{m}_n - \\gamma_n (\\nabla \\defaultLossFunction)(\\Theta_{n-1}). \n\t\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\textstyle\n  p(\\theta) - p( \\vartheta )\n  =\n  \\sum_{ n = 1 }^N\n  \\beta_n ( \\theta - \\vartheta )^n.\n\\end{equation}"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{equivalent_conditions3_1:ass1}\n\\left\\langle \\theta-\\vartheta, (\\nabla \\mathscr{L})(\\theta)  \\right\\rangle \\geq c \\left\\lVert \\theta-\\vartheta \\right\\rVert_{2}^2.\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$k \\in \\{m, m+1, \\ldots, n\\}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x^n\\in\\mathbb{R}^{\\mathbb{D}_k(\\Phi_n)}$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\Omega \\ni \\omega\n\\mapsto\n\\int_D\n    \\lvert \\mathscr{N}^{ \\smash{ \\Theta_{ \\smash{ \\mathbf{k}( \\omega ) } }( \\omega ) } , \\mathbf{l} }_{\\mkern-2mu u,v}( x ) - \\mathcal{E}( x ) \\rvert^p\n\\, \\mathbb{P}_{ X }( \\mathrm{d} x )\n\\in [ 0, \\infty ]\n\\end{equation}"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\mathfrak{d}_1, \\mathfrak{d}_2, N \\in \\mathbb{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ s, t \\in [0, T) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ x, y \\in [ a, b ]^d $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$z\\in [a,b]\\cap\\mathbb{R}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\Theta \\in C( [0,\\infty), \\mathbb{R}^{ \\mathfrak{d} } ) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\mathcal T,\\mathcal X)$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\t\t\\left\\langle \n\t\t\t\t(\\nabla \\mathscr{L})(v) - (\\nabla \\mathscr{L})(w), v - w\n\t\t\t \\right\\rangle \n\t\t\t\\geq \n\t\t\tc \\left\\lVert v - w \\right\\rVert_{2}^2\n\t\t\\end{equation}"
-  },
-  {
    "env_type": "inline",
    "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
   },
   {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  a x^p\n  =\n  ( a^{ \\nicefrac{1}{p} } x )^p\n  =\n  \\bigl[ e \\bigl(  \\tfrac{ a^{ \\nicefrac{1}{p} }x }{ e } - 1 + 1 \\bigr) \\bigr]^p\n  \\leq\n  \\bigl[ e \\exp\\bigl(  \\tfrac{ a^{ \\nicefrac{1}{p} }x }{ e }  - 1 \\bigr) \\bigr]^p\n  =\n  \\exp\\bigl(  \\tfrac{ a^{ \\nicefrac{1}{p} }p x }{ e } \\bigr)\n  .\n  \\end{equation}"
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{l}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\Theta = (\\Theta_n)_{n \\in \\mathbb{N}_0} \\colon\\mathbb{N}_0\\times\\Omega\\to\\mathbb{R}^\\mathfrak{d}$"
+   "latex_expr": "$\\mathbf L\\in C^1(\\mathbb{R}^d\\times\\mathbb{R}^d,\\mathbb{R})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\varepsilon \\in (0,\\infty)$"
-  },
-  {
-   "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\t\\label{def:subgradient:eq1}\n\t\t\\mathscr{L}(v) \\geq \\mathscr{L}(\\theta) + \\left\\langle g, v - \\theta \\right\\rangle\n\t\\end{equation}"
+   "latex_expr": "$ d \\curvearrowleft \\mathbf{d} $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathscr{C}, \\beta \\in (0, \\infty) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
+   "latex_expr": "$x \\in S$"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n  \\label{#2.eq:defr}\\ignorespaces\n  \\mathbf r( f ) = \\mathbb{E}[ \\lvert f( X_1 ) - Y_1 \\rvert^2 ]\n  .\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n  \\mathscr{L}( \\Theta_t ) = \\mathscr{L}( \\Theta_0 ) - \\int_0^t \\left\\lVert  (\\nabla \\mathscr{L})( \\Theta_s )  \\right\\rVert_{2}^2 \\, \\mathrm{d} s\n\t\\qquad\\text{and}\\qquad\n  \\Theta_t = \\Theta_0 - \\int_0^t (\\nabla \\mathscr{L})( \\Theta_s ) \\, \\mathrm{d} s\n\t, \n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{NesterovGeneral:eq0}\n\\begin{split}\n\t\\frac{\\mathfrak{c}^{(1)}_{n+1} \\mathfrak{a}^{(1)}_{n+1} \\mathfrak{c}^{(2)}_{n}}{\\mathfrak{c}^{(1)}_{n}}\n=\n\t\\frac{\\mathfrak{c}^{(2)}_{n+1} \\mathfrak{b}^{(2)}_{n+1} \\mathfrak{a}^{(1)}_{n} \\mathfrak{b}^{(1)}_{n}}{\\mathfrak{b}^{(1)}_{n+1} \\mathfrak{b}^{(2)}_{n}}\n=\n\t\\mathfrak{c}^{(2)}_{n+1} \\mathfrak{a}^{(2)}_{n+1}.\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathscr{l} = (\\mathscr{l}(\\theta,x))_{(\\theta,x) \\in \\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^{\\mathbf{d}}} \\in C^1(\\mathbb{R}^\\mathfrak{d} \\times \\mathbb{R}^{\\mathbf{d}}, \\mathbb{R})$"
+   "latex_expr": "$(\\mathfrak{a}^{(2)}_n)_{n \\in \\mathbb{N}} \\subseteq (0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(\\tau_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty) $"
+   "latex_expr": "$ X \\subseteq V $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\mathbf{F} \\in \\mathbf{N}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\tau \\in (0,\\infty]$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}}$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\vartheta = (\\vartheta_1, \\vartheta_2) \\in \\mathbb{R}^2$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$\\theta\\in [-R,R]^{\\mathfrak{d}}$"
+   "latex_expr": "$ r_N \\curvearrowleft r $"
   },
   {
    "env_type": "inline",
@@ -1515,79 +1342,163 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n \\in \\{m, m+1, \\ldots \\}$"
+   "latex_expr": "$(\\beta_n)_{n \\in \\mathbb{N}} \\subseteq [0,1]$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\alpha, \\beta \\in \\mathbb{R}$"
+   "latex_expr": "$g\\in\\mathcal{L}^2(\\mathbb{P}_X;\\mathbb{R})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
+   "latex_expr": "$\\mathfrak{d}, N \\in \\mathbb{N}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$k\\in\\{1,2,\\dots,\\mathcal{L}(\\Phi)+\\mathcal{L}(\\Psi)-1\\}$"
+   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\mathcal P^{ X, r } \\in [0,\\infty] $"
+   "latex_expr": "$ \\mathbf{l} = ( \\mathbf{l}_0, \\mathbf{l}_1, \\ldots, \\mathbf{l}_\\mathbf{L} ) \\in \\mathbb{N}^{ \\mathbf{L} + 1 } $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$\\Theta(t) = \\Theta(0) - \\int_0^t (\\nabla\\mathscr{L})( \\Theta(s) ) \\, \\mathrm{d} s$"
+   "latex_expr": "$(\\Omega,\\mathcal F,\\mathbb{P})$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$t \\in [0,\\min\\{\\tau_{n+1},n\\})$"
+   "latex_expr": "$d \\in \\mathbb{N}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ \\alpha \\curvearrowleft -B $"
+   "latex_expr": "$ ( \\gamma_n )_{ n \\in \\mathbb{N} } $"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ p \\in [ 2, \\infty ) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ c \\in (0,\\infty) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\mathbb{P} $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ v \\in ( \\mathscr{D} \\mathscr{L})( \\theta ) $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\Gamma( x ) = \\int_0^{ \\infty } t^{ x - 1 } e^{ - t } \\,\\mathrm{d} t $"
+   "latex_expr": "$ \\Theta \\colon \\mathbb{N}_0 \\to \\mathbb{R}^\\mathfrak{d} $"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n\\label{backprop_for_ANNs:eq9.2}\n\\begin{split} \n\t\\left( \n\t\t\\nabla_{B_L}  f\n\t \\right)\n\t(\\Phi)\n=\n\t[\\operatorname{I}_{l_L}]^* D_{L+1}\n=\n\tD_{L+1}\n.\n\\end{split}\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n&\n\\textstyle \n  \\limsup_{ \\mathbb{N} \\cap [K,\\infty) \\ni k \\to \\infty } \n  (\n    \\left\\lVert \n      z_1( k ) - \\theta\n     \\right\\rVert_{2}\n    + \n    \\left\\lVert \n      ( \\nabla \\mathscr{L} )( z_1( k ) ) - v\n     \\right\\rVert_{2}\n  )\n\\\\ &\n\\textstyle \n=\n  \\limsup_{ k \\to \\infty } \n  (\n    \\left\\lVert \n      z_1( k ) - \\theta\n     \\right\\rVert_{2}\n    + \n    \\left\\lVert \n      z_2( k ) - v\n     \\right\\rVert_{2}\n  )\n  = 0\n  .\n\\end{split}\n\\end{equation}"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$ b \\in ( a, \\infty ) $"
+   "latex_expr": "$(\\gamma_n)_{n \\in \\mathbb{N}} \\subseteq [0,\\infty)$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$c = (c_\\alpha)_{\\alpha \\in \\{0, 1, \\dots, N\\}^d} \\colon \\{0, 1,\\allowbreak \\ldots,\\allowbreak N\\}^d \\to \\mathbb{R}^\\delta$"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$ \\vartheta \\in U $"
-  },
-  {
-   "env_type": "inline",
-   "latex_expr": "$x \\in \\mathbb{R}$"
+   "latex_expr": "$ n \\in \\{ 1, 2, \\dots, N \\} $"
   },
   {
    "env_type": "equation",
-   "latex_expr": "\\begin{equation}\n    \\mathbb{D}_1(\\Phi) \n\t\t= \n\t\t\\mathbb{D}_1(\\Xi)\n\t\t=\n\t\t\\mathbb{D}_1 \\left(  \\mathbf{P}_{K}(\\Psi_1, \\Psi_2, \\ldots, \\Psi_{K}) \\right)\n\t\t=\n\t\t\\sum_{i=1}^{K} \\mathbb{D}_1 \\left(  \\Psi_i \\right)\n\t\t=\n\t\t\\sum_{i=1}^{K} \\mathbb{D}_1( \\mathbb{L}_d) \n\t\t=\n\t\t2 d K\n\t\t.\n\\end{equation}"
+   "latex_expr": "\\begin{equation}\n\t\t\tF_k(\\theta,x)\n\t\t\t=\n\t\t\t\\Psi_k\\left( \\mathcal{A}_{l_k,l_{k-1}}^{\\theta,0}(x) \\right)\n\t\t\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{eq:def:nesterov_shifted_two_1}\n\t\\Theta_0 = \\xi, \\qquad \\mathbf{m}_0 = 0,\n\t\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\Theta $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L} \\in C^1(\\mathbb{R}^\\mathfrak{d},\\mathbb{R})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k \\in \\{m, m+1, \\ldots, n\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x^n\\in\\mathbb{R}^{\\mathbb{D}_k(\\Phi_n)}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\textstyle \n  \\alpha \\geq 1 - N^{ - 1 }\n  ,\n\\quad\n  c \\geq \n      2 \n      \\rho^{ - 1 }\n      [\n        \\sum_{ n = 1 }^N\n        \\left\\lvert  \\beta_n  \\right\\rvert^{ \\alpha } \n      ]\n  ,\n\\quad\\text{and}\\quad\n  \\varepsilon \\leq \n    \\rho\n    [\n      \\mathbbm{1}_{\n        \\{ 0 \\}\n      }(\n        \\sum_{ n = 1 }^N \\left\\lvert  \\beta_n  \\right\\rvert\n      )\n      +\n      2\n      (\n        \\sum_{ n = 1 }^N\n        \\left\\lvert  \\beta_n n  \\right\\rvert \n      )\n    ]^{ - 1 }\n  .\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta\\in [-R,R]^{\\mathfrak{d}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ D \\subseteq [ -b, b ]^d $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n  \\mathcal C_{ (X,d), n } \n  =\n  R \n  \\,\n  \\mathcal C_{ (\\mathfrak{X},\\mathfrak{d}), n } \n  \\leq \n  R\n  \\left[  \n    \\frac{ r }{ R }\n   \\right]\n  =\n  r \n  .\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$z\\in [a,b]\\cap\\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k \\in \\{1, 2, \\ldots, L\\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$E\\neq\\emptyset$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$v, w \\in \\mathbb{R}^{\\mathfrak{d}}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n        (\\nabla \\mathscr{L})( \\theta ) = ( \\nabla \\mathscr{L} )( \\theta ),\n        \\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\t\\label{eq:determinant_block.1}\n\\det\n\\begin{pmatrix}\nX & Y \\\\\n0 & Z\n\\end{pmatrix}  = \\det(X)\\det(Z) = \n\\det\n\\begin{pmatrix}\nX & 0 \\\\\nY & Z\n\\end{pmatrix}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n\\in\\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\theta_{k}, \\theta_{k+1}, \\ldots,\\allowbreak \\theta_L) \\in \\mathbb{R}^{\\mathfrak{d}_k} \\times \\mathbb{R}^{\\mathfrak{d}_{k+1}} \\times \\ldots \\times \\mathbb{R}^{\\mathfrak{d}_L} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{L}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(J_n)_{n \\in \\mathbb{N}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathfrak{d}, \\mathbf{d}, N \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\mathbb{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathbf{F} \\in \\mathbf{N}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\in \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^{\\mathfrak{d}_1 \\times \\mathfrak{d}_2} \\to \\mathbb{R} $"
   },
   {
    "env_type": "inline",
@@ -1595,11 +1506,99 @@
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
+   "latex_expr": "$(X_{n,j})_{(n,j)\\in \\mathbb{N}^2}$"
   },
   {
    "env_type": "inline",
-   "latex_expr": "$n \\in \\mathbb{N}$"
+   "latex_expr": "$X_{n,j}\\colon \\Omega \\to \\mathbb{R}^{\\mathbf{d}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$n \\in \\{m, m+1, \\ldots \\}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$C \\in \\mathbb{R}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\alpha^{(3)}_n)_{n \\in \\mathbb{N}} \\subseteq (0,1)$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$k\\in\\{1,2,\\dots,\\mathcal{L}(\\Phi)+\\mathcal{L}(\\Psi)-1\\}$"
+  },
+  {
+   "env_type": "multline",
+   "latex_expr": "\\begin{multline}\n\\label{eq:packing_number}\n  \\mathcal P^{(X,d),r}\n  =\n  \\sup\\bigl(\n  \\bigl\\{\n    n \\in \\mathbb{N}\n    \\colon\n    \\bigl(\n      \\exists \\, x_1, x_2, \\dots, x_{ n + 1 } \\in X \\colon\\\\\n      \\left[ \n        \\min\\nolimits_{ \n          \\substack{ \n            i, j \\in \\{ 1, 2, \\dots, n + 1 \\}, \\,\n            i \\neq j \n          }\n        }\n        d( x_i, x_j )\n       \\right]\n      > 2 r\n    \\bigr)\n  \\bigr\\}\n  \\cup \\{ 0 \\}\n  \\bigr)\n\\end{multline}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\Theta \\in C( [0,\\infty), \\mathbb{R}^{ \\mathfrak{d} } ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ t \\in [0,\\min\\{ \\tau_{ n + 1 }, n \\} ) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\theta\\in\\mathbb{R}^{\\mathfrak{d}}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\mathscr{g} \\colon \\mathbb{R}^\\mathfrak{d} \\times S \\to \\mathbb{R}^\\mathfrak{d}$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ s \\in [0,T] $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{Shifted_Nesterov_4:eq4.1}\n\\begin{split}\n\t\\Psi_0\n=\n\t\\Theta_0 - \\alpha_1 \\mathbf{m}_0\n=\n\t\\xi.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ k \\in \\mathbb{N} $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ \\mathscr{L} \\colon \\mathbb{R}^\\mathfrak{d} \\to \\mathbb{R} $"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{backprop_for_ANNs:eq9.2}\n\\begin{split} \n\t\\left( \n\t\t\\nabla_{B_L}  f\n\t \\right)\n\t(\\Phi)\n=\n\t[\\operatorname{I}_{l_L}]^* D_{L+1}\n=\n\tD_{L+1}\n.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{approximation_error_structured_rsmall:eq9}\n\\begin{split} \n\t\\sum_{i = 3}^{\\mathcal{L}(\\mathbf{F})-1}\n\t\t\\left(  \\tfrac{3d}{4r}  \\right)^{ d } \\tfrac{3}{2^{i-2}} \\left( \\left(  \\tfrac{3d}{4r}  \\right)^{ d } \\tfrac{3}{2^{i-3}} + 1 \\right)\n&\\leq\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ 2d }\n\t\\sum_{i = 3}^{\\mathcal{L}(\\mathbf{F})-1}\n\t\t \\tfrac{3}{2^{i-2}} \\left(  \\tfrac{3}{2^{i-3}} + 1 \\right)\\\\\n&=\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ 2d }\n\t\t\\sum_{i = 3}^{\\mathcal{L}(\\mathbf{F})-1}\n\t\t\t \\left[  \\tfrac{9}{2^{2i - 5}} + \\tfrac{3}{2^{i - 2}}  \\right]\\\\\n&=\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ 2d }\n\t\t\\sum_{i = 0}^{\\mathcal{L}(\\mathbf{F})-4}\n\t\t\t \\left[  \\tfrac{9}{2} (4^{-i})  + \\tfrac{3}{2} (2^{-i})  \\right]\\\\\n&\\leq\n\t\\left(  \\tfrac{3d}{4r}  \\right)^{ 2d }\n\t\\left( \n\t\t\\tfrac{9}{2} \\left( \\tfrac{1}{1-4^{-1}} \\right) + \\tfrac{3}{2} \\left( \\tfrac{1}{1-2^{-1}} \\right)\n\t \\right)\n=\n\t9 \\left(  \\tfrac{3d}{4r}  \\right)^{ 2d }.\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$c = (c_\\alpha)_{\\alpha \\in \\{0, 1, \\dots, N\\}^d} \\colon \\{0, 1,\\allowbreak \\ldots,\\allowbreak N\\}^d \\to \\mathbb{R}^\\delta$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\label{Momentum2vs3:eq2}\n\\begin{split}\n\t\\mathbf{m}^{(i)}_n = \\mathfrak{a}^{(i)}_n \\mathbf{m}^{(i)}_{n-1} + \\mathfrak{b}^{(i)}_n (\\nabla \\mathscr{L})(\\Theta^{(i)}_{n-1}),\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$x \\in \\mathbb{R}$"
+  },
+  {
+   "env_type": "equation",
+   "latex_expr": "\\begin{equation}\n\\begin{split}\n    \\mathcal{H} (\\Phi) \n&= \n\t\\mathcal{H} (\\mathbb{M}_{K}  \\bullet \\Xi) \n= \n\t\\mathcal{H} (\\mathbb{M}_{K}) + \\mathcal{H} (\\Xi) \n=\n\t\\left\\lceil  \\operatorname{log} _2 (K) \\right\\rceil +1\n\\end{split}\n\\end{equation}"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$(\\Omega,\\mathcal F,\\mathbb{P})$"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$ s, t \\in [0, T) $"
+  },
+  {
+   "env_type": "inline",
+   "latex_expr": "$\\xi \\in \\mathbb{R}^\\mathfrak{d}$"
   }
  ]
 }
