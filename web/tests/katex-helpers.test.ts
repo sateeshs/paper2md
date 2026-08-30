@@ -74,6 +74,12 @@ describe("prepareLatex — environment rewriting", () => {
     expect(out).toContain("\\begin{gather*}");
   });
 
+  it("rewrites mathtools multlined to gathered", () => {
+    const out = prepareLatex("\\begin{equation}\\begin{multlined}a\\\\b\\end{multlined}\\end{equation}", true);
+    expect(out).toContain("\\begin{gathered}");
+    expect(out).not.toContain("multlined");
+  });
+
   it("wraps a bare split in aligned", () => {
     const out = prepareLatex("\\begin{split}a &= b\\end{split}", true);
     expect(out).toContain("\\begin{aligned}");
@@ -93,6 +99,11 @@ describe("prepareLatex — cleanup", () => {
   it("strips labels, \\nonumber and comments", () => {
     const out = prepareLatex("x = 1 \\label{eq:a} \\nonumber % trailing", true);
     expect(out).not.toMatch(/\\label|\\nonumber|%/);
+  });
+
+  it("strips package setup commands that typeset nothing", () => {
+    const out = prepareLatex("\\mathtoolsset{showonlyrefs}x = 1", true);
+    expect(out).toBe("x = 1");
   });
 
   it("returns empty string when nothing meaningful survives", () => {

@@ -260,7 +260,11 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
       .replace(/\\begin\{multline\*\}/g, "\\begin{gather*}")
       .replace(/\\end\{multline\*\}/g,   "\\end{gather*}")
       .replace(/\\begin\{multline\}/g,   "\\begin{gather}")
-      .replace(/\\end\{multline\}/g,     "\\end{gather}");
+      .replace(/\\end\{multline\}/g,     "\\end{gather}")
+      // mathtools \begin{multlined} is the *inner* variant, used inside an
+      // outer equation. \begin{gathered} is its KaTeX-supported equivalent.
+      .replace(/\\begin\{multlined\}(?:\[[^\]]*\])?/g, "\\begin{gathered}")
+      .replace(/\\end\{multlined\}/g,    "\\end{gathered}");
   }
 
   // Unsupported packages: \xymatrix (XY-pic commutative diagrams)
@@ -295,6 +299,9 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
 
   // Strip \label{...} — KaTeX doesn't know this command
   s = s.replace(/\\label\{[^}]*\}/g, "");
+  // Setup commands that configure a package and typeset nothing
+  s = s.replace(/\\(?:mathtoolsset|allowdisplaybreaks|setlength|arraycolsep)\s*\{[^}]*\}/g, "");
+  s = s.replace(/\\(?:allowdisplaybreaks|displaybreak)\b/g, "");
   // Strip \nonumber
   s = s.replace(/\\nonumber/g, "");
   // \mbox → \text

@@ -208,3 +208,68 @@ def test_self_referential_macro_terminates():
 def test_mutually_recursive_macros_terminate():
     doc = r"\newcommand{\aa}{\bb}\newcommand{\bb}{\aa}$\aa$"
     assert isinstance(expand_custom_macros(doc), str)
+
+
+# ---------------------------------------------------------------------------
+# The three mathtools paired-delimiter forms have *different* signatures.
+# Conflating them makes the parser over-read and silently swallow whatever
+# definition follows — which is how \br went missing from 2310.20360 even
+# though it is defined in the preamble.
+# ---------------------------------------------------------------------------
+
+def test_paired_delimiter_x_does_not_swallow_the_next_definition():
+    doc = (
+        r"\DeclarePairedDelimiterX\expbr[1]{[}{]}{#1}"
+        "\n"
+        r"\DeclarePairedDelimiter{\br}{[}{]}"
+        "\n"
+        r"$\br[\big]{ x }$"
+    )
+    # \br must still be defined — before the fix the \expbr parse consumed it.
+    assert r"\left[  x  \right]" in expand_custom_macros(doc)
+
+
+def test_paired_delimiter_x_expands_its_own_uses():
+    doc = r"\DeclarePairedDelimiterX\expbr[1]{[}{]}{#1}$\expbr{y}$"
+    assert expand_custom_macros(doc) == r"$\left[ y \right]$"
+
+
+def test_paired_delimiter_xpp_still_takes_five_groups():
+    doc = (
+        r"\DeclarePairedDelimiterXPP\Pnorm[2]{}\lVert\rVert{_{#1}}{#2}"
+        r"\newcommand{\after}{OK}"
+        r"$\Pnorm{p}{x}\after$"
+    )
+    out = expand_custom_macros(doc)
+    assert r"\left\lVert x \right\rVert_{p}" in out
+    assert "OK" in out          # the following definition survived
+
+
+# ---------------------------------------------------------------------------
+# TeX comments must be stripped before scanning: a commented-out brace breaks
+# brace counting, and comment text otherwise leaks into macro bodies.
+# ---------------------------------------------------------------------------
+
+def test_comment_inside_a_macro_body_is_removed():
+    doc = "\\newcommand{\\f}{%\n\\alpha\n}$\\f$"
+    out = expand_custom_macros(doc)
+    # Newlines are preserved so line positions (and section splitting) are
+    # unaffected; only the comment text is removed.
+    assert "%" not in out
+    assert out.split("$")[1].strip() == r"\alpha"
+
+
+def test_commented_out_brace_does_not_break_brace_counting():
+    doc = "\\newcommand{\\g}{a% }\n b}\\newcommand{\\h}{H}$\\g\\h$"
+    out = expand_custom_macros(doc)
+    assert "H" in out           # \h was still registered
+
+
+def test_escaped_percent_is_not_treated_as_a_comment():
+    doc = r"\newcommand{\pct}{50\%}$\pct$"
+    assert expand_custom_macros(doc) == r"$50\%$"
+
+
+def test_comment_after_a_line_break_is_stripped():
+    doc = "\\newcommand{\\k}{a \\\\% trailing\nb}$\\k$"
+    assert "trailing" not in expand_custom_macros(doc)

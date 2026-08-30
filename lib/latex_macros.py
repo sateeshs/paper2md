@@ -59,10 +59,17 @@ _XPARSE_CMDS = {
     "ProvideDocumentCommand", "DeclareDocumentCommand",
 }
 _PAIRED_DELIM_CMDS = {"DeclarePairedDelimiter"}
-_PAIRED_DELIM_XPP_CMDS = {"DeclarePairedDelimiterXPP", "DeclarePairedDelimiterX"}
+# mathtools, three different signatures — conflating them makes the parser
+# over-read and swallow whatever definition follows:
+#   \DeclarePairedDelimiter{\c}{l}{r}
+#   \DeclarePairedDelimiterX{\c}[n]{l}{r}{body}
+#   \DeclarePairedDelimiterXPP{\c}[n]{pre}{l}{r}{post}{body}
+_PAIRED_DELIM_X_CMDS = {"DeclarePairedDelimiterX"}
+_PAIRED_DELIM_XPP_CMDS = {"DeclarePairedDelimiterXPP"}
 _DEF_CMDS = (
     _NEWCOMMAND_CMDS | _OPERATOR_CMDS | _XPARSE_CMDS
-    | _PAIRED_DELIM_CMDS | _PAIRED_DELIM_XPP_CMDS | {"def"}
+    | _PAIRED_DELIM_CMDS | _PAIRED_DELIM_X_CMDS | _PAIRED_DELIM_XPP_CMDS
+    | {"def"}
 )
 
 # expl3 / LaTeX3 bodies (\seq_if_in:NnF, \tl_gset:Nn, \bool_if:NTF, …) are
@@ -209,6 +216,24 @@ def _parse_definition(
         body = rf"\left{left[0]} #3 \right{right[0]}"
         return name, (("s", None), ("o", None), ("m", None)), body, right[1]
 
+    elif kind in _PAIRED_DELIM_X_CMDS:
+        # \DeclarePairedDelimiterX\expbr[1]{[}{]}{body}
+        am = _ARITY_RE.match(text, pos)
+        nargs = int(am.group(1)) if am else 0
+        if am:
+            pos = am.end()
+        parts: list[str] = []
+        for _ in range(3):          # left, right, body
+            got = _read_macro_arg(text, pos)
+            if got is None:
+                return None
+            parts.append(got[0])
+            pos = got[1]
+        left, right, inner = parts
+        body = f"\\left{left} {_shift_arg_numbers(inner, 2)} \\right{right}"
+        spec = (("s", None), ("o", None)) + (("m", None),) * nargs
+        return name, spec, body, pos
+
     elif kind in _PAIRED_DELIM_XPP_CMDS:
         # \DeclarePairedDelimiterXPP\Pnorm[2]{pre}\lVert\rVert{post}{body}
         # Used as \Pnorm*[size]{arg1}{arg2}; star and size only affect manual
@@ -340,6 +365,17 @@ def _expand_stream(
     return "".join(out)
 
 
+# A "%" starts a comment unless it is escaped. An unstripped comment breaks
+# brace counting outright — "% }" reads as a closing brace that is not there —
+# and comment text leaks into macro bodies. The newline is kept so that line
+# positions (and therefore section splitting) are unaffected.
+_TEX_COMMENT_RE = re.compile(r"(?<!\\)((?:\\\\)*)%[^\n]*")
+
+
+def _strip_tex_comments(text: str) -> str:
+    return _TEX_COMMENT_RE.sub(r"\1", text)
+
+
 def expand_custom_macros(latex_doc: str, *extra_sources: str) -> str:
     r"""Expand macros defined in the document and in any `extra_sources`.
 
@@ -351,5 +387,6 @@ def expand_custom_macros(latex_doc: str, *extra_sources: str) -> str:
     macros: dict[str, tuple[Spec, str]] = {}
     for src in extra_sources:
         if src:
-            _expand_stream(src, macros)   # definitions only; output discarded
-    return _expand_stream(latex_doc, macros)
+            # definitions only; output discarded
+            _expand_stream(_strip_tex_comments(src), macros)
+    return _expand_stream(_strip_tex_comments(latex_doc), macros)
