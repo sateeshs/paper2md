@@ -5,24 +5,24 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.latex_parse import _expand_custom_macros
+from lib.latex_macros import expand_custom_macros
 
 
 def test_zero_arg_macro_expansion_unchanged():
     src = r"\newcommand{\R}{\mathbb{R}} \R is the reals."
-    assert "\\mathbb{R}" in _expand_custom_macros(src)
+    assert "\\mathbb{R}" in expand_custom_macros(src)
 
 
 def test_one_arg_macro_expands():
     src = r"\newcommand{\norm}[1]{\left\|#1\right\|} $\norm{x}$"
-    out = _expand_custom_macros(src)
+    out = expand_custom_macros(src)
     assert "\\left\\|x\\right\\|" in out
     assert "\\norm" not in out.replace("\\newcommand", "")
 
 
 def test_two_arg_macro_expands():
     src = r"\newcommand{\set}[2]{\{#1,#2\}} $\set{a}{b}$"
-    out = _expand_custom_macros(src)
+    out = expand_custom_macros(src)
     assert "\\{a,b\\}" in out
 
 
@@ -32,7 +32,7 @@ def test_macro_used_inside_another_macro_body():
         r"\newcommand{\matR}[1]{\bR^{#1}}"
         r" $\matR{n}$"
     )
-    out = _expand_custom_macros(src)
+    out = expand_custom_macros(src)
     assert "\\mathbf{R}^{n}" in out
 
 
@@ -42,7 +42,7 @@ def test_macro_as_argument_not_duplicated():
         r"\newcommand{\norm}[1]{\left\|#1\right\|}"
         r" $\norm{\al}$"
     )
-    out = _expand_custom_macros(src)
+    out = expand_custom_macros(src)
     # The argument \al is consumed by \norm and expanded inside its body
     # exactly once at the use site — never re-emitted at its original position.
     # (Definition-line text may still contain \alpha; only the use region counts.)

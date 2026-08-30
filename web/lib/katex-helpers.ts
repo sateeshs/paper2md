@@ -14,6 +14,16 @@ export const KATEX_OPTIONS: KatexOptions = {
   strict: "ignore",
   errorColor: "currentColor", // unknown macros render in normal text color, not red
   macros: {
+    // Real LaTeX/package commands KaTeX does not implement. These are standard
+    // across LaTeX, not paper-specific shorthands — unlike the entries below,
+    // which exist only for rows written before latex_parse.py expanded macros.
+    "\\ignorespaces": "{}",
+    "\\allowbreak": "{}",
+    "\\xspace": "{}",
+    "\\ensuremath": "#1",
+    "\\nicefrac": "{}^{#1}\\!/\\!_{#2}",   // nicefrac package
+    "\\mathbbm": "\\mathbb{#1}",             // bbm package
+    "\\vvvert": "\\vert\\!\\vert\\!\\vert",   // triple bar (mathabx/mathdesign)
     // Number sets
     "\\R": "\\mathbb{R}",
     "\\N": "\\mathbb{N}",
@@ -211,6 +221,18 @@ export function isDisplayMode(envType: string): boolean {
 }
 
 /**
+ * Single-letter names that are genuine LaTeX/KaTeX commands and must never be
+ * rewritten into plain variables.
+ *
+ *   accents / special chars : a b c d H i j k l L o O r t u v
+ *   text symbols            : P S
+ *   defined in KATEX_OPTIONS: C E K N P Q R Z (number sets)
+ */
+const RESERVED_SINGLE_LETTER_COMMANDS = new Set(
+  "abcdHijklLoOrtuvPSCEKNQRZ".split("")
+);
+
+/**
  * Prepare a latex_expr for katex.render().
  * Strips delimiters and fixes environments that KaTeX can't handle as top-level.
  */
@@ -227,12 +249,18 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
       .replace(/^\\begin\{subequations\}/, "")
       .replace(/\\end\{subequations\}$/, "")
       .trim();
-    // eqnarray / eqnarray* are not supported by KaTeX — rewrite to align / align*
+    // Environments amsmath defines but KaTeX does not implement.
+    // eqnarray → align, multline → gather (both are single-column display
+    // stacks; multline's first/last-line alignment is the only difference).
     s = s
       .replace(/\\begin\{eqnarray\*\}/g, "\\begin{align*}")
       .replace(/\\end\{eqnarray\*\}/g,   "\\end{align*}")
       .replace(/\\begin\{eqnarray\}/g,   "\\begin{align}")
-      .replace(/\\end\{eqnarray\}/g,     "\\end{align}");
+      .replace(/\\end\{eqnarray\}/g,     "\\end{align}")
+      .replace(/\\begin\{multline\*\}/g, "\\begin{gather*}")
+      .replace(/\\end\{multline\*\}/g,   "\\end{gather*}")
+      .replace(/\\begin\{multline\}/g,   "\\begin{gather}")
+      .replace(/\\end\{multline\}/g,     "\\end{gather}");
   }
 
   // Unsupported packages: \xymatrix (XY-pic commutative diagrams)
@@ -244,20 +272,23 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
   s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
 
-  // Resolve single-letter macros used as variable/matrix names in papers.
-  // Papers define \a, \u, \A, \U, \V etc. as shorthand for vectors/matrices.
-  // When NOT followed by another letter, they're variable names, not LaTeX
-  // commands. Multi-char commands like \alpha, \frac, \Lambda are safe —
-  // the letter after \ is followed by another letter so they don't match.
-  // Exclude uppercase letters already defined in KATEX_OPTIONS macros
-  // (R,N,Z,E,P,C,Q,K → mathbb sets) so those still resolve correctly.
-  // IMPORTANT: Use {letter} (braced) not bare letter, so a preceding command
+  // Fallback for rows written before the pipeline expanded preamble macros:
+  // papers define \a, \u, \A, \V etc. as shorthand for vectors/matrices, and
+  // those used to reach the DB unexpanded. Rewriting \x → {x} renders the
+  // variable name instead of a KaTeX "undefined control sequence".
+  //
+  // Only letters that are NOT real single-letter LaTeX commands may be
+  // rewritten. The previous version rewrote every letter, which corrupted valid
+  // markup: \v{s} → {v}{s} (caron), \c{c} → {c}{c} (cedilla), \hat{\i} →
+  // \hat{{i}} (dotless i), plus \j \l \L \o \O \S \t \u \b \d \r \H \k.
+  // Newly processed papers no longer need this at all — their macros are
+  // resolved upstream in latex_parse.py.
+  //
+  // IMPORTANT: use {letter} (braced) not a bare letter, so a preceding command
   // like \top doesn't merge: \top\a → \top{a} not \topa.
-  const MACRO_DEFINED_LETTERS = new Set(["R", "N", "Z", "E", "P", "C", "Q", "K"]);
-  s = s.replace(/\\([a-zA-Z])(?![a-zA-Z])/g, (match, letter: string) => {
-    if (MACRO_DEFINED_LETTERS.has(letter)) return match;
-    return `{${letter}}`;
-  });
+  s = s.replace(/\\([a-zA-Z])(?![a-zA-Z])/g, (match, letter: string) =>
+    RESERVED_SINGLE_LETTER_COMMANDS.has(letter) ? match : `{${letter}}`
+  );
 
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();

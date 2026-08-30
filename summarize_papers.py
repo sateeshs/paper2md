@@ -274,7 +274,7 @@ def process_arxiv_id(
 
     Returns a ProcessResult: "processed", "skipped", or "error".
     """
-    from lib.arxiv_source import fetch_arxiv_latex_full
+    from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
     from lib.latex_parse import parse_latex_sections
 
     label = f"arXiv:{arxiv_id}"
@@ -320,7 +320,10 @@ def process_arxiv_id(
     if latex:
         # Parse sections and math blocks from LaTeX
         try:
-            sections = parse_latex_sections(latex)
+            # Preamble holds most \newcommand definitions — without it those
+            # macros leak unexpanded into the DB and fail to render.
+            preamble = split_preamble(full_latex_source or "")
+            sections = parse_latex_sections(latex, preamble)
             tqdm.write(
                 f"[INFO] {label}: {len(sections)} sections, "
                 f"{sum(len(s.math_blocks) for s in sections)} math blocks"

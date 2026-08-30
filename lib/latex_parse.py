@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
+from lib.latex_macros import expand_custom_macros
 from lib.models import AlgorithmBlock, MathBlock, Section
 
 
@@ -318,7 +319,12 @@ def _preprocess_for_text(latex: str) -> str:
     # 8. Convert LaTeX special characters that pylatexenc fallback misses.
     # \_ must NOT be converted inside inline $...$ math — KaTeX needs \_ to
     # render a literal underscore (plain _ is a subscript operator in math mode).
-    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n]|\\.)+?\$')
+    # NOTE: the alternatives must stay disjoint. `[^$\n]` also matches a
+    # backslash, so `(?:[^$\n]|\\.)` gives the engine two ways to consume every
+    # escape sequence — on an unbalanced `$` that backtracks exponentially
+    # (measured: 300+ s on a single 800-char context window). Excluding `\\`
+    # from the first branch makes the match unambiguous and linear.
+    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n\\]|\\.)+?\$')
 
     def _sub_outside_math(text: str, pat: str, repl: str) -> str:
         parts: list[str] = []
@@ -638,106 +644,20 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def _expand_custom_macros(latex_doc: str) -> str:
-    """Expand custom macros defined in the document, including argument-taking ones.
-
-    Handles \\newcommand, \\renewcommand, \\providecommand (zero-argument bodies
-    and [n]-arity forms with #1..#N substitution), and \\DeclareMathOperator.
-    Leaves the original definitions in place (harmless for downstream parsing).
-    """
-    # Match: \newcommand{\name}{body}, \providecommand{\name}[2]{body}, etc.
-    # Also handles \newcommand\name{body} (no braces around name)
-    _MACRO_DEF_RE = re.compile(
-        r"\\(?:new|renew|provide)command\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"       # \macroName (with or without outer braces)
-        r"(?:\s*\[(\d)\])?"          # optional [num_args] — capture arity
-        r"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",   # {body} with one level of nesting
-    )
-    _DECLARE_OP_RE = re.compile(
-        r"\\DeclareMathOperator\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"
-        r"\s*\{([^}]+)\}",
-    )
-    # One macro argument: {braced, one nesting level} or a single non-space token
-    _ARG_RE = re.compile(r"\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|(\S))")
-
-    macros: dict[str, tuple[int, str]] = {}
-
-    for m in _MACRO_DEF_RE.finditer(latex_doc):
-        name = m.group(1)     # e.g. \PtwoB
-        arity_s = m.group(2)  # e.g. "2" or None
-        body = m.group(3)     # e.g. \{#1,#2\}
-        macros[name] = (int(arity_s) if arity_s else 0, body)
-
-    for m in _DECLARE_OP_RE.finditer(latex_doc):
-        name = m.group(1)
-        body = m.group(2)
-        macros[name] = (0, rf"\operatorname{{{body}}}")
-
-    if not macros:
-        return latex_doc
-
-    # Build a single regex to replace all macros in one pass.
-    # Sort by length (longest first) to avoid partial matches.
-    sorted_names = sorted(macros, key=len, reverse=True)
-    pattern = re.compile(
-        "(" + "|".join(re.escape(n) for n in sorted_names) + r")(?![a-zA-Z])"
-    )
-
-    def _expand_match(text: str, m: re.Match[str]) -> tuple[str, int]:
-        """Expand one macro use; return (replacement, chars consumed after m.end())."""
-        arity, body = macros[m.group(1)]
-        if arity == 0:
-            return body, 0
-        args: list[str] = []
-        pos = m.end()
-        for _ in range(arity):
-            am = _ARG_RE.match(text[pos:])
-            if not am:
-                break
-            args.append(am.group(1) if am.group(1) is not None else am.group(2))
-            pos += am.end()
-        consumed = pos - m.end()
-        for i, a in enumerate(args, 1):
-            body = body.replace(f"#{i}", a)
-        return body, consumed
-
-    # Limit to 3 passes for macros that expand into other macros. Manual
-    # advance/rebuild loop because argument consumption extends past m.end(),
-    # which re.sub cannot express.
-    result = latex_doc
-    for _ in range(3):
-        parts: list[str] = []
-        last = 0
-        changed = False
-        for m in pattern.finditer(result):
-            if m.start() < last:
-                continue  # inside args already consumed by the previous expansion
-            replacement, consumed = _expand_match(result, m)
-            parts.append(result[last:m.start()])
-            parts.append(replacement)
-            last = m.end() + consumed
-            changed = True
-        parts.append(result[last:])
-        new_result = "".join(parts)
-        if not changed or new_result == result:
-            break
-        result = new_result
-
-    return result
-
-
-def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
+def parse_latex_sections(latex_doc: str, preamble: str = "") -> tuple[Section, ...]:
     """
     Parse a merged LaTeX document into Section objects with math blocks.
 
     Args:
-        latex_doc: Full LaTeX source (preamble already stripped).
+        latex_doc: LaTeX body (preamble already stripped).
+        preamble:  The stripped preamble, used only as a source of macro
+                   definitions. Omitting it leaves paper-specific macros
+                   unexpanded, which breaks downstream KaTeX rendering.
 
     Returns:
         Tuple of Section objects, each containing zero or more MathBlock objects.
     """
-    latex_doc = _expand_custom_macros(latex_doc)
+    latex_doc = expand_custom_macros(latex_doc, preamble)
     raw_sections = _split_sections(latex_doc)
     sections: list[Section] = []
 

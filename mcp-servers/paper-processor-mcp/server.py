@@ -125,7 +125,7 @@ async def create_sections(arxiv_id: str) -> list[dict]:
     """Parse ArXiv LaTeX into sections and store in Supabase (no LLM calls).
     Use before explain_section_math when you want to control the LLM budget
     per section rather than running the full pipeline at once."""
-    from lib.arxiv_source import fetch_arxiv_latex_full
+    from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
     from lib.latex_parse import parse_latex_sections
     from lib.models import Paper
     from lib.supabase_push import push_paper
@@ -139,10 +139,12 @@ async def create_sections(arxiv_id: str) -> list[dict]:
     if result is None:
         return _err(f"No LaTeX source found for {arxiv_id}")
 
-    latex_body, _full_src = result
+    latex_body, full_src = result
 
     try:
-        sections = await asyncio.to_thread(parse_latex_sections, latex_body)
+        sections = await asyncio.to_thread(
+            parse_latex_sections, latex_body, split_preamble(full_src)
+        )
     except Exception as exc:
         return _err(f"Failed to parse sections: {exc}")
 
