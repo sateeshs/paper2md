@@ -273,3 +273,51 @@ def test_escaped_percent_is_not_treated_as_a_comment():
 def test_comment_after_a_line_break_is_stripped():
     doc = "\\newcommand{\\k}{a \\\\% trailing\nb}$\\k$"
     assert "trailing" not in expand_custom_macros(doc)
+
+
+# ---------------------------------------------------------------------------
+# Inlining a local .sty is required to pick up a paper's math macros, but
+# conference styles also redefine LaTeX's own structural commands. Expanding
+# those rewrites every \section{...} as \@startsection class internals and the
+# splitter then sees no sections at all — 2608.27370 collapsed 68 -> 1.
+# ---------------------------------------------------------------------------
+
+CONFERENCE_STY = r"""
+\newcommand{\section}{\@startsection {section}{1}{\z@}{-2.0ex}{1.0ex}{\bf}}
+\newcommand{\subsection}{\@startsection{subsection}{2}{\z@}{-1.8ex}{0.8ex}{\bf}}
+\newcommand{\maketitle}{\par\begingroup\def\@makefnmark{\hbox to 0pt{}}\endgroup}
+\newcommand{\vect}[1]{\mathbf{#1}}
+"""
+
+
+def test_structural_commands_are_never_expanded():
+    body = r"\section{Intro}text $\vect{x}$ here"
+    out = expand_custom_macros(body, CONFERENCE_STY)
+    assert r"\section{Intro}" in out
+    assert "@startsection" not in out
+
+
+def test_a_papers_own_macros_still_expand_from_the_same_sty():
+    body = r"value $\vect{x}$"
+    assert expand_custom_macros(body, CONFERENCE_STY) == r"value $\mathbf{x}$"
+
+
+def test_maketitle_body_is_not_injected_into_the_prose():
+    out = expand_custom_macros(r"\maketitle Some prose.", CONFERENCE_STY)
+    assert "@makefnmark" not in out
+    assert "Some prose." in out
+
+
+def test_section_splitting_survives_a_conference_style():
+    doc = (
+        r"\section{Alpha}" + "\n" + "Alpha body long enough to clear the fifty character minimum.\n"
+        + r"\section{Beta}" + "\n" + "Beta body long enough to clear the fifty character minimum.\n"
+    )
+    sections = parse_latex_sections(doc, CONFERENCE_STY)
+    assert [s.title for s in sections] == ["Alpha", "Beta"]
+
+
+def test_reserved_names_are_matched_without_the_backslash():
+    # \cite must survive so citation handling downstream still sees it.
+    sty = r"\newcommand{\cite}[1]{[#1]}"
+    assert r"\cite{key}" in expand_custom_macros(r"see \cite{key}", sty)

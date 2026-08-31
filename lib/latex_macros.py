@@ -83,6 +83,29 @@ _DEF_CMDS = (
 # into a formula, where KaTeX would print the raw label.
 _EXPL3_RE = re.compile(r"\\[a-zA-Z_]+:[a-zA-Z]+\b|\\[a-z]+_[a-z_]+:")
 
+# LaTeX's own structural commands. Document classes and conference .sty files
+# redefine these, and inlining a local .sty — which is required to pick up a
+# paper's own math macros — brings those definitions into scope. Expanding them
+# rewrites every \section{...} as \@startsection class internals, destroying the
+# structure the section splitter depends on: 2608.27370 collapsed from 68
+# sections to 1, with \maketitle's body injecting \@makefnmark into the prose.
+# Definitions for these names are parsed and discarded, never registered.
+_RESERVED_NAMES = frozenset({
+    # sectioning
+    "part", "chapter", "section", "subsection", "subsubsection",
+    "paragraph", "subparagraph", "appendix",
+    # title block
+    "title", "author", "date", "maketitle", "thanks", "affiliation", "address",
+    "institute", "email",
+    # cross-references and bibliography
+    "cite", "citep", "citet", "citealp", "citeauthor", "citeyear",
+    "ref", "eqref", "cref", "Cref", "autoref", "pageref", "label",
+    "bibliography", "bibliographystyle", "bibitem", "footnote", "footnotemark",
+    # structure the parser keys on
+    "begin", "end", "item", "caption", "includegraphics", "input", "include",
+    "newtheorem", "documentclass", "usepackage",
+})
+
 _CS_RE = re.compile(r"\\([a-zA-Z]+)\*?")
 _MACRO_NAME_RE = re.compile(r"\s*(?:\{\s*(\\[a-zA-Z]+)\s*\}|(\\[a-zA-Z]+))")
 _ARITY_RE = re.compile(r"\s*\[\s*(\d)\s*\]")
@@ -336,7 +359,8 @@ def _expand_stream(
             if parsed is not None:
                 mname, spec, body, after = parsed
                 # \providecommand only defines when the name is still free.
-                if not (name == "providecommand" and mname in macros):
+                reserved = mname.lstrip("\\") in _RESERVED_NAMES
+                if not reserved and not (name == "providecommand" and mname in macros):
                     macros[mname] = (spec, body)
                 pos = after
                 continue
