@@ -275,6 +275,7 @@ def process_arxiv_id(
     Returns a ProcessResult: "processed", "skipped", or "error".
     """
     from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
+    from lib.parse_health import blocking, check_parse_health
     from lib.latex_parse import parse_latex_sections
 
     label = f"arXiv:{arxiv_id}"
@@ -331,6 +332,20 @@ def process_arxiv_id(
         except Exception as e:
             _report_error("latex_parse", label, e)
             sections = ()
+
+        # A clean exit only means nothing raised — it says nothing about
+        # whether the parse produced a sane document. Check before pushing.
+        if sections:
+            problems = check_parse_health(sections, latex)
+            for problem in problems:
+                tqdm.write(f"[{problem.severity.upper()}] {label}: {problem.code} — {problem.detail}")
+            fatal = blocking(problems)
+            if fatal:
+                msg = "; ".join(f"{p.code}: {p.detail}" for p in fatal)
+                tqdm.write(f"[ERROR] {label}: refusing to push a bad parse — {msg}")
+                if push_supabase:
+                    mark_error(arxiv_id, f"parse health: {msg}")
+                return ProcessResult("error")
 
         # Detect stub LaTeX (e.g. \includepdf wrapper) that yields no sections
         if not sections:
