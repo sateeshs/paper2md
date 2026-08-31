@@ -89,3 +89,37 @@ def test_trivial_inline_block_calls_no_predictor(explainer, monkeypatch):
     out = explainer.explain_block(_block("$n$", "inline"), "Paper", "Section")
 
     assert out.explanation is None
+
+
+def test_third_attempt_raises_the_temperature(explainer, monkeypatch):
+    """Truncation from a repetition loop is what DSPy suggests temperature for."""
+    from lib.dspy_modules import _RETRY_TEMPERATURE
+
+    seen: list[tuple[str, float | None]] = []
+
+    def fake_call(module, **kwargs):
+        label = "cot" if module is explainer.explain else "terse"
+        temp = (kwargs.get("config") or {}).get("temperature")
+        seen.append((label, temp))
+        if len(seen) < 3:
+            raise RuntimeError("The LM returned an empty or null response.")
+        return SimpleNamespace(**FIELDS)
+
+    monkeypatch.setattr("lib.dspy_modules._call_with_tracking", fake_call)
+    out = explainer.explain_block(_block(), "Paper", "Section")
+
+    assert seen == [("cot", None), ("terse", None), ("terse", _RETRY_TEMPERATURE)]
+    assert out.explanation
+
+
+def test_temperature_is_not_sent_on_the_first_attempts(explainer, monkeypatch):
+    captured: list[dict] = []
+
+    def fake_call(module, **kwargs):
+        captured.append(kwargs)
+        return SimpleNamespace(**FIELDS)
+
+    monkeypatch.setattr("lib.dspy_modules._call_with_tracking", fake_call)
+    explainer.explain_block(_block(), "Paper", "Section")
+
+    assert "config" not in captured[0]

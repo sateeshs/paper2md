@@ -104,6 +104,10 @@ _PLACEHOLDER_RE = re.compile(
 # JSON artifacts: leading ]] or [[ that leak from structured output
 _JSON_ARTIFACT_RE = re.compile(r"^\s*\]{1,2}\s*")
 
+# Truncation from a repetition loop is the usual cause of an empty response;
+# DSPy's own guidance is to raise the temperature. Used only on the last retry.
+_RETRY_TEMPERATURE = 0.9
+
 
 def _wrap_bare_greek(text: str) -> str:
     """Replace Unicode Greek/math symbols outside $...$ with $\\symbol$."""
@@ -251,8 +255,10 @@ class MathExplainer(dspy.Module):
         block: MathBlock,
         paper_title: str,
         section_title: str,
+        temperature: float | None = None,
     ) -> str:
         """Call one predictor and return the sanitized explanation JSON."""
+        extra = {"config": {"temperature": temperature}} if temperature is not None else {}
         pred = _call_with_tracking(
             module,
             paper_title=paper_title,
@@ -261,6 +267,7 @@ class MathExplainer(dspy.Module):
             latex_expr=block.latex_expr,
             context_after=block.context_after or "",
             paper_type=block.paper_type,
+            **extra,
         )
         raw_fields = {
             "what_it_computes":          pred.what_it_computes,
@@ -291,9 +298,16 @@ class MathExplainer(dspy.Module):
         if self._should_skip(block):
             return block
 
-        for module, label in ((self.explain, "chain-of-thought"), (self.explain_terse, "terse")):
+        attempts = (
+            (self.explain,       "chain-of-thought",       None),
+            (self.explain_terse, "terse",                  None),
+            (self.explain_terse, "terse/high-temperature", _RETRY_TEMPERATURE),
+        )
+        for module, label, temperature in attempts:
             try:
-                explanation = self._run(module, block, paper_title, section_title)
+                explanation = self._run(
+                    module, block, paper_title, section_title, temperature
+                )
             except Exception as e:
                 tqdm.write(
                     f"[WARN] MathExplainer ({label}) failed for block {block.order_idx}: {e}"
