@@ -3,14 +3,26 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { prepareLatex, KATEX_OPTIONS } from "@/lib/katex-helpers";
 
-// Matches display math: \[...\] or $$...$$ — must come before inline patterns
-const DISPLAY_MATH_RE = /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$/g;
+// Math delimiters, display first so $$ is not swallowed by the $ pattern.
+//
+// NOTE: the inline-$ alternatives must stay disjoint. `[^$\n]` also matches a
+// backslash, so `(?:[^$\n]|\\.)` gives the engine two ways to consume every
+// escape sequence — on an unbalanced `$` that backtracks exponentially and
+// freezes the tab. Excluding `\\` from the first branch keeps it linear.
+// A `$` preceded by a backslash is an escaped literal, not an opener.
+const MATH_SOURCE =
+  String.raw`\\\[([\s\S]+?)\\\]` +
+  String.raw`|\$\$([\s\S]+?)\$\$` +
+  String.raw`|(?<![\\$])\$(?!\$)((?:[^$\n\\]|\\.)+?)\$(?!\$)` +
+  String.raw`|\\\(((?:[^\\]|\\.)+?)\\\)`;
 
-// Matches inline math: $...$ (avoiding $$) or \(...\)
-const INLINE_MATH_RE = /(?<!\$)\$(?!\$)((?:[^$\n]|\\.)+?)(?<!\$)\$(?!\$)|\\\(((?:[^\\]|\\.)+?)\\\)/g;
+const ALL_MATH_RE = new RegExp(MATH_SOURCE, "g");
 
-// Combined: display first so $$ isn't swallowed by the $ pattern
-const ALL_MATH_RE = /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|(?<!\$)\$(?!\$)((?:[^$\n]|\\.)+?)(?<!\$)\$(?!\$)|\\\(((?:[^\\]|\\.)+?)\\\)/g;
+// Regions that must never be auto-wrapped: existing math, and `code spans`.
+// Without the code-span branch, "`beta_1`" becomes "`$beta_1$`" and renders as
+// math with two orphaned backticks around it.
+const CODE_SPAN_SOURCE = "`[^`\\n]+`";
+const PROTECTED_RE = new RegExp(CODE_SPAN_SOURCE + "|" + MATH_SOURCE, "g");
 
 // Detects bare LaTeX subscript/superscript notation not wrapped in $...$
 // e.g. σ_θ, u_{<i}, F_θ(q, u_{<i}), μ_θ
@@ -19,24 +31,68 @@ const ALL_MATH_RE = /\\\[([\s\S]+?)\\\]|\$\$([\s\S]+?)\$\$|(?<!\$)\$(?!\$)((?:[^
 const BARE_LATEX_RE =
   /([a-zA-ZΑ-Ωα-ω]\w*(?:[_^]\{[^}\n]+\}|[_^][a-zA-ZΑ-Ωα-ω\d](?!\w))+(?:\((?:[^()]*|\{[^}]*\})*\))?)/g;
 
+const PROSE_WORD_RE = /^[A-Za-z]{2,}$/;
+
+/**
+ * Is this `$…$` capture really math, or a pair of unrelated dollar signs?
+ *
+ * "It costs $5 today and $10 tomorrow" otherwise renders " today and " as a
+ * formula. Explicit LaTeX markers always win; otherwise several plain words in
+ * a row mean it is prose that happened to sit between two currency amounts.
+ */
+export function looksLikeMath(expr: string): boolean {
+  if (/[\\_^{}]/.test(expr)) return true;
+  const plainWords = expr.trim().split(/\s+/).filter((w) => PROSE_WORD_RE.test(w));
+  return plainWords.length < 2;
+}
+
 /**
  * Pre-process text to wrap bare LaTeX subscript/superscript notation in $...$.
  * Handles LLM output that writes math like σ_θ(q, u_{<i}) without delimiters.
- * Already-delimited math regions are left untouched.
+ * Already-delimited math and code spans are left untouched.
  */
-function autoWrapBareLatex(text: string): string {
+export function autoWrapBareLatex(text: string): string {
   const parts: string[] = [];
   let last = 0;
-  for (const m of text.matchAll(ALL_MATH_RE)) {
-    // Wrap bare LaTeX in non-delimited regions
-    parts.push(
-      text.slice(last, m.index!).replace(BARE_LATEX_RE, "$$$1$$")
-    );
-    parts.push(m[0]); // already-delimited — keep as-is
+  for (const m of text.matchAll(PROTECTED_RE)) {
+    parts.push(text.slice(last, m.index!).replace(BARE_LATEX_RE, "$$$1$$"));
+    parts.push(m[0]); // protected — keep as-is
     last = m.index! + m[0].length;
   }
   parts.push(text.slice(last).replace(BARE_LATEX_RE, "$$$1$$"));
   return parts.join("");
+}
+
+type Part =
+  | { type: "text"; content: string }
+  | { type: "math"; content: string; display: boolean };
+
+/** Split prose into text and math parts. Exported for tests. */
+export function splitMathParts(text: string): Part[] {
+  const parts: Part[] = [];
+  const processed = autoWrapBareLatex(text);
+  let last = 0;
+
+  const pushText = (content: string) => {
+    const prev = parts[parts.length - 1];
+    if (prev && prev.type === "text") prev.content += content;
+    else parts.push({ type: "text", content });
+  };
+
+  for (const match of processed.matchAll(ALL_MATH_RE)) {
+    if (match.index! > last) pushText(processed.slice(last, match.index));
+    // Groups: 1=\[...\], 2=$$...$$, 3=$...$, 4=\(...\)
+    const isDisplay = match[1] !== undefined || match[2] !== undefined;
+    const expr = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
+    if (match[3] !== undefined && !looksLikeMath(expr)) {
+      pushText(match[0]); // dollar signs that were never math — keep verbatim
+    } else {
+      parts.push({ type: "math", content: expr, display: isDisplay });
+    }
+    last = match.index! + match[0].length;
+  }
+  if (last < processed.length) pushText(processed.slice(last));
+  return parts;
 }
 
 function MathChunk({ expr, display }: { expr: string; display: boolean }) {
@@ -119,28 +175,7 @@ interface ProseWithMathProps {
  * Renders prose text, replacing inline $...$, \(...\) and display \[...\], $$...$$ with KaTeX.
  */
 export function ProseWithMath({ text, className }: ProseWithMathProps) {
-  type Part =
-    | { type: "text"; content: string }
-    | { type: "math"; content: string; display: boolean };
-
-  const parts: Part[] = [];
-  let last = 0;
-
-  const processed = autoWrapBareLatex(text);
-
-  for (const match of processed.matchAll(ALL_MATH_RE)) {
-    if (match.index! > last) {
-      parts.push({ type: "text", content: processed.slice(last, match.index) });
-    }
-    // Groups: 1=\[...\], 2=$$...$$, 3=$...$, 4=\(...\)
-    const isDisplay = match[1] !== undefined || match[2] !== undefined;
-    const expr = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
-    parts.push({ type: "math", content: expr, display: isDisplay });
-    last = match.index! + match[0].length;
-  }
-  if (last < processed.length) {
-    parts.push({ type: "text", content: processed.slice(last) });
-  }
+  const parts = splitMathParts(text);
 
   return (
     <span className={className}>

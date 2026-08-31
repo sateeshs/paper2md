@@ -5,7 +5,7 @@ Usage:  python debug_sections.py 2606.11470
 """
 import re
 import sys
-from lib.arxiv_source import fetch_arxiv_latex_full
+from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
 from lib.latex_parse import _SECTION_RE, _split_sections, parse_latex_sections
 
 arxiv_id = sys.argv[1] if len(sys.argv) > 1 else "2606.11470"
@@ -48,7 +48,7 @@ print()
 
 # 4. Show final parse_latex_sections() result
 print("=== parse_latex_sections() final sections ===")
-sections = parse_latex_sections(body)
+sections = parse_latex_sections(body, split_preamble(full_source))
 for s in sections:
     print(f"  §{s.order_idx} {s.title!r:50s}  plain_len={len(s.plain_text or ''):5,}  math={len(s.math_blocks)}")
 

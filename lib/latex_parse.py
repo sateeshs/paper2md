@@ -17,6 +17,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
+from lib.latex_macros import expand_custom_macros
 from lib.models import AlgorithmBlock, MathBlock, Section
 
 
@@ -318,7 +319,12 @@ def _preprocess_for_text(latex: str) -> str:
     # 8. Convert LaTeX special characters that pylatexenc fallback misses.
     # \_ must NOT be converted inside inline $...$ math — KaTeX needs \_ to
     # render a literal underscore (plain _ is a subscript operator in math mode).
-    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n]|\\.)+?\$')
+    # NOTE: the alternatives must stay disjoint. `[^$\n]` also matches a
+    # backslash, so `(?:[^$\n]|\\.)` gives the engine two ways to consume every
+    # escape sequence — on an unbalanced `$` that backtracks exponentially
+    # (measured: 300+ s on a single 800-char context window). Excluding `\\`
+    # from the first branch makes the match unambiguous and linear.
+    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n\\]|\\.)+?\$')
 
     def _sub_outside_math(text: str, pat: str, repl: str) -> str:
         parts: list[str] = []
@@ -486,6 +492,32 @@ def _extract_math_matches(latex_body: str) -> list[_RawMatch]:
     return matches
 
 
+_THEOREM_LIKE_RE = re.compile(
+    r"\\begin\{(theorem|lemma|proposition|corollary|definition|conjecture|claim|fact)\}\*?"
+    r"(?:\s*\[[^\]]*\])?",
+)
+
+
+def _enclosing_theorem_context(
+    body: str, pos: int, window: int = 400
+) -> tuple[str, str] | None:
+    """If pos lies inside a theorem-like env, return (env_name, opening_prose).
+
+    The opening prose is the plain-text content between the environment's
+    \\begin header and either the math position or `window` chars, whichever
+    comes first.
+    """
+    spans = [
+        (m.group(1), m.end(), body.find(r"\end{" + m.group(1), m.start()))
+        for m in _THEOREM_LIKE_RE.finditer(body)
+    ]
+    for name, open_end, end in spans:
+        if end != -1 and open_end <= pos < end:
+            opening = _latex_to_text(body[open_end:min(end, open_end + window)]).strip()
+            return name, (opening[:300] or "")
+    return None
+
+
 def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
     """Extract all math blocks from a section body.
 
@@ -502,6 +534,11 @@ def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
 
     for idx, raw in enumerate(raw_matches):
         ctx_before, ctx_after = _extract_context(clean, raw.start, raw.end, raw.env_type)
+        theorem_tag = _enclosing_theorem_context(clean, raw.start)
+        if theorem_tag:
+            env_name, opening = theorem_tag
+            if opening:
+                ctx_before = f"[Inside {env_name}: {opening}]\n\n{ctx_before}"
         blocks.append(MathBlock(
             order_idx=idx,
             env_type=raw.env_type,
@@ -607,77 +644,20 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def _expand_custom_macros(latex_doc: str) -> str:
-    """Expand simple (zero-argument) custom macros defined in the document.
-
-    Handles \\newcommand, \\renewcommand, \\providecommand, and \\DeclareMathOperator.
-    Only expands macros with no arguments (no [n] or #1 in the body).
-    Leaves the original definitions in place (harmless for downstream parsing).
-    """
-    # Match: \newcommand{\name}{body}, \providecommand{\name}{body}, etc.
-    # Also handles \newcommand\name{body} (no braces around name)
-    _MACRO_DEF_RE = re.compile(
-        r"\\(?:new|renew|provide)command\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"       # \macroName (with or without outer braces)
-        r"(?:\s*\[\d+\])?"           # optional [num_args] — if present, skip expansion
-        r"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",   # {body} with one level of nesting
-    )
-    _DECLARE_OP_RE = re.compile(
-        r"\\DeclareMathOperator\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"
-        r"\s*\{([^}]+)\}",
-    )
-
-    macros: dict[str, str] = {}
-
-    for m in _MACRO_DEF_RE.finditer(latex_doc):
-        name = m.group(1)   # e.g. \PtwoB
-        body = m.group(2)   # e.g. \mathcal B
-        # Skip macros that take arguments (#1 in body)
-        if "#" in body:
-            continue
-        macros[name] = body
-
-    for m in _DECLARE_OP_RE.finditer(latex_doc):
-        name = m.group(1)
-        body = m.group(2)
-        macros[name] = rf"\operatorname{{{body}}}"
-
-    if not macros:
-        return latex_doc
-
-    # Build a single regex to replace all macros in one pass.
-    # Sort by length (longest first) to avoid partial matches.
-    sorted_names = sorted(macros, key=len, reverse=True)
-    pattern = re.compile(
-        "(" + "|".join(re.escape(n) for n in sorted_names) + r")(?![a-zA-Z])"
-    )
-
-    def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
-        return macros[m.group(1)]
-
-    # Limit to 3 passes for macros that expand into other macros
-    result = latex_doc
-    for _ in range(3):
-        new_result = pattern.sub(_replace, result)
-        if new_result == result:
-            break
-        result = new_result
-
-    return result
-
-
-def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
+def parse_latex_sections(latex_doc: str, preamble: str = "") -> tuple[Section, ...]:
     """
     Parse a merged LaTeX document into Section objects with math blocks.
 
     Args:
-        latex_doc: Full LaTeX source (preamble already stripped).
+        latex_doc: LaTeX body (preamble already stripped).
+        preamble:  The stripped preamble, used only as a source of macro
+                   definitions. Omitting it leaves paper-specific macros
+                   unexpanded, which breaks downstream KaTeX rendering.
 
     Returns:
         Tuple of Section objects, each containing zero or more MathBlock objects.
     """
-    latex_doc = _expand_custom_macros(latex_doc)
+    latex_doc = expand_custom_macros(latex_doc, preamble)
     raw_sections = _split_sections(latex_doc)
     sections: list[Section] = []
 

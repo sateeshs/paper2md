@@ -33,8 +33,12 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import httpx
 import os
 import re
+import shutil
+import tempfile
+import time
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +50,7 @@ from lib.models import Paper
 from lib.pdf_extract import extract_paper_from_pdf
 from lib.content_analysis import extract_structured_content
 from lib.cache import PaperCache, compute_pdf_hash
+from lib.pdf_sections import split_pdf_into_sections
 
 # Load environment variables from root .env if it exists
 load_dotenv(Path(__file__).parent / ".env")
@@ -73,22 +78,36 @@ def _report_error(stage: str, label: str, e: Exception) -> None:
         tqdm.write(traceback.format_exc())
 
 
+# Module-level guard to ensure configure_dspy() is called exactly once per process
+_dspy_configured: bool = False
+
+
+def _ensure_dspy() -> None:
+    """Ensure DSPy is configured exactly once per process."""
+    global _dspy_configured
+    if not _dspy_configured:
+        from lib.dspy_config import configure_dspy
+        configure_dspy()
+        _dspy_configured = True
+
+
 def _get_summarizer():
     """Lazy-load DSPy summarizer (configures provider on first call)."""
-    from lib.dspy_config import configure_dspy
+    _ensure_dspy()
     from lib.dspy_modules import PaperSummarizer
-    configure_dspy()
     return PaperSummarizer()
 
 
 def _get_explainer():
     """Lazy-load DSPy math explainer."""
+    _ensure_dspy()
     from lib.dspy_modules import MathExplainer
     return MathExplainer()
 
 
 def _get_algorithm_explainer():
     """Lazy-load DSPy algorithm explainer."""
+    _ensure_dspy()
     from lib.dspy_modules import AlgorithmExplainer
     return AlgorithmExplainer()
 
@@ -202,6 +221,43 @@ def build_markdown(papers: list[Paper]) -> str:
 # ArXiv pipeline
 # ---------------------------------------------------------------------------
 
+@dataclasses.dataclass(frozen=True)
+class ProcessResult:
+    """Outcome of processing one paper in a batch run."""
+
+    status: str  # "processed" | "skipped" | "error"
+
+
+def download_pdf_with_retry(
+    arxiv_id: str, attempts: int = 3, sleep_fn=time.sleep
+) -> bytes:
+    """Download https://arxiv.org/pdf/<id> with exponential backoff (3s/9s/27s) on 429/5xx."""
+    url = f"https://arxiv.org/pdf/{arxiv_id}"
+    delay = 3.0
+    last_err: Exception | None = None
+    for attempt in range(attempts):
+        resp: httpx.Response | None = None
+        try:
+            resp = httpx.get(
+                url,
+                follow_redirects=True,
+                timeout=120,
+                headers={"User-Agent": "paper2md/1.0 (research summarizer)"},
+            )
+            resp.raise_for_status()
+            return resp.content
+        except Exception as e:  # noqa: BLE001 — retried below when status is retryable
+            last_err = e
+            if attempt >= attempts - 1:
+                break
+            status = resp.status_code if resp is not None else 0
+            if status not in (429, *range(500, 600)):
+                raise  # non-retryable client error — fail fast
+            sleep_fn(delay)
+            delay *= 3
+    raise last_err if last_err else RuntimeError("download failed")
+
+
 def process_arxiv_id(
     arxiv_id: str,
     no_math_explain: bool = False,
@@ -212,13 +268,14 @@ def process_arxiv_id(
     force: bool = False,
     vision_math: bool = False,
     vision_pages: int = 5,
-) -> Paper | None:
+) -> ProcessResult:
     """
     Full pipeline for a single ArXiv paper.
 
-    Returns the processed Paper, or None on fatal error.
+    Returns a ProcessResult: "processed", "skipped", or "error".
     """
-    from lib.arxiv_source import fetch_arxiv_latex_full
+    from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
+    from lib.parse_health import blocking, check_parse_health
     from lib.latex_parse import parse_latex_sections
 
     label = f"arXiv:{arxiv_id}"
@@ -229,7 +286,7 @@ def process_arxiv_id(
         status = get_paper_status(arxiv_id)
         if status == "complete" and not force:
             tqdm.write(f"[INFO] {label} already complete in Supabase — skipping (use --force to re-process)")
-            return None
+            return ProcessResult("skipped")
         mark_processing(arxiv_id)
 
     # Fetch LaTeX source
@@ -240,7 +297,7 @@ def process_arxiv_id(
         _report_error("fetch", label, e)
         if push_supabase:
             mark_error(arxiv_id, _format_exc(e))
-        return None
+        return ProcessResult("error")
 
     latex = latex_result[0] if latex_result else None
     full_latex_source = latex_result[1] if latex_result else None
@@ -264,7 +321,10 @@ def process_arxiv_id(
     if latex:
         # Parse sections and math blocks from LaTeX
         try:
-            sections = parse_latex_sections(latex)
+            # Preamble holds most \newcommand definitions — without it those
+            # macros leak unexpanded into the DB and fail to render.
+            preamble = split_preamble(full_latex_source or "")
+            sections = parse_latex_sections(latex, preamble)
             tqdm.write(
                 f"[INFO] {label}: {len(sections)} sections, "
                 f"{sum(len(s.math_blocks) for s in sections)} math blocks"
@@ -273,39 +333,77 @@ def process_arxiv_id(
             _report_error("latex_parse", label, e)
             sections = ()
 
+        # A clean exit only means nothing raised — it says nothing about
+        # whether the parse produced a sane document. Check before pushing.
+        if sections:
+            problems = check_parse_health(sections, latex)
+            for problem in problems:
+                tqdm.write(f"[{problem.severity.upper()}] {label}: {problem.code} — {problem.detail}")
+            fatal = blocking(problems)
+            if fatal:
+                msg = "; ".join(f"{p.code}: {p.detail}" for p in fatal)
+                tqdm.write(f"[ERROR] {label}: refusing to push a bad parse — {msg}")
+                if push_supabase:
+                    mark_error(arxiv_id, f"parse health: {msg}")
+                return ProcessResult("error")
+
         # Detect stub LaTeX (e.g. \includepdf wrapper) that yields no sections
         if not sections:
             tqdm.write(f"[WARN] {label}: LaTeX source yielded 0 sections — falling back to PDF")
             _needs_pdf_fallback = True
 
     if not latex or _needs_pdf_fallback:
-        # Fall back to direct PDF download (no API call — avoids rate limits)
+        # Fall back to direct PDF download (no API call — avoids rate limits).
+        # The temp dir lives until vision-math is done; cleaned in `finally` below.
         if not latex:
             tqdm.write(f"[WARN] {label}: no LaTeX source — falling back to PDF")
+        _pdf_tmpdir = tempfile.mkdtemp(prefix="paper2md_pdf_")
         try:
-            import tempfile
-            import time
-            import httpx
+            pdf_path_for_vision = Path(_pdf_tmpdir) / f"{arxiv_id}.pdf"
             pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
             tqdm.write(f"[INFO] {label}: downloading PDF from {pdf_url}")
-            time.sleep(3)  # polite delay
-            resp = httpx.get(pdf_url, follow_redirects=True, timeout=120)
-            resp.raise_for_status()
-            # Keep the PDF on disk if vision-math is requested (temp dir stays open)
-            _pdf_tmpdir = tempfile.mkdtemp(prefix="paper2md_pdf_")
-            pdf_path_for_vision = Path(_pdf_tmpdir) / f"{arxiv_id}.pdf"
-            pdf_path_for_vision.write_bytes(resp.content)
-            paper_pdf = extract_paper_from_pdf(pdf_path_for_vision)
-            paper = paper_pdf
+            pdf_path_for_vision.write_bytes(download_pdf_with_retry(arxiv_id))
+            paper = extract_paper_from_pdf(pdf_path_for_vision)
             source_type = "pdf"
+
+            # Split plain text into sections heuristically
+            pdf_sections = split_pdf_into_sections(paper.text)
+            tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
+
+            # Vision math extraction (optional, PDF-only papers)
+            if vision_math and pdf_sections:
+                try:
+                    from lib.pdf_vision_math import extract_vision_math_for_sections
+                    tqdm.write(f"[INFO] {label}: running vision math extraction…")
+                    pdf_sections = extract_vision_math_for_sections(
+                        pdf_path=pdf_path_for_vision,
+                        sections=pdf_sections,
+                        max_pages_per_section=vision_pages,
+                        verbose=True,
+                    )
+                    total_blocks = sum(len(s.math_blocks) for s in pdf_sections)
+                    tqdm.write(f"[INFO] {label}: {total_blocks} math block(s) extracted via vision")
+                except Exception as e:
+                    _report_error("vision_math", label, e)
+
+            paper = Paper(
+                title=paper.title,
+                text=paper.text,
+                pdf_path=paper.pdf_path,
+                arxiv_id=arxiv_id,
+                source_type=source_type,
+                sections=pdf_sections,
+            )
         except Exception as e:
             _report_error("pdf_fallback", label, e)
             if push_supabase:
                 mark_error(arxiv_id, _format_exc(e))
-            return None
+            return ProcessResult("error")
+        finally:
+            shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
 
-    # Build Paper object from LaTeX path
-    if latex and not _needs_pdf_fallback:
+    elif latex:
+        # Build Paper object from LaTeX path.
         # For arXiv papers prefer the API title (authoritative, avoids template placeholders).
         # Fall back to LaTeX \title{} extraction if the API call fails.
         title = _arxiv_api_title(arxiv_id) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
@@ -317,41 +415,6 @@ def process_arxiv_id(
             source_type=source_type,
             sections=sections,
             citations=citations,
-        )
-    else:
-        # PDF fallback — split plain text into sections heuristically
-        pdf_sections = _split_pdf_into_sections(paper.text)
-        tqdm.write(f"[INFO] {label}: {len(pdf_sections)} section(s) split from PDF text")
-
-        # Vision math extraction (optional, PDF-only papers)
-        if vision_math and pdf_sections:
-            try:
-                from lib.pdf_vision_math import extract_vision_math_for_sections
-                tqdm.write(f"[INFO] {label}: running vision math extraction…")
-                pdf_sections = extract_vision_math_for_sections(
-                    pdf_path=pdf_path_for_vision,
-                    sections=pdf_sections,
-                    max_pages_per_section=vision_pages,
-                    verbose=True,
-                )
-                total_blocks = sum(len(s.math_blocks) for s in pdf_sections)
-                tqdm.write(f"[INFO] {label}: {total_blocks} math block(s) extracted via vision")
-            except Exception as e:
-                _report_error("vision_math", label, e)
-            finally:
-                import shutil
-                shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
-        else:
-            import shutil
-            shutil.rmtree(_pdf_tmpdir, ignore_errors=True)
-
-        paper = Paper(
-            title=paper.title,
-            text=paper.text,
-            pdf_path=paper.pdf_path,
-            arxiv_id=arxiv_id,
-            source_type=source_type,
-            sections=pdf_sections,
         )
 
     # Summarise
@@ -393,244 +456,7 @@ def process_arxiv_id(
             save_failed_push(paper, _format_exc(e))
             mark_error(arxiv_id, _format_exc(e))
 
-    return paper
-
-
-def _split_pdf_into_sections(text: str) -> "tuple[Section, ...]":
-    """Heuristically split plain PDF text into Section objects.
-
-    Tries three strategies in order, returning as soon as one yields ≥ 2 sections:
-
-    1. Multi-line chapter marker (pdfminer artefact for stylised chapter headings):
-          \\nChapter\\n\\n<N>\\n\\n<Title>
-       Reliable when the PDF was typeset with a prominent chapter title design.
-
-    2. Inline chapter keyword heading (single line):
-          "Chapter 3 Nash Equilibrium"  or  "CHAPTER 3"
-       Common in textbooks with simpler layouts.
-
-    3. Paragraph chunking — no heading detection at all.
-       Splits on double newlines into chunks of ~CHUNK_CHARS chars.
-       Used as a guaranteed fallback; section title = first 80 chars of chunk.
-
-    Sections shorter than MIN_BODY chars are merged into the previous one.
-    """
-    from lib.content_analysis import chunk_text_for_llm
-    from lib.models import Section
-
-    MIN_BODY = 500   # chars — merge stubs into previous section
-    CHUNK_CHARS = 20_000  # target chars per chunk in fallback mode
-
-    # Pattern: pdfminer often inserts 2–3 extra spaces inside justified-text words
-    _MULTI_SPACE = re.compile(r"  +")
-    # Orphaned math symbol lines: ≤20 chars containing mostly symbols/brackets/operators
-    _MATH_ORPHAN = re.compile(
-        r"^[\s\d\W\\{}\[\]().,;:!?=<>≤≥≠±∓∈∉⊂⊃⊆⊇∪∩∅→←↔↑↓⇒⇔∀∃∑∏∫∂∇∞√·×÷αβγδεζηθιλμνξπρστυφχψωΑΒΓΔΕΖΗΘΙΛΜΝΞΠΡΣΤΥΦΧΨΩ]+$"
-    )
-
-    def _clean_pdf_body(body: str) -> str:
-        """Strip common pdfminer artefacts from a PDF section body.
-
-        Removes:
-        - Standalone page numbers (digit-only lines)
-        - Standalone roman numeral page numbers (≤ 6 chars)
-        - Running headers/footers: short lines (< 80 chars) that appear 4+ times
-        - Orphaned math-symbol lines (≤ 20 chars, only operators/Greek/brackets)
-        Fixes justified-text double-spacing.
-        Collapses runs of 3+ blank lines to two.
-        """
-        raw_lines = body.split("\n")
-
-        # Count frequency of short lines to detect running headers
-        freq: dict[str, int] = {}
-        for ln in raw_lines:
-            t = ln.strip()
-            if t and len(t) < 80:
-                freq[t] = freq.get(t, 0) + 1
-        repeated = {t for t, cnt in freq.items() if cnt >= 4}
-
-        kept: list[str] = []
-        for ln in raw_lines:
-            t = ln.strip()
-            if re.match(r"^\d+$", t):           # standalone page number
-                continue
-            if re.match(r"^[ivxlcdmIVXLCDM]+$", t, re.IGNORECASE) and len(t) <= 6:
-                continue                         # roman numeral page number
-            if t in repeated:                    # running header / footer
-                continue
-            if t and len(t) <= 20 and _MATH_ORPHAN.match(t):
-                continue                         # orphaned math-symbol fragment
-            # Fix justified-text multiple spaces between words
-            ln = _MULTI_SPACE.sub(" ", ln)
-            kept.append(ln)
-
-        result = "\n".join(kept)
-        result = re.sub(r"\n{3,}", "\n\n", result)
-        return result.strip()
-
-    def _build_from_positions(
-        full_text: str, positions: list[tuple[int, int, str]]
-    ) -> list[Section]:
-        """Given (body_start, heading_end, title) triples, slice full_text into sections.
-
-        body_start: character offset where the body content begins (after the heading).
-        heading_end: same as body_start — kept for clarity; the next section's
-                     heading_start determines where this section ends.
-        """
-        result: list[Section] = []
-        for i, (body_start, _heading_end, title) in enumerate(positions):
-            next_heading_start = positions[i + 1][0] if i + 1 < len(positions) else len(full_text)
-            content = full_text[body_start:next_heading_start].strip()
-            content = _clean_pdf_body(content)
-            if len(content) < MIN_BODY:
-                if result:
-                    result[-1] = dataclasses.replace(
-                        result[-1],
-                        plain_text=result[-1].plain_text + "\n\n" + content,
-                    )
-                continue
-            result.append(Section(order_idx=len(result), title=title, plain_text=content))
-        return result
-
-    # ── Strategy 1: multi-line "Chapter\n\nN\n\nTitle" (pdfminer artefact) ──
-    # Use m.end() as body_start so the heading itself is excluded from the body.
-    _MULTILINE_CH = re.compile(r"\nChapter\n\n(\d+)\n\n([^\n]+)")
-    matches = list(_MULTILINE_CH.finditer(text))
-    if len(matches) >= 2:
-        positions = [
-            (m.end(), m.end(), f"Chapter {m.group(1)}: {m.group(2).strip()}")
-            for m in matches
-        ]
-        sections = _build_from_positions(text, positions)
-        if len(sections) >= 2:
-            return tuple(sections)
-
-    # ── Strategy 2: inline chapter keyword heading ────────────────────────────
-    _INLINE_CH = re.compile(
-        r"^(?:Chapter|CHAPTER)\s+\d+(?:\s+[A-Z][^\n]{0,80})?$", re.MULTILINE
-    )
-    inline_matches = list(_INLINE_CH.finditer(text))
-    if len(inline_matches) >= 2:
-        # body starts after the heading line (m.end()) not at m.start()
-        positions = [
-            (m.end(), m.end(), m.group(0).strip())
-            for m in inline_matches
-        ]
-        sections = _build_from_positions(text, positions)
-        if len(sections) >= 2:
-            return tuple(sections)
-
-    # ── Strategy 3: numbered section headings ──────────────────────────────────
-    # Handles both well-spaced PDFs ("1 Introduction\n") and no-space PDFs where
-    # headings are glued to body text ("2Background:PolicyOptimization...").
-
-    # 3a: standalone-line headings (well-formatted PDFs)
-    _NUMBERED_SEC_LINE = re.compile(
-        r"^(\d+(?:\.\d+)?|[A-Z])\s+([A-Z][A-Za-z\s:,&\-–—]{2,78})$", re.MULTILINE
-    )
-    line_matches = list(_NUMBERED_SEC_LINE.finditer(text))
-    if len(line_matches) >= 3:
-        positions = [
-            (m.end(), m.end(), m.group(0).strip())
-            for m in line_matches
-            if len(m.group(0).strip()) <= 100
-        ]
-        sections = _build_from_positions(text, positions)
-        if len(sections) >= 3:
-            return tuple(sections)
-
-    # 3b: no-space PDFs — find top-level section markers using known heading keywords.
-    # In poorly-extracted PDFs, text runs together without whitespace. We look for
-    # digit + known academic section keywords (Introduction, Background, Conclusion, etc.)
-    _KNOWN_SECTIONS = (
-        "Introduction", "Background", "Related", "Method", "Approach",
-        "Algorithm", "Experiment", "Result", "Discussion", "Conclusion",
-        "Evaluation", "Implementation", "Analysis", "Preliminaries",
-        "Problem", "Model", "Framework", "Architecture", "Training",
-        "Setup", "Appendix", "Overview", "Motivation", "Objective",
-        "Formulation", "Surrogate", "Adaptive", "Clipped",
-    )
-    _SEC_KW_PATTERN = re.compile(
-        r"(\d)(" + "|".join(_KNOWN_SECTIONS) + r")"
-    )
-    all_kw_matches = list(_SEC_KW_PATTERN.finditer(text))
-    # Filter to strictly sequential section numbers (1, 2, 3, ...).
-    # This avoids false positives from figure/table data containing digit + keyword.
-    kw_matches: list[re.Match[str]] = []
-    expected_sec = 1
-    for m in all_kw_matches:
-        num = int(m.group(1))
-        if num == expected_sec:
-            kw_matches.append(m)
-            expected_sec = num + 1
-
-    if len(kw_matches) >= 3:
-        parts = [text[:kw_matches[0].start()]]
-        for i, m in enumerate(kw_matches):
-            end = kw_matches[i + 1].start() if i + 1 < len(kw_matches) else len(text)
-            parts.append(text[m.start():end])
-    else:
-        parts = []
-
-    if len(parts) >= 4:  # first part is preamble + at least 3 sections
-        def _nospace_title(chunk: str, keyword: str) -> str:
-            """Build a readable section title from the matched keyword.
-
-            For no-space PDFs, we rely on the keyword matched by the regex
-            since word boundaries are unreliable in concatenated text.
-            For well-spaced text, we also grab words after the keyword.
-            """
-            m = re.match(r"(\d+)", chunk)
-            num = m.group(1) if m else ""
-            title = re.sub(r"([a-z])([A-Z])", r"\1 \2", keyword)
-            # If text has spaces (well-formatted PDF), grab extra title words
-            after_kw = chunk[len(num) + len(keyword):]
-            if " " in after_kw[:30]:
-                # Well-spaced: take up to 3 additional capitalized words
-                words = after_kw.strip().split()
-                for w in words[:3]:
-                    if w[0:1].isupper() and len(w) <= 15:
-                        title += " " + w
-                    else:
-                        break
-            return f"{num} {title}"
-
-        built_sections: list[Section] = []
-        # Skip first part (preamble/abstract before section 1)
-        for i, part in enumerate(parts[1:]):
-            body = _clean_pdf_body(part)
-            if len(body) < MIN_BODY:
-                if built_sections:
-                    built_sections[-1] = dataclasses.replace(
-                        built_sections[-1],
-                        plain_text=built_sections[-1].plain_text + "\n\n" + body,
-                    )
-                continue
-            keyword = kw_matches[i].group(2) if i < len(kw_matches) else ""
-            title = _nospace_title(part, keyword)
-            built_sections.append(
-                Section(order_idx=len(built_sections), title=title, plain_text=body)
-            )
-        if len(built_sections) >= 3:
-            return tuple(built_sections)
-
-    # ── Strategy 4: paragraph-aware chunking (guaranteed fallback) ────────────
-    chunks = chunk_text_for_llm(text, max_chars=CHUNK_CHARS)
-    result: list[Section] = []
-    for chunk in chunks:
-        if len(chunk.strip()) < MIN_BODY:
-            if result:
-                result[-1] = dataclasses.replace(
-                    result[-1], plain_text=result[-1].plain_text + "\n\n" + chunk
-                )
-            continue
-        # Title = first meaningful non-whitespace line, truncated
-        first_line = next(
-            (ln.strip() for ln in chunk.splitlines() if ln.strip()), "Section"
-        )
-        title = first_line[:80] + ("…" if len(first_line) > 80 else "")
-        result.append(Section(order_idx=len(result), title=title, plain_text=chunk.strip()))
-    return tuple(result) if result else (Section(order_idx=0, title="Content", plain_text=text.strip()),)
+    return ProcessResult("processed")
 
 
 def _arxiv_api_title(arxiv_id: str) -> str | None:
@@ -639,7 +465,8 @@ def _arxiv_api_title(arxiv_id: str) -> str | None:
         import urllib.request
         import xml.etree.ElementTree as ET
         url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
-        with urllib.request.urlopen(url, timeout=10) as r:
+        req = urllib.request.Request(url, headers={"User-Agent": "paper2md/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
             root = ET.fromstring(r.read().decode())
         ns = {"a": "http://www.w3.org/2005/Atom"}
         entry = root.find("a:entry", ns)
@@ -647,8 +474,8 @@ def _arxiv_api_title(arxiv_id: str) -> str | None:
             t = entry.find("a:title", ns)
             if t is not None and t.text:
                 return re.sub(r"\s+", " ", t.text.strip()).strip()
-    except Exception:
-        pass
+    except Exception as e:
+        tqdm.write(f"[WARN] arXiv API title lookup failed: {_format_exc(e)}")
     return None
 
 
@@ -760,9 +587,9 @@ def main() -> int:
         print(f"[INFO] {len(arxiv_ids)} pending paper(s) to process")
 
     if arxiv_ids:
-        processed = 0
-        for arxiv_id in tqdm(arxiv_ids, desc="ArXiv papers"):
-            paper = process_arxiv_id(
+        counts = {"processed": 0, "skipped": 0, "error": 0}
+        for i, arxiv_id in enumerate(tqdm(arxiv_ids, desc="ArXiv papers")):
+            result = process_arxiv_id(
                 arxiv_id=arxiv_id,
                 no_math_explain=args.no_math_explain,
                 max_math_blocks=args.max_math_blocks,
@@ -773,10 +600,14 @@ def main() -> int:
                 vision_math=args.vision_math,
                 vision_pages=args.vision_pages,
             )
-            if paper:
-                processed += 1
-        print(f"[INFO] Processed {processed}/{len(arxiv_ids)} ArXiv papers")
-        return 0
+            counts[result.status] += 1
+            if i < len(arxiv_ids) - 1:
+                time.sleep(5)  # polite gap between papers
+        print(
+            f"[INFO] Processed {counts['processed']}/{len(arxiv_ids)} ArXiv papers "
+            f"(skipped={counts['skipped']}, errors={counts['error']})"
+        )
+        return 1 if counts["error"] and not counts["processed"] else 0
 
     # ── PDF mode (original behaviour) ─────────────────────────────────────
     papers_dir = Path(args.papers_dir)

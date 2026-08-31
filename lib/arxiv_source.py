@@ -38,6 +38,14 @@ _INPUT_RE = re.compile(
     re.MULTILINE,
 )
 
+# \usepackage{foo} / \RequirePackage[opts]{foo,bar} — only inlined when a
+# matching foo.sty ships inside the tarball. Papers routinely keep their macro
+# definitions in a local .sty; without this those macros never reach the parser.
+_USEPACKAGE_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}",
+    re.MULTILINE,
+)
+
 
 # ---------------------------------------------------------------------------
 # Download
@@ -215,7 +223,43 @@ def _resolve_includes(
         except OSError:
             return m.group(0)
 
-    return _INPUT_RE.sub(replacer, content)
+    content = _INPUT_RE.sub(replacer, content)
+    return _resolve_local_packages(content, root_dir, depth)
+
+
+def _resolve_local_packages(content: str, root_dir: Path, depth: int) -> str:
+    """Inline \\usepackage{name} when name.sty ships inside the tarball.
+
+    Standard packages (amsmath, amssymb, ...) are not present in the tarball and
+    are left untouched. Local .sty files hold paper-specific \\newcommand macros
+    that must be expanded before math extraction.
+    """
+    if depth >= _MAX_INCLUDE_DEPTH:
+        return content
+
+    def replacer(m: "re.Match[str]") -> str:
+        kept: list[str] = []
+        inlined: list[str] = []
+        for name in (n.strip() for n in m.group(1).split(",")):
+            if not name:
+                continue
+            found = [p for p in root_dir.rglob(f"{name}.sty") if p.is_file()]
+            if not found:
+                kept.append(name)
+                continue
+            try:
+                sub = _read_tex_file(found[0])
+            except OSError:
+                kept.append(name)
+                continue
+            inlined.append(_resolve_includes(sub, found[0].parent, root_dir, depth + 1))
+
+        if not inlined:
+            return m.group(0)
+        prefix = f"\\usepackage{{{','.join(kept)}}}\n" if kept else ""
+        return prefix + "\n".join(inlined)
+
+    return _USEPACKAGE_RE.sub(replacer, content)
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +280,16 @@ def _strip_preamble(content: str) -> str:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+def split_preamble(full_source: str) -> str:
+    """Return the preamble (everything before \\begin{document}) of a merged source.
+
+    Papers define the bulk of their macros here, so the preamble must be fed to
+    macro expansion even though it contributes no sections.
+    """
+    begin = full_source.find(r"\begin{document}")
+    return full_source[:begin] if begin != -1 else ""
+
 
 def fetch_arxiv_latex(arxiv_id: str) -> str | None:
     """

@@ -60,7 +60,7 @@ async def process_paper(arxiv_id: str, force: bool = False) -> list[dict]:
 
     logger.info("process_paper(%s, force=%s)", arxiv_id, force)
     try:
-        paper = await asyncio.to_thread(
+        result = await asyncio.to_thread(
             process_arxiv_id,
             arxiv_id,
             push_supabase=True,
@@ -70,19 +70,47 @@ async def process_paper(arxiv_id: str, force: bool = False) -> list[dict]:
         logger.exception("process_paper failed: %s", exc)
         return _err(f"process_paper failed: {exc}")
 
-    if paper is None:
+    if result.status == "skipped":
         return _ok({
             "arxiv_id": arxiv_id,
             "status": "skipped",
             "reason": "already complete (pass force=true to re-process)",
         })
+    if result.status == "error":
+        return _err(f"process_paper failed: processing error for {arxiv_id} (see server logs)")
 
-    section_count = len(paper.sections) if paper.sections else 0
-    math_count = sum(len(s.math_blocks) for s in (paper.sections or []))
+    # status == "processed" — counts read back from the DB rows just written
+    section_count = 0
+    math_count = 0
+    title = ""
+    try:
+        from lib.supabase_push import _get_client
+        client = _get_client()
+        paper_resp = (
+            client.table("papers").select("id, title")
+            .eq("arxiv_id", arxiv_id).maybe_single().execute()
+        )
+        paper_row = paper_resp.data or {}
+        title = paper_row.get("title") or ""
+        secs_resp = (
+            client.table("sections").select("id")
+            .eq("paper_id", paper_row.get("id")).execute()
+        )
+        section_ids = [s["id"] for s in (secs_resp.data or [])]
+        section_count = len(section_ids)
+        if section_ids:
+            blocks_resp = (
+                client.table("math_blocks").select("id")
+                .in_("section_id", section_ids).execute()
+            )
+            math_count = len(blocks_resp.data or [])
+    except Exception as exc:
+        logger.warning("post-process count lookup failed: %s", exc)
+
     return _ok({
         "arxiv_id": arxiv_id,
         "status": "complete",
-        "title": paper.title,
+        "title": title,
         "section_count": section_count,
         "math_block_count": math_count,
     })
@@ -97,7 +125,7 @@ async def create_sections(arxiv_id: str) -> list[dict]:
     """Parse ArXiv LaTeX into sections and store in Supabase (no LLM calls).
     Use before explain_section_math when you want to control the LLM budget
     per section rather than running the full pipeline at once."""
-    from lib.arxiv_source import fetch_arxiv_latex_full
+    from lib.arxiv_source import fetch_arxiv_latex_full, split_preamble
     from lib.latex_parse import parse_latex_sections
     from lib.models import Paper
     from lib.supabase_push import push_paper
@@ -111,10 +139,12 @@ async def create_sections(arxiv_id: str) -> list[dict]:
     if result is None:
         return _err(f"No LaTeX source found for {arxiv_id}")
 
-    latex_body, _full_src = result
+    latex_body, full_src = result
 
     try:
-        sections = await asyncio.to_thread(parse_latex_sections, latex_body)
+        sections = await asyncio.to_thread(
+            parse_latex_sections, latex_body, split_preamble(full_src)
+        )
     except Exception as exc:
         return _err(f"Failed to parse sections: {exc}")
 
@@ -345,10 +375,15 @@ def create_app():
         return JSONResponse({"status": "ok", "server": "paper-processor-mcp"})
 
     mcp_app = mcp.streamable_http_app()
-    return Starlette(routes=[
-        Route("/health", health),
-        Mount("/", app=mcp_app),
-    ])
+    return Starlette(
+        routes=[
+            Route("/health", health),
+            Mount("/", app=mcp_app),
+        ],
+        # The MCP session manager only starts via its lifespan; a plain
+        # Starlette() would 500 with "Task group is not initialized".
+        lifespan=mcp_app.router.lifespan_context,
+    )
 
 
 if __name__ == "__main__":
