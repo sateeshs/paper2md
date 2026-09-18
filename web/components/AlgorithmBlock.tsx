@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ProseWithMath } from "@/components/ProseWithMath";
+import { PseudocodeBlock } from "@/components/PseudocodeBlock";
 import type { AlgorithmBlock as AlgorithmBlockRow } from "@/lib/supabase/types";
 
 export type { AlgorithmBlockRow };
@@ -39,7 +40,13 @@ export function AlgorithmBlock({ block }: AlgorithmBlockProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700">
         <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          {block.caption ? `Algorithm: ${block.caption}` : "Algorithm"}
+          {block.caption ? (
+            <>
+              Algorithm: <ProseWithMath text={block.caption} />
+            </>
+          ) : (
+            "Algorithm"
+          )}
         </span>
         {block.explanation_model && (
           <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
@@ -50,9 +57,7 @@ export function AlgorithmBlock({ block }: AlgorithmBlockProps) {
 
       {/* Pseudocode body */}
       <div className="px-4 py-3 bg-white dark:bg-zinc-950">
-        <pre className="font-mono text-sm text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap leading-relaxed overflow-x-auto">
-          {pseudocode}
-        </pre>
+        <PseudocodeBlock code={pseudocode} />
       </div>
 
       {/* Explanation toggle */}

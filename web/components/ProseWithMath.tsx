@@ -95,7 +95,7 @@ export function splitMathParts(text: string): Part[] {
   return parts;
 }
 
-function MathChunk({ expr, display }: { expr: string; display: boolean }) {
+export function MathChunk({ expr, display }: { expr: string; display: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [renderError, setRenderError] = useState(false);
 

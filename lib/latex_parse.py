@@ -129,40 +129,151 @@ _ALGO_CMD_RE = re.compile(
     r"\\(State|If|ElsIf|Else|EndIf|For|ForEach|EndFor|While|EndWhile|"
     r"Procedure|EndProcedure|Function|EndFunction|Return|Require|Ensure|"
     r"KwIn|KwOut|KwRet|KwData|KwResult|algorithmicindent|"
-    r"tcp|tcc)\b\s*"
+    # algorithm2e: \Repeat{cond}{body}, inline \lIf/\lFor, layout directives
+    r"Repeat|Until|lIf|lElse|lElseIf|uIf|uElse|eIf|lFor|lForEach|lWhile|"
+    r"ElseIf|BlankLine|DontPrintSemicolon|PrintSemicolon|SetAlgoLined|"
+    r"LinesNumbered|SetKwInOut|SetKwData|SetKwFunction|Indp|Indm|"
+    # [ \t]* not \s* — swallowing the newline runs "\EndFor\n\Return"
+    # together as "end forreturn"
+    r"tcp|tcc)\b[ \t]*"
 )
 _ALGO_COMMENT_RE = re.compile(r"\\(?:COMMENT|Comment|tcp\*?|tcc\*?)\{([^}]*)\}")
+# Math environments are stashed before plain $...$ spans: collapsing a
+# multi-line \begin{cases}...\end{cases} to a single token is what lets the
+# enclosing "$a=\begin{cases}…\end{cases}$" match the single-line $ pattern.
+_MATH_ENV_RE = re.compile(
+    r"\\begin\{(cases|matrix|pmatrix|bmatrix|vmatrix|Bmatrix|Vmatrix|"
+    r"array|aligned|split|smallmatrix|gathered)\}.*?\\end\{\1\}",
+    re.DOTALL,
+)
+# Math spans are preserved verbatim through pseudocode conversion.
+_MATH_SPAN_RE = re.compile(
+    r"\$\$.*?\$\$|\$[^$\n]*\$|\\\(.*?\\\)|\\\[.*?\\\]",
+    re.DOTALL,
+)
+# \label{...} typesets nothing; keeping its brace content leaks the raw key
+# ("algo:Qlearning") into the pseudocode as if it were a line of the algorithm.
+_ALGO_LABEL_RE = re.compile(r"\\label\s*\{[^}]*\}")
+# Nesting depth for restoring stashed math (env inside span inside span).
+_MATH_RESTORE_PASSES = 5
+# \begin{algorithmic}[1] / \end{algorithm} — scaffolding, never a pseudocode line.
+_ALGO_ENV_MARKER_RE = re.compile(
+    r"\\(?:begin|end)\s*\{(?:algorithm\*?|algorithm2e|algorithmic\*?)\}(?:\[[^\]]*\])?"
+)
+# How each algorithmic command reads once its backslash form is gone. Dropping
+# them outright turns "\For{$t=1$ to $T$}" into a bare "$t = 1$ to $T$", which
+# reads as an assertion rather than a loop.
+_ALGO_CMD_WORDS = {
+    "State": "", "algorithmicindent": "", "tcp": "", "tcc": "",
+    "Require": "Require: ", "Ensure": "Ensure: ",
+    "KwIn": "Input: ", "KwOut": "Output: ",
+    "KwData": "Data: ", "KwResult": "Result: ",
+    "If": "if ", "ElsIf": "else if ", "Else": "else", "EndIf": "end if",
+    "For": "for ", "ForEach": "for each ", "EndFor": "end for",
+    "While": "while ", "EndWhile": "end while",
+    "Procedure": "procedure ", "EndProcedure": "end procedure",
+    "Function": "function ", "EndFunction": "end function",
+    "Return": "return ", "KwRet": "return ",
+    # algorithm2e. \Repeat{cond}{body} puts its condition first, so it reads as
+    # "repeat until <cond>" — dropping the word leaves the condition standing
+    # alone as if it were a statement of the algorithm.
+    "Repeat": "repeat until ", "Until": "until ",
+    "lIf": "if ", "uIf": "if ", "eIf": "if ",
+    "lElse": "else ", "uElse": "else ", "lElseIf": "else if ", "ElseIf": "else if ",
+    "lFor": "for ", "lForEach": "for each ", "lWhile": "while ",
+    # Layout directives — they typeset nothing
+    "BlankLine": "", "DontPrintSemicolon": "", "PrintSemicolon": "",
+    "SetAlgoLined": "", "LinesNumbered": "", "SetKwInOut": "",
+    "SetKwData": "", "SetKwFunction": "", "Indp": "", "Indm": "",
+}
 _CAPTION_RE = re.compile(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", re.DOTALL)
 
 
 def _extract_algorithm_caption(block_src: str) -> str | None:
-    """Extract \\caption{} text from an algorithm block, or None if absent."""
+    """Extract \\caption{} text from an algorithm block, or None if absent.
+
+    Math spans are kept intact — stripping every command turns
+    "$\\epsilon$-greedy exploration" into "$$-greedy exploration".
+    """
     m = _CAPTION_RE.search(block_src)
     if not m:
         return None
-    text = re.sub(r"\\[a-zA-Z]+\s*", "", m.group(1))
+
+    math_spans: list[str] = []
+
+    def _stash(match: re.Match[str]) -> str:
+        math_spans.append(match.group(0))
+        return f"\x00M{len(math_spans) - 1}\x00"
+
+    text = _MATH_SPAN_RE.sub(_stash, m.group(1))
+    text = _ALGO_LABEL_RE.sub("", text)
+    text = re.sub(r"\\[a-zA-Z]+\s*", "", text)
     text = re.sub(r"[{}]", "", text)
+    text = re.sub(
+        r"\x00M(\d+)\x00", lambda mm: math_spans[int(mm.group(1))], text
+    )
     return text.strip() or None
 
 
 def _pseudocode_to_text(src: str) -> str:
     """Convert pseudocode LaTeX source to readable plain text.
 
-    Strips algorithmic command prefixes (\\State, \\If, etc.) while
-    preserving indentation structure implied by nested environments.
+    Strips algorithmic command prefixes (\\State, \\If, etc.) and the
+    surrounding environment markers while preserving line structure.
     Converts comments to // style.
+
+    Math spans are held aside before the generic command stripper runs and
+    restored afterwards. Without that, `$\\hat{\\theta}_0 \\leftarrow 0$`
+    loses every symbol and reaches the reader (and the explainer LLM) as
+    `$ _0  0$`.
     """
+    # Remove caption lines first (extracted separately) — they may hold math
+    text = _CAPTION_RE.sub("", src)
+    # Labels typeset nothing and would otherwise survive as their raw key
+    text = _ALGO_LABEL_RE.sub("", text)
+    # Hold math aside so the command stripper below cannot gut it. Environments
+    # go first so a multi-line one collapses to a single token, which lets the
+    # enclosing $...$ span match too.
+    math_spans: list[str] = []
+
+    def _stash(match: re.Match[str]) -> str:
+        math_spans.append(match.group(0))
+        return f"\x00M{len(math_spans) - 1}\x00"
+
+    text = _MATH_ENV_RE.sub(_stash, text)
+    text = _MATH_SPAN_RE.sub(_stash, text)
+    # LaTeX line break — a new line here, not two literal backslashes
+    text = re.sub(r"\\\\(?:\[[^\]]*\])?", "\n", text)
     # Convert comment commands to // notation
-    text = _ALGO_COMMENT_RE.sub(lambda m: f"  // {m.group(1)}", src)
-    # Remove caption lines (already extracted separately)
-    text = _CAPTION_RE.sub("", text)
-    # Remove algorithmic command prefixes — keep their argument/body text
-    text = _ALGO_CMD_RE.sub("", text)
+    text = _ALGO_COMMENT_RE.sub(lambda m: f"  // {m.group(1)}", text)
+    # Drop the environment markers themselves — "\begin{algorithmic}[1]" is
+    # scaffolding, not a pseudocode line
+    text = _ALGO_ENV_MARKER_RE.sub("", text)
+    # Replace algorithmic command prefixes with their plain-English reading,
+    # keeping their argument/body text
+    text = _ALGO_CMD_RE.sub(
+        lambda m: _ALGO_CMD_WORDS.get(m.group(1), ""), text
+    )
     # Strip remaining LaTeX commands but keep their brace content
     text = re.sub(r"\\[a-zA-Z]+\*?\s*\{([^}]*)\}", r"\1", text)
     text = re.sub(r"\\[a-zA-Z]+\*?\s*", " ", text)
+    # algorithm2e terminates statements with "\;" — it typesets nothing
+    text = re.sub(r"\\[;,:!]", "", text)
+    # "}{" joins two arguments; without a separator they run together as
+    # "$u < \epsilon$take random action"
+    text = text.replace("}{", "} {")
     text = re.sub(r"[{}]", "", text)
-    # Collapse excessive blank lines
+    # Restore the math untouched. Looped because an environment stashed first
+    # can sit inside a $...$ span stashed second.
+    placeholder = re.compile(r"\x00M(\d+)\x00")
+    for _ in range(_MATH_RESTORE_PASSES):
+        text, replaced = placeholder.subn(
+            lambda m: math_spans[int(m.group(1))], text
+        )
+        if not replaced:
+            break
+    # Collapse excessive blank lines and trailing whitespace per line
+    text = "\n".join(line.rstrip() for line in text.splitlines())
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
