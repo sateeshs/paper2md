@@ -101,6 +101,22 @@ describe("prepareLatex — cleanup", () => {
     expect(out).not.toMatch(/\\label|\\nonumber|%/);
   });
 
+  it("strips \\ref and \\eqref, including the parentheses that wrapped them", () => {
+    const out = prepareLatex(
+      "x = 1 \\mbox{ solves the control problem (\\ref{eq.control})}.",
+      true
+    );
+    expect(out).not.toMatch(/\\(eq)?ref/);
+    expect(out).not.toContain("()");
+    expect(out).toContain("solves the control problem}");
+  });
+
+  it("strips a bare \\eqref without eating surrounding parentheses", () => {
+    const out = prepareLatex("y = f(x) + \\eqref{eq:b}", true);
+    expect(out).not.toMatch(/\\(eq)?ref/);
+    expect(out).toContain("f(x)");
+  });
+
   it("strips package setup commands that typeset nothing", () => {
     const out = prepareLatex("\\mathtoolsset{showonlyrefs}x = 1", true);
     expect(out).toBe("x = 1");

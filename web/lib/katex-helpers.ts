@@ -299,6 +299,11 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
 
   // Strip \label{...} — KaTeX doesn't know this command
   s = s.replace(/\\label\{[^}]*\}/g, "");
+  // Cross-references typeset an equation number we never captured, so there is
+  // nothing to render. Drop the parentheses the reference sat in as well —
+  // "problem (\ref{eq.control})" should read "problem", not "problem ()".
+  s = s.replace(/\s*\(\s*\\(?:eq)?ref\{[^}]*\}\s*\)/g, "");
+  s = s.replace(/\\(?:eq)?ref\{[^}]*\}/g, "");
   // Setup commands that configure a package and typeset nothing
   s = s.replace(/\\(?:mathtoolsset|allowdisplaybreaks|setlength|arraycolsep)\s*\{[^}]*\}/g, "");
   s = s.replace(/\\(?:allowdisplaybreaks|displaybreak)\b/g, "");
