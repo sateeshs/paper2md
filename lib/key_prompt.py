@@ -30,6 +30,40 @@ class KeyPromptError(RuntimeError):
     """Raised when a key cannot be obtained or fails validation."""
 
 
+def _has_terminal() -> bool:
+    """True when a hidden prompt is possible.
+
+    getpass falls back to /dev/tty when stdin is redirected, so stdin alone is
+    not the whole story — but some sandboxes have no controlling terminal at
+    all, and there opening /dev/tty fails outright.
+    """
+    if sys.stdin.isatty():
+        return True
+    try:
+        with open("/dev/tty"):
+            return True
+    except OSError:
+        return False
+
+
+def read_key_from_stdin(provider: str) -> str:
+    """Read a key piped on stdin — for non-interactive contexts.
+
+    Usable where no terminal exists. The caller is responsible for getting the
+    key to stdin without leaking it into shell history.
+    """
+    env_name, _ = PROVIDER_KEYS[provider]
+    key = sys.stdin.readline().strip()
+    if not key:
+        raise KeyPromptError(f"No {env_name} received on stdin.")
+    os.environ[env_name] = key
+    error = validate_key(provider, key)
+    if error:
+        os.environ.pop(env_name, None)
+        raise KeyPromptError(f"{env_name} rejected: {error}")
+    return key
+
+
 def prompt_for_key(provider: str, *, validate: bool = True) -> str:
     """Ask for *provider*'s API key on stdin and export it for this process only.
 
@@ -43,10 +77,14 @@ def prompt_for_key(provider: str, *, validate: bool = True) -> str:
 
     env_name, signup_url = PROVIDER_KEYS[provider]
 
-    if not sys.stdin.isatty():
+    if not _has_terminal():
         raise KeyPromptError(
-            f"Cannot prompt for {env_name}: stdin is not a terminal. "
-            f"Run this interactively, or set {env_name} in the environment."
+            f"Cannot prompt for {env_name}: no controlling terminal.\n"
+            f"  This happens when the command is run without a TTY — including "
+            f"Claude Code's '!' prefix, cron, and most CI runners.\n"
+            f"  Fix: run the same command directly in a terminal window.\n"
+            f"  Alternative: pipe the key in with --key-stdin, or set {env_name} "
+            f"in the environment."
         )
 
     print(f"\n{provider} API key required — get one at {signup_url}")

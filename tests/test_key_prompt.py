@@ -16,6 +16,7 @@ from lib.key_prompt import (
     KeyPromptError,
     ensure_provider_key,
     prompt_for_key,
+    read_key_from_stdin,
     validate_key,
 )
 
@@ -72,10 +73,55 @@ def test_unknown_provider_is_rejected(monkeypatch, tty):
         prompt_for_key("hal9000")
 
 
-def test_refuses_to_prompt_without_a_terminal(monkeypatch):
+def test_refuses_to_prompt_without_a_controlling_terminal(monkeypatch):
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    with pytest.raises(KeyPromptError, match="stdin is not a terminal"):
+    monkeypatch.setattr("lib.key_prompt._has_terminal", lambda: False)
+    with pytest.raises(KeyPromptError, match="no controlling terminal"):
         prompt_for_key("gemini")
+
+
+def test_error_names_the_non_tty_contexts_that_cause_it(monkeypatch):
+    """The message has to be actionable — this is the most common failure."""
+    monkeypatch.setattr("lib.key_prompt._has_terminal", lambda: False)
+    with pytest.raises(KeyPromptError) as exc:
+        prompt_for_key("gemini")
+    text = str(exc.value)
+    assert "--key-stdin" in text and "terminal window" in text
+
+
+def test_prompts_when_stdin_is_redirected_but_a_tty_exists(monkeypatch):
+    """getpass reads /dev/tty, so a redirected stdin alone must not block it."""
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("lib.key_prompt._has_terminal", lambda: True)
+    _answer(monkeypatch, "AIza-key")
+    _accept_all(monkeypatch)
+    assert prompt_for_key("gemini") == "AIza-key"
+
+
+# ── --key-stdin ────────────────────────────────────────────────────────────
+
+def test_reads_a_piped_key(monkeypatch):
+    import io
+    monkeypatch.setattr("sys.stdin", io.StringIO("AIza-piped\n"))
+    _accept_all(monkeypatch)
+    assert read_key_from_stdin("gemini") == "AIza-piped"
+    assert os.environ["GEMINI_API_KEY"] == "AIza-piped"
+
+
+def test_empty_stdin_is_rejected(monkeypatch):
+    import io
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    with pytest.raises(KeyPromptError, match="No GEMINI_API_KEY received on stdin"):
+        read_key_from_stdin("gemini")
+
+
+def test_piped_key_that_fails_validation_is_evicted(monkeypatch):
+    import io
+    monkeypatch.setattr("sys.stdin", io.StringIO("bad\n"))
+    monkeypatch.setattr("lib.key_prompt.validate_key", lambda _p, _k: "authentication failed")
+    with pytest.raises(KeyPromptError):
+        read_key_from_stdin("gemini")
+    assert "GEMINI_API_KEY" not in os.environ
 
 
 # ── security properties ────────────────────────────────────────────────────

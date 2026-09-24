@@ -29,7 +29,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from lib.key_prompt import PROVIDER_KEYS, KeyPromptError, ensure_provider_key
+from lib.key_prompt import (
+    PROVIDER_KEYS,
+    KeyPromptError,
+    ensure_provider_key,
+    read_key_from_stdin,
+)
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -270,6 +275,9 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true",
                     help="Generate explanations and print them without writing to "
                          "Supabase; use this to check a key and output quality first")
+    ap.add_argument("--key-stdin", action="store_true",
+                    help="Read the API key from stdin (for contexts with no terminal, "
+                         "e.g. piping from a password manager)")
     ap.add_argument("--ask-key", action="store_true",
                     help="Prompt for the LLM API key at runtime instead of reading it "
                          "from the environment; the key is never stored")
@@ -288,7 +296,12 @@ def main() -> int:
     if args.provider:
         # An explicit --provider must also steer configure_dspy's selection order.
         os.environ["PAPER2MD_LLM_PROVIDER"] = provider
-    if args.ask_key:
+    if args.key_stdin:
+        try:
+            read_key_from_stdin(provider)
+        except KeyPromptError as e:
+            ap.error(str(e))
+    elif args.ask_key:
         try:
             ensure_provider_key(provider, ask=True)
         except KeyPromptError as e:
