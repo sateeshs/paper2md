@@ -12,6 +12,10 @@ Usage:
   python explain_math_only.py --section-id <uuid>                # single section (page)
   python explain_math_only.py --max-blocks 100                   # override cap
   python explain_math_only.py --force                            # re-explain all blocks
+  python explain_math_only.py --ask-key                          # type the API key at runtime
+
+With --ask-key the key is entered at a hidden prompt, held in memory for this
+process only, and never written to .env or any server.
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from tqdm import tqdm
+
+from lib.key_prompt import PROVIDER_KEYS, KeyPromptError, ensure_provider_key
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -245,6 +251,11 @@ def main() -> int:
                     help="Re-explain blocks that already have explanations")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
+    ap.add_argument("--ask-key", action="store_true",
+                    help="Prompt for the LLM API key at runtime instead of reading it "
+                         "from the environment; the key is never stored")
+    ap.add_argument("--provider", choices=sorted(PROVIDER_KEYS),
+                    help="LLM provider to use (default: PAPER2MD_LLM_PROVIDER, or gemini)")
     ap.add_argument("--paper-type",
                     choices=["research_paper", "textbook", "lecture_notes"],
                     default="research_paper",
@@ -253,6 +264,16 @@ def main() -> int:
 
     if args.force and not (args.arxiv_id or args.section_id):
         ap.error("--force requires --arxiv-id or --section-id (it would rewrite every block)")
+
+    provider = args.provider or os.environ.get("PAPER2MD_LLM_PROVIDER", "gemini").strip().lower()
+    if args.provider:
+        # An explicit --provider must also steer configure_dspy's selection order.
+        os.environ["PAPER2MD_LLM_PROVIDER"] = provider
+    if args.ask_key:
+        try:
+            ensure_provider_key(provider, ask=True)
+        except KeyPromptError as e:
+            ap.error(str(e))
 
     return run(
         arxiv_id=args.arxiv_id,
