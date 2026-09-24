@@ -169,3 +169,26 @@ def test_every_provider_has_a_validator(monkeypatch):
     monkeypatch.setattr("httpx.get", lambda *a, **k: _Resp(200))
     for provider in PROVIDER_KEYS:
         assert validate_key(provider, "k") is None, f"{provider} has no validator branch"
+
+
+# ── dry-run wiring ─────────────────────────────────────────────────────────
+
+def test_explain_script_exposes_dry_run_and_ask_key():
+    """Guards the CLI contract the local-first workflow depends on."""
+    import subprocess, sys
+    out = subprocess.run(
+        [sys.executable, "explain_math_only.py", "--help"],
+        capture_output=True, text=True, timeout=120,
+    ).stdout
+    for flag in ("--dry-run", "--ask-key", "--provider", "--max-blocks-per-section"):
+        assert flag in out, f"{flag} missing from CLI"
+
+
+def test_dry_run_does_not_write(monkeypatch):
+    """--dry-run must never reach the Supabase update path."""
+    import inspect, explain_math_only
+    src = inspect.getsource(explain_math_only.run)
+    dry_idx = src.index("if dry_run:")
+    update_idx = src.index('client.table("math_blocks").update(')
+    assert dry_idx < update_idx, "dry_run guard must short-circuit before the update"
+    assert "continue" in src[dry_idx:update_idx], "dry_run branch must skip the write"

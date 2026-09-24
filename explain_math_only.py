@@ -13,6 +13,7 @@ Usage:
   python explain_math_only.py --max-blocks 100                   # override cap
   python explain_math_only.py --force                            # re-explain all blocks
   python explain_math_only.py --ask-key                          # type the API key at runtime
+  python explain_math_only.py --dry-run --max-blocks 3           # preview, write nothing
 
 With --ask-key the key is entered at a hidden prompt, held in memory for this
 process only, and never written to .env or any server.
@@ -158,6 +159,7 @@ def run(
     paper_type: str,
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
+    dry_run: bool = False,
 ) -> int:
     from lib.dspy_modules import MathExplainer
     from lib.models import MathBlock
@@ -220,6 +222,18 @@ def run(
             failed += 1
             continue
 
+        if dry_run:
+            # Verify the provider and the output before writing to the live DB.
+            preview = json.loads(explained.explanation)
+            tqdm.write(
+                f"\n[DRY RUN] {section_title} — {block.env_type} block {block.order_idx}\n"
+                f"  expr: {block.latex_expr.strip()[:90]}\n"
+                f"  what_it_computes: {str(preview.get('what_it_computes'))[:220]}\n"
+                f"  model: {explained.explanation_model}"
+            )
+            updated += 1
+            continue
+
         # UPDATE in-place — never touch sections or papers rows
         try:
             client.table("math_blocks").update({
@@ -231,8 +245,10 @@ def run(
             failed += 1
             tqdm.write(f"[ERROR] update failed for block {row['id']}: {_format_exc(e)}")
 
+    verb = "would update" if dry_run else "updated"
     tqdm.write(
-        f"[INFO] Done — updated: {updated}, skipped (trivial): {skipped}, failed: {failed}"
+        f"[INFO] Done — {verb}: {updated}, skipped (trivial): {skipped}, failed: {failed}"
+        + ("  (no rows were written)" if dry_run else "")
     )
     return 1 if failed else 0
 
@@ -251,6 +267,9 @@ def main() -> int:
                     help="Re-explain blocks that already have explanations")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Generate explanations and print them without writing to "
+                         "Supabase; use this to check a key and output quality first")
     ap.add_argument("--ask-key", action="store_true",
                     help="Prompt for the LLM API key at runtime instead of reading it "
                          "from the environment; the key is never stored")
@@ -283,6 +302,7 @@ def main() -> int:
         paper_type=args.paper_type,
         max_blocks_per_section=args.max_blocks_per_section,
         section_id=args.section_id,
+        dry_run=args.dry_run,
     )
 
 
