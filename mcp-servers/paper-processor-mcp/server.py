@@ -374,11 +374,20 @@ def create_app():
     async def health(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "server": "paper-processor-mcp"})
 
+    # Modal loads this module by file path with only /app on sys.path, so the
+    # sibling auth module has to be made importable explicitly.
+    _here = os.path.dirname(os.path.abspath(__file__))
+    if _here not in sys.path:
+        sys.path.insert(0, _here)
+    from auth import BearerAuthMiddleware
+
     mcp_app = mcp.streamable_http_app()
     return Starlette(
         routes=[
             Route("/health", health),
-            Mount("/", app=mcp_app),
+            # Everything under / can spend LLM quota and write to Supabase with
+            # the service-role key, so it sits behind the shared bearer token.
+            Mount("/", app=BearerAuthMiddleware(mcp_app)),
         ],
         # The MCP session manager only starts via its lifespan; a plain
         # Starlette() would 500 with "Task group is not initialized".

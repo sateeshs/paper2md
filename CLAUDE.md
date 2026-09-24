@@ -436,7 +436,8 @@ modal secret create paper2md-secrets \
   GROQ_API_KEY="..." \
   OPENROUTER_API_KEY="..." \
   PAPER2MD_LLM_PROVIDER="gemini" \
-  PAPER2MD_MAX_MATH_BLOCKS="50"
+  PAPER2MD_MAX_MATH_BLOCKS="50" \
+  MCP_AUTH_TOKEN="$(openssl rand -hex 32)"
 
 # Deploy MCP server + batch cron
 modal deploy mcp-servers/paper-processor-mcp/modal_app.py
@@ -477,6 +478,13 @@ PAPER_READER_MCP_URL=               # Cloudflare Workers URL for paper-reader-mc
 ARXIV_SEARCH_MCP_URL=               # Cloudflare Workers URL for arxiv-search-mcp
 MATH_TO_CODE_MCP_URL=               # Cloudflare Workers URL for math-to-code-mcp (optional)
 
+# Shared bearer token for ALL MCP servers — REQUIRED whenever any MCP URL is set.
+# MCP endpoints hold Supabase credentials and spend LLM quota, and their URLs are
+# not secrets, so every server rejects unauthenticated requests (/health stays
+# public). Generate once with `openssl rand -hex 32` and set the SAME value here,
+# in the Modal secret, and via `wrangler secret put MCP_AUTH_TOKEN` on each Worker.
+MCP_AUTH_TOKEN=
+
 # UI feature flags (client-readable)
 NEXT_PUBLIC_SHOW_CHAT=true          # show /chat page (default false until MCP live)
 NEXT_PUBLIC_SHOW_CODE_TOGGLE=true   # show Code toggle on MathBlock (default true)
@@ -499,6 +507,8 @@ GITHUB_KB_REPO=                     # e.g. "paper2md-kb"
 - [ ] Deploy `paper-processor-mcp` to Modal (`modal deploy mcp-servers/paper-processor-mcp/modal_app.py`)
 - [ ] Deploy `paper-reader-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/paper-reader-mcp/`)
 - [ ] Deploy `arxiv-search-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/arxiv-search-mcp/`)
+- [ ] Generate `MCP_AUTH_TOKEN` (`openssl rand -hex 32`) and set the same value on
+      all three servers + Vercel — servers refuse every request without it
 - [ ] Add MCP URLs to Vercel env vars + set `NEXT_PUBLIC_SHOW_CHAT=true`
 - [ ] Verify `GET /api/health` returns `{ status: 'ok' }` for all 3 servers
 

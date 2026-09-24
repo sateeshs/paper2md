@@ -13,7 +13,8 @@ Serve locally:
 Secrets (one-time setup):
   modal secret create paper2md-secrets \\
     SUPABASE_URL="https://..." \\
-    SUPABASE_SERVICE_ROLE_KEY="sb_secret_..." \\
+    SUPABASE_SERVICE_ROLE_KEY="sb_secret_..." \
+    MCP_AUTH_TOKEN="$(openssl rand -hex 32)" \\
     GEMINI_API_KEY="..." \\
     GROQ_API_KEY="..." \\
     OPENROUTER_API_KEY="..." \\
