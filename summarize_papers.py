@@ -46,6 +46,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from lib.latex_outline import strip_comments
 from lib.models import Paper
 from lib.pdf_extract import extract_paper_from_pdf
 from lib.content_analysis import extract_structured_content
@@ -483,6 +484,8 @@ def _title_from_latex(latex: str, fallback: str, full_source: str | None = None)
     """Extract paper title from LaTeX source.
 
     Tries common title commands (\\title, \\icmltitle, \\Title) in order.
+    LaTeX comments are stripped first, so a `\\title{%` continuation does not
+    leave a stray % in the title.
     Handles one level of nested braces (e.g. \\title{\\textbf{...}}).
     Falls back to ArXiv API if arxiv_id is available, then to `fallback`.
     """
@@ -492,6 +495,9 @@ def _title_from_latex(latex: str, fallback: str, full_source: str | None = None)
     _brace_content = r"((?:[^{}]|\{[^{}]*\})+)"
 
     for src in filter(None, [full_source, latex]):
+        # `\title{%` is a common line-continuation idiom; without stripping
+        # comments the % leaks into the stored title.
+        src = strip_comments(src)
         for cmd in _TITLE_CMDS:
             m = re.search(cmd + r"\s*\{" + _brace_content + r"\}", src)
             if m:
