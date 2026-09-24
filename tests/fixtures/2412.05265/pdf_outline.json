@@ -1,0 +1,2330 @@
+[
+ {
+  "level": 1,
+  "number": "1",
+  "title": "Introduction",
+  "page": 13
+ },
+ {
+  "level": 2,
+  "number": "1.1",
+  "title": "Sequential decision making",
+  "page": 13
+ },
+ {
+  "level": 3,
+  "number": "1.1.1",
+  "title": "Maximum expected utility principle",
+  "page": 13
+ },
+ {
+  "level": 3,
+  "number": "1.1.2",
+  "title": "Episodic vs continual tasks",
+  "page": 14
+ },
+ {
+  "level": 3,
+  "number": "1.1.3",
+  "title": "Universal model",
+  "page": 15
+ },
+ {
+  "level": 3,
+  "number": "1.1.4",
+  "title": "Further reading",
+  "page": 17
+ },
+ {
+  "level": 2,
+  "number": "1.2",
+  "title": "Canonical models",
+  "page": 17
+ },
+ {
+  "level": 3,
+  "number": "1.2.1",
+  "title": "Partially observed MDPs",
+  "page": 17
+ },
+ {
+  "level": 3,
+  "number": "1.2.2",
+  "title": "Markov decision process (MDPs)",
+  "page": 18
+ },
+ {
+  "level": 3,
+  "number": "1.2.3",
+  "title": "Goal-conditioned MDPs",
+  "page": 19
+ },
+ {
+  "level": 3,
+  "number": "1.2.4",
+  "title": "Contextual MDPs",
+  "page": 19
+ },
+ {
+  "level": 3,
+  "number": "1.2.5",
+  "title": "Contextual bandits",
+  "page": 19
+ },
+ {
+  "level": 3,
+  "number": "1.2.6",
+  "title": "Belief state MDPs",
+  "page": 20
+ },
+ {
+  "level": 3,
+  "number": "1.2.7",
+  "title": "Optimization problems as decision problems",
+  "page": 21
+ },
+ {
+  "level": 4,
+  "number": "1.2.7.1",
+  "title": "Best-arm identification",
+  "page": 22
+ },
+ {
+  "level": 4,
+  "number": "1.2.7.2",
+  "title": "Bayesian optimization",
+  "page": 22
+ },
+ {
+  "level": 4,
+  "number": "1.2.7.3",
+  "title": "Active learning",
+  "page": 22
+ },
+ {
+  "level": 4,
+  "number": "1.2.7.4",
+  "title": "Stochastic Gradient Descent (SGD)",
+  "page": 22
+ },
+ {
+  "level": 2,
+  "number": "1.3",
+  "title": "Reinforcement Learning: a high-level summary",
+  "page": 22
+ },
+ {
+  "level": 3,
+  "number": "1.3.1",
+  "title": "Value-based RL",
+  "page": 23
+ },
+ {
+  "level": 3,
+  "number": "1.3.2",
+  "title": "Policy-based RL",
+  "page": 24
+ },
+ {
+  "level": 3,
+  "number": "1.3.3",
+  "title": "Model-based RL",
+  "page": 24
+ },
+ {
+  "level": 3,
+  "number": "1.3.4",
+  "title": "State uncertainty (partial observability)",
+  "page": 24
+ },
+ {
+  "level": 4,
+  "number": "1.3.4.1",
+  "title": "Optimal solution",
+  "page": 25
+ },
+ {
+  "level": 4,
+  "number": "1.3.4.2",
+  "title": "Finite observation history",
+  "page": 25
+ },
+ {
+  "level": 4,
+  "number": "1.3.4.3",
+  "title": "Stateful (recurrent) policies",
+  "page": 25
+ },
+ {
+  "level": 3,
+  "number": "1.3.5",
+  "title": "Model uncertainty (exploration-exploitation tradeoff)",
+  "page": 25
+ },
+ {
+  "level": 3,
+  "number": "1.3.6",
+  "title": "Reward functions",
+  "page": 26
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.1",
+  "title": "The reward hypothesis",
+  "page": 26
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.2",
+  "title": "Non-Markovian rewards",
+  "page": 27
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.3",
+  "title": "Reward hacking",
+  "page": 27
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.4",
+  "title": "Sparse reward",
+  "page": 27
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.5",
+  "title": "Reward shaping",
+  "page": 28
+ },
+ {
+  "level": 4,
+  "number": "1.3.6.6",
+  "title": "Intrinsic reward",
+  "page": 28
+ },
+ {
+  "level": 3,
+  "number": "1.3.7",
+  "title": "Best practices for experimental work in RL",
+  "page": 28
+ },
+ {
+  "level": 1,
+  "number": "2",
+  "title": "Value-based RL",
+  "page": 31
+ },
+ {
+  "level": 2,
+  "number": "2.1",
+  "title": "Basic concepts",
+  "page": 31
+ },
+ {
+  "level": 3,
+  "number": "2.1.1",
+  "title": "Value functions",
+  "page": 31
+ },
+ {
+  "level": 3,
+  "number": "2.1.2",
+  "title": "Bellman's equations",
+  "page": 31
+ },
+ {
+  "level": 3,
+  "number": "2.1.3",
+  "title": "Example: 1d grid world",
+  "page": 32
+ },
+ {
+  "level": 2,
+  "number": "2.2",
+  "title": "Solving for the optimal policy in a known world model",
+  "page": 33
+ },
+ {
+  "level": 3,
+  "number": "2.2.1",
+  "title": "Value iteration",
+  "page": 33
+ },
+ {
+  "level": 3,
+  "number": "2.2.2",
+  "title": "Real-time dynamic programming (RTDP)",
+  "page": 34
+ },
+ {
+  "level": 3,
+  "number": "2.2.3",
+  "title": "Policy iteration",
+  "page": 34
+ },
+ {
+  "level": 2,
+  "number": "2.3",
+  "title": "Value function learning using samples from the world model",
+  "page": 35
+ },
+ {
+  "level": 3,
+  "number": "2.3.1",
+  "title": "Monte Carlo estimation",
+  "page": 35
+ },
+ {
+  "level": 3,
+  "number": "2.3.2",
+  "title": "Temporal difference (TD) learning",
+  "page": 36
+ },
+ {
+  "level": 3,
+  "number": "2.3.3",
+  "title": "Combining TD and MC learning using TD()",
+  "page": 36
+ },
+ {
+  "level": 3,
+  "number": "2.3.4",
+  "title": "Eligibility traces",
+  "page": 38
+ },
+ {
+  "level": 2,
+  "number": "2.4",
+  "title": "SARSA: on-policy TD policy learning",
+  "page": 38
+ },
+ {
+  "level": 3,
+  "number": "2.4.1",
+  "title": "Convergence",
+  "page": 38
+ },
+ {
+  "level": 3,
+  "number": "2.4.2",
+  "title": "Sarsa()",
+  "page": 39
+ },
+ {
+  "level": 2,
+  "number": "2.5",
+  "title": "Q-learning: off-policy TD policy learning",
+  "page": 39
+ },
+ {
+  "level": 3,
+  "number": "2.5.1",
+  "title": "Tabular Q learning",
+  "page": 39
+ },
+ {
+  "level": 3,
+  "number": "2.5.2",
+  "title": "Q learning with function approximation",
+  "page": 41
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.1",
+  "title": "Neural fitted Q",
+  "page": 41
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.2",
+  "title": "DQN",
+  "page": 41
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.3",
+  "title": "Experience replay",
+  "page": 42
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.4",
+  "title": "Prioritized experience replay",
+  "page": 42
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.5",
+  "title": "The deadly triad",
+  "page": 42
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.6",
+  "title": "Target networks",
+  "page": 43
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.7",
+  "title": "Gradient TD methods",
+  "page": 44
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.8",
+  "title": "Two time-scale methods",
+  "page": 44
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.9",
+  "title": "Layer norm",
+  "page": 44
+ },
+ {
+  "level": 4,
+  "number": "2.5.2.10",
+  "title": "Other methods",
+  "page": 45
+ },
+ {
+  "level": 3,
+  "number": "2.5.3",
+  "title": "Maximization bias",
+  "page": 45
+ },
+ {
+  "level": 4,
+  "number": "2.5.3.1",
+  "title": "Double Q-learning",
+  "page": 45
+ },
+ {
+  "level": 4,
+  "number": "2.5.3.2",
+  "title": "Double DQN",
+  "page": 45
+ },
+ {
+  "level": 4,
+  "number": "2.5.3.3",
+  "title": "Randomized ensemble DQN",
+  "page": 46
+ },
+ {
+  "level": 3,
+  "number": "2.5.4",
+  "title": "DQN extensions",
+  "page": 46
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.1",
+  "title": "Q learning for continuous actions",
+  "page": 46
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.2",
+  "title": "Dueling DQN",
+  "page": 46
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.3",
+  "title": "Noisy nets and exploration",
+  "page": 47
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.4",
+  "title": "Multi-step DQN",
+  "page": 47
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.5",
+  "title": "Q()",
+  "page": 47
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.6",
+  "title": "Rainbow",
+  "page": 48
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.7",
+  "title": "Bigger, Better, Faster",
+  "page": 48
+ },
+ {
+  "level": 4,
+  "number": "2.5.4.8",
+  "title": "Other methods",
+  "page": 49
+ },
+ {
+  "level": 3,
+  "number": "2.5.5",
+  "title": "Q-learning for GCRL using hindsight relabeling",
+  "page": 49
+ },
+ {
+  "level": 1,
+  "number": "3",
+  "title": "Policy-based RL",
+  "page": 51
+ },
+ {
+  "level": 2,
+  "number": "3.1",
+  "title": "Policy gradient methods",
+  "page": 51
+ },
+ {
+  "level": 3,
+  "number": "3.1.1",
+  "title": "Likelihood ratio estimate",
+  "page": 51
+ },
+ {
+  "level": 3,
+  "number": "3.1.2",
+  "title": "Variance reduction using reward-to-go",
+  "page": 52
+ },
+ {
+  "level": 3,
+  "number": "3.1.3",
+  "title": "REINFORCE",
+  "page": 53
+ },
+ {
+  "level": 3,
+  "number": "3.1.4",
+  "title": "The policy gradient theorem",
+  "page": 53
+ },
+ {
+  "level": 3,
+  "number": "3.1.5",
+  "title": "Variance reduction using a baseline",
+  "page": 54
+ },
+ {
+  "level": 3,
+  "number": "3.1.6",
+  "title": "REINFORCE with baseline",
+  "page": 55
+ },
+ {
+  "level": 2,
+  "number": "3.2",
+  "title": "Actor-critic methods",
+  "page": 55
+ },
+ {
+  "level": 3,
+  "number": "3.2.1",
+  "title": "Advantage actor critic (A2C)",
+  "page": 55
+ },
+ {
+  "level": 3,
+  "number": "3.2.2",
+  "title": "Generalized advantage estimation (GAE)",
+  "page": 57
+ },
+ {
+  "level": 3,
+  "number": "3.2.3",
+  "title": "Two-time scale actor critic algorithms",
+  "page": 58
+ },
+ {
+  "level": 3,
+  "number": "3.2.4",
+  "title": "Natural policy gradient methods",
+  "page": 58
+ },
+ {
+  "level": 4,
+  "number": "3.2.4.1",
+  "title": "Natural gradient descent",
+  "page": 58
+ },
+ {
+  "level": 4,
+  "number": "3.2.4.2",
+  "title": "Natural actor critic",
+  "page": 60
+ },
+ {
+  "level": 3,
+  "number": "3.2.5",
+  "title": "Architectural issues",
+  "page": 60
+ },
+ {
+  "level": 3,
+  "number": "3.2.6",
+  "title": "Deterministic policy gradient methods",
+  "page": 61
+ },
+ {
+  "level": 4,
+  "number": "3.2.6.1",
+  "title": "Deterministic policy gradient theorem",
+  "page": 61
+ },
+ {
+  "level": 4,
+  "number": "3.2.6.2",
+  "title": "DDPG",
+  "page": 62
+ },
+ {
+  "level": 4,
+  "number": "3.2.6.3",
+  "title": "Twin Delayed DDPG (TD3)",
+  "page": 62
+ },
+ {
+  "level": 4,
+  "number": "3.2.6.4",
+  "title": "Wasserstein Policy Optimization (WPO)",
+  "page": 62
+ },
+ {
+  "level": 2,
+  "number": "3.3",
+  "title": "Policy improvement methods",
+  "page": 64
+ },
+ {
+  "level": 3,
+  "number": "3.3.1",
+  "title": "Policy improvement lower bound",
+  "page": 64
+ },
+ {
+  "level": 3,
+  "number": "3.3.2",
+  "title": "Trust region policy optimization (TRPO)",
+  "page": 65
+ },
+ {
+  "level": 3,
+  "number": "3.3.3",
+  "title": "Proximal Policy Optimization (PPO)",
+  "page": 66
+ },
+ {
+  "level": 4,
+  "number": "3.3.3.1",
+  "title": "Simplified form of the clipping term",
+  "page": 66
+ },
+ {
+  "level": 4,
+  "number": "3.3.3.2",
+  "title": "PPO for diffusion policies",
+  "page": 67
+ },
+ {
+  "level": 4,
+  "number": "3.3.3.3",
+  "title": "Simple policy optimization",
+  "page": 67
+ },
+ {
+  "level": 3,
+  "number": "3.3.4",
+  "title": "Variational Maximum a Posteriori Policy Optimization (VMPO)",
+  "page": 67
+ },
+ {
+  "level": 2,
+  "number": "3.4",
+  "title": "Off-policy methods",
+  "page": 68
+ },
+ {
+  "level": 3,
+  "number": "3.4.1",
+  "title": "Policy evaluation using importance sampling",
+  "page": 68
+ },
+ {
+  "level": 3,
+  "number": "3.4.2",
+  "title": "Off-policy actor critic methods",
+  "page": 69
+ },
+ {
+  "level": 4,
+  "number": "3.4.2.1",
+  "title": "Learning the critic using V-trace",
+  "page": 69
+ },
+ {
+  "level": 4,
+  "number": "3.4.2.2",
+  "title": "Learning the actor",
+  "page": 70
+ },
+ {
+  "level": 4,
+  "number": "3.4.2.3",
+  "title": "Example: IMPALA",
+  "page": 71
+ },
+ {
+  "level": 4,
+  "number": "3.4.2.4",
+  "title": "Off-policy learning with deterministic policies",
+  "page": 72
+ },
+ {
+  "level": 4,
+  "number": "3.4.2.5",
+  "title": "PGQL: Combining off-policy Q-learning with policy gradient",
+  "page": 72
+ },
+ {
+  "level": 3,
+  "number": "3.4.3",
+  "title": "Off-policy policy improvement methods",
+  "page": 72
+ },
+ {
+  "level": 2,
+  "number": "3.5",
+  "title": "Gradient-free policy optimization",
+  "page": 72
+ },
+ {
+  "level": 2,
+  "number": "3.6",
+  "title": "RL as inference",
+  "page": 73
+ },
+ {
+  "level": 3,
+  "number": "3.6.1",
+  "title": "Deterministic case (planning/control as inference)",
+  "page": 74
+ },
+ {
+  "level": 3,
+  "number": "3.6.2",
+  "title": "Stochastic case (policy learning as variational inference)",
+  "page": 74
+ },
+ {
+  "level": 3,
+  "number": "3.6.3",
+  "title": "EM control",
+  "page": 75
+ },
+ {
+  "level": 3,
+  "number": "3.6.4",
+  "title": "KL control (maximum entropy RL)",
+  "page": 76
+ },
+ {
+  "level": 3,
+  "number": "3.6.5",
+  "title": "Maximum a Posteriori Policy Optimization (MPO)",
+  "page": 76
+ },
+ {
+  "level": 3,
+  "number": "3.6.6",
+  "title": "Sequential Monte Carlo Policy Optimisation (SMC-PO)",
+  "page": 77
+ },
+ {
+  "level": 3,
+  "number": "3.6.7",
+  "title": "AWR and AWAC",
+  "page": 77
+ },
+ {
+  "level": 3,
+  "number": "3.6.8",
+  "title": "Soft Actor Critic (SAC)",
+  "page": 77
+ },
+ {
+  "level": 4,
+  "number": "3.6.8.1",
+  "title": "SAC objective",
+  "page": 77
+ },
+ {
+  "level": 4,
+  "number": "3.6.8.2",
+  "title": "Policy evaluation: tabular case",
+  "page": 77
+ },
+ {
+  "level": 4,
+  "number": "3.6.8.3",
+  "title": "Policy evaluation: general case",
+  "page": 78
+ },
+ {
+  "level": 4,
+  "number": "3.6.8.4",
+  "title": "Policy improvement",
+  "page": 79
+ },
+ {
+  "level": 4,
+  "number": "3.6.8.5",
+  "title": "Adjusting the temperature",
+  "page": 79
+ },
+ {
+  "level": 3,
+  "number": "3.6.9",
+  "title": "Active inference",
+  "page": 81
+ },
+ {
+  "level": 1,
+  "number": "4",
+  "title": "Model-based RL",
+  "page": 83
+ },
+ {
+  "level": 2,
+  "number": "4.1",
+  "title": "Introduction",
+  "page": 83
+ },
+ {
+  "level": 2,
+  "number": "4.2",
+  "title": "Decision-time (online) planning",
+  "page": 84
+ },
+ {
+  "level": 3,
+  "number": "4.2.1",
+  "title": "Receeding horizon control",
+  "page": 84
+ },
+ {
+  "level": 4,
+  "number": "4.2.1.1",
+  "title": "Forward search",
+  "page": 85
+ },
+ {
+  "level": 4,
+  "number": "4.2.1.2",
+  "title": "Branch and bound",
+  "page": 85
+ },
+ {
+  "level": 4,
+  "number": "4.2.1.3",
+  "title": "Sparse sampling",
+  "page": 86
+ },
+ {
+  "level": 4,
+  "number": "4.2.1.4",
+  "title": "Heuristic search",
+  "page": 86
+ },
+ {
+  "level": 3,
+  "number": "4.2.2",
+  "title": "Monte Carlo tree search (MCTS)",
+  "page": 86
+ },
+ {
+  "level": 4,
+  "number": "4.2.2.1",
+  "title": "MCTS for 2p0s games: AlphaGo, AlphaGoZero, and AlphaZero",
+  "page": 87
+ },
+ {
+  "level": 4,
+  "number": "4.2.2.2",
+  "title": "MCTS with learned world model: MuZero and EfficientZero",
+  "page": 88
+ },
+ {
+  "level": 4,
+  "number": "4.2.2.3",
+  "title": "MCTS in belief space",
+  "page": 89
+ },
+ {
+  "level": 3,
+  "number": "4.2.3",
+  "title": "Sequential Monte Carlo (SMC) for online planning",
+  "page": 89
+ },
+ {
+  "level": 3,
+  "number": "4.2.4",
+  "title": "Model predictive control (MPC), aka open loop planning",
+  "page": 90
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.1",
+  "title": "Suboptimality of open-loop planning for stochastic environments",
+  "page": 91
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.2",
+  "title": "Trajectory optimization",
+  "page": 92
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.3",
+  "title": "LQR",
+  "page": 92
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.4",
+  "title": "Random shooting",
+  "page": 92
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.5",
+  "title": "CEM",
+  "page": 92
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.6",
+  "title": "MPPI",
+  "page": 93
+ },
+ {
+  "level": 4,
+  "number": "4.2.4.7",
+  "title": "GP-MPC",
+  "page": 93
+ },
+ {
+  "level": 2,
+  "number": "4.3",
+  "title": "Background (offline) planning",
+  "page": 93
+ },
+ {
+  "level": 3,
+  "number": "4.3.1",
+  "title": "A game-theoretic perspective on MBRL",
+  "page": 93
+ },
+ {
+  "level": 3,
+  "number": "4.3.2",
+  "title": "Dyna",
+  "page": 95
+ },
+ {
+  "level": 4,
+  "number": "4.3.2.1",
+  "title": "Tabular Dyna",
+  "page": 95
+ },
+ {
+  "level": 4,
+  "number": "4.3.2.2",
+  "title": "Dyna with function approximation",
+  "page": 95
+ },
+ {
+  "level": 2,
+  "number": "4.4",
+  "title": "World models",
+  "page": 97
+ },
+ {
+  "level": 3,
+  "number": "4.4.1",
+  "title": "World models which are trained to predict observation targets",
+  "page": 97
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.1",
+  "title": "Generative world models without latent variables",
+  "page": 98
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.2",
+  "title": "Generative world models with latent variables",
+  "page": 98
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.3",
+  "title": "Example: Dreamer",
+  "page": 98
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.4",
+  "title": "Example: IRIS",
+  "page": 101
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.5",
+  "title": "Code world models",
+  "page": 101
+ },
+ {
+  "level": 4,
+  "number": "4.4.1.6",
+  "title": "Partial observation prediction",
+  "page": 101
+ },
+ {
+  "level": 3,
+  "number": "4.4.2",
+  "title": "World models which are trained to predict other targets",
+  "page": 101
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.1",
+  "title": "The objective mismatch problem",
+  "page": 102
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.2",
+  "title": "Observation prediction",
+  "page": 102
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.3",
+  "title": "Reward prediction",
+  "page": 103
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.4",
+  "title": "Value prediction",
+  "page": 103
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.5",
+  "title": "Policy prediction",
+  "page": 104
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.6",
+  "title": "Self prediction (self distillation)",
+  "page": 104
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.7",
+  "title": "Avoiding self-prediction collapse using frozen targets",
+  "page": 104
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.8",
+  "title": "Avoiding self-prediction collapse using information-theoretic regularization",
+  "page": 105
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.9",
+  "title": "Preventing self-prediction collapse using game-theoretic approaches",
+  "page": 106
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.10",
+  "title": "Example: JEPA",
+  "page": 107
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.11",
+  "title": "Example: DinoWM",
+  "page": 108
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.12",
+  "title": "Example: TD-MPC",
+  "page": 108
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.13",
+  "title": "Example: BYOL",
+  "page": 109
+ },
+ {
+  "level": 4,
+  "number": "4.4.2.14",
+  "title": "Example: Imagination-augmented agents",
+  "page": 110
+ },
+ {
+  "level": 3,
+  "number": "4.4.3",
+  "title": "World models that are trained to help planning",
+  "page": 110
+ },
+ {
+  "level": 3,
+  "number": "4.4.4",
+  "title": "Dealing with model errors and uncertainty",
+  "page": 110
+ },
+ {
+  "level": 4,
+  "number": "4.4.4.1",
+  "title": "Avoiding compounding errors in rollouts",
+  "page": 110
+ },
+ {
+  "level": 4,
+  "number": "4.4.4.2",
+  "title": "Unified model and planning variational lower bound",
+  "page": 111
+ },
+ {
+  "level": 4,
+  "number": "4.4.4.3",
+  "title": "Dynamically switching between MFRL and MBRL",
+  "page": 111
+ },
+ {
+  "level": 3,
+  "number": "4.4.5",
+  "title": "Exploration for learning world models",
+  "page": 111
+ },
+ {
+  "level": 2,
+  "number": "4.5",
+  "title": "Beyond one-step models: predictive representations",
+  "page": 111
+ },
+ {
+  "level": 3,
+  "number": "4.5.1",
+  "title": "General value functions",
+  "page": 112
+ },
+ {
+  "level": 3,
+  "number": "4.5.2",
+  "title": "Successor representations",
+  "page": 112
+ },
+ {
+  "level": 3,
+  "number": "4.5.3",
+  "title": "Successor features",
+  "page": 115
+ },
+ {
+  "level": 4,
+  "number": "4.5.3.1",
+  "title": "Generalized policy improvement",
+  "page": 116
+ },
+ {
+  "level": 4,
+  "number": "4.5.3.2",
+  "title": "Option keyboard",
+  "page": 116
+ },
+ {
+  "level": 4,
+  "number": "4.5.3.3",
+  "title": "Learning SFs",
+  "page": 117
+ },
+ {
+  "level": 4,
+  "number": "4.5.3.4",
+  "title": "Choosing the tasks",
+  "page": 117
+ },
+ {
+  "level": 3,
+  "number": "4.5.4",
+  "title": "Successor measures",
+  "page": 117
+ },
+ {
+  "level": 4,
+  "number": "4.5.4.1",
+  "title": "Learning SMs",
+  "page": 118
+ },
+ {
+  "level": 4,
+  "number": "4.5.4.2",
+  "title": "Jumpy models using geometric policy composition",
+  "page": 119
+ },
+ {
+  "level": 4,
+  "number": "4.5.4.3",
+  "title": "Other related work",
+  "page": 119
+ },
+ {
+  "level": 3,
+  "number": "4.5.5",
+  "title": "Connection between options and successor representations",
+  "page": 119
+ },
+ {
+  "level": 1,
+  "number": "5",
+  "title": "Multi-agent RL",
+  "page": 121
+ },
+ {
+  "level": 2,
+  "number": "5.1",
+  "title": "Games",
+  "page": 121
+ },
+ {
+  "level": 3,
+  "number": "5.1.1",
+  "title": "Normal-form games",
+  "page": 121
+ },
+ {
+  "level": 3,
+  "number": "5.1.2",
+  "title": "Stochastic games",
+  "page": 123
+ },
+ {
+  "level": 3,
+  "number": "5.1.3",
+  "title": "Partially observed stochastic games (POSG)",
+  "page": 123
+ },
+ {
+  "level": 4,
+  "number": "5.1.3.1",
+  "title": "Data generating process",
+  "page": 124
+ },
+ {
+  "level": 4,
+  "number": "5.1.3.2",
+  "title": "Objective",
+  "page": 124
+ },
+ {
+  "level": 4,
+  "number": "5.1.3.3",
+  "title": "Single agent perspective",
+  "page": 125
+ },
+ {
+  "level": 4,
+  "number": "5.1.3.4",
+  "title": "Factored Observation Stochastic Games (FOSG)",
+  "page": 125
+ },
+ {
+  "level": 3,
+  "number": "5.1.4",
+  "title": "Extensive form games (EFG)",
+  "page": 125
+ },
+ {
+  "level": 4,
+  "number": "5.1.4.1",
+  "title": "Example: Kuhn Poker as EFG",
+  "page": 125
+ },
+ {
+  "level": 4,
+  "number": "5.1.4.2",
+  "title": "Converting FOSG to EFG",
+  "page": 126
+ },
+ {
+  "level": 2,
+  "number": "5.2",
+  "title": "Solution concepts",
+  "page": 126
+ },
+ {
+  "level": 3,
+  "number": "5.2.1",
+  "title": "Notation and definitions",
+  "page": 127
+ },
+ {
+  "level": 3,
+  "number": "5.2.2",
+  "title": "Minimax",
+  "page": 127
+ },
+ {
+  "level": 3,
+  "number": "5.2.3",
+  "title": "Exploitability",
+  "page": 128
+ },
+ {
+  "level": 3,
+  "number": "5.2.4",
+  "title": "Nash equilibrium",
+  "page": 128
+ },
+ {
+  "level": 3,
+  "number": "5.2.5",
+  "title": "Approximate Nash equilibrium",
+  "page": 128
+ },
+ {
+  "level": 3,
+  "number": "5.2.6",
+  "title": "Entropy regularized Nash equilibria (aka Quantal Response Equilibria)",
+  "page": 129
+ },
+ {
+  "level": 3,
+  "number": "5.2.7",
+  "title": "Correlated equilibrium",
+  "page": 129
+ },
+ {
+  "level": 3,
+  "number": "5.2.8",
+  "title": "Limitations of equilibrium solutions",
+  "page": 130
+ },
+ {
+  "level": 3,
+  "number": "5.2.9",
+  "title": "Pareto optimality",
+  "page": 130
+ },
+ {
+  "level": 3,
+  "number": "5.2.10",
+  "title": "Social welfare and fairness",
+  "page": 131
+ },
+ {
+  "level": 3,
+  "number": "5.2.11",
+  "title": "No regret",
+  "page": 131
+ },
+ {
+  "level": 3,
+  "number": "5.2.12",
+  "title": "Shapley values",
+  "page": 132
+ },
+ {
+  "level": 3,
+  "number": "5.2.13",
+  "title": "Stackelberg equilibrium",
+  "page": 132
+ },
+ {
+  "level": 2,
+  "number": "5.3",
+  "title": "Algorithms",
+  "page": 133
+ },
+ {
+  "level": 3,
+  "number": "5.3.1",
+  "title": "Centralized learning",
+  "page": 133
+ },
+ {
+  "level": 3,
+  "number": "5.3.2",
+  "title": "Independent learning",
+  "page": 133
+ },
+ {
+  "level": 4,
+  "number": "5.3.2.1",
+  "title": "Independent Q learning",
+  "page": 133
+ },
+ {
+  "level": 4,
+  "number": "5.3.2.2",
+  "title": "Independent Actor Critic",
+  "page": 134
+ },
+ {
+  "level": 4,
+  "number": "5.3.2.3",
+  "title": "Independent PPO",
+  "page": 135
+ },
+ {
+  "level": 4,
+  "number": "5.3.2.4",
+  "title": "Learning dynamics of multi-agent policy gradient methods",
+  "page": 135
+ },
+ {
+  "level": 3,
+  "number": "5.3.3",
+  "title": "Centralized training of decentralized policies (CTDE)",
+  "page": 135
+ },
+ {
+  "level": 4,
+  "number": "5.3.3.1",
+  "title": "Application to Diplomacy (Cicero)",
+  "page": 136
+ },
+ {
+  "level": 3,
+  "number": "5.3.4",
+  "title": "Value decomposition methods for common-reward games",
+  "page": 136
+ },
+ {
+  "level": 4,
+  "number": "5.3.4.1",
+  "title": "Value decomposition network (VDN)",
+  "page": 137
+ },
+ {
+  "level": 4,
+  "number": "5.3.4.2",
+  "title": "QMIX",
+  "page": 137
+ },
+ {
+  "level": 3,
+  "number": "5.3.5",
+  "title": "Policy learning with self-play",
+  "page": 137
+ },
+ {
+  "level": 3,
+  "number": "5.3.6",
+  "title": "Policy learning with learned opponent models",
+  "page": 138
+ },
+ {
+  "level": 3,
+  "number": "5.3.7",
+  "title": "Best response",
+  "page": 138
+ },
+ {
+  "level": 4,
+  "number": "5.3.7.1",
+  "title": "Fictitious play",
+  "page": 138
+ },
+ {
+  "level": 4,
+  "number": "5.3.7.2",
+  "title": "Neural fictitious self play (NFSP)",
+  "page": 139
+ },
+ {
+  "level": 3,
+  "number": "5.3.8",
+  "title": "Population-based training",
+  "page": 139
+ },
+ {
+  "level": 4,
+  "number": "5.3.8.1",
+  "title": "PSRO (policy space response oracle)",
+  "page": 139
+ },
+ {
+  "level": 4,
+  "number": "5.3.8.2",
+  "title": "Application to StarCraft (AlphaStar)",
+  "page": 140
+ },
+ {
+  "level": 3,
+  "number": "5.3.9",
+  "title": "Counterfactual Regret Minimization (CFR)",
+  "page": 140
+ },
+ {
+  "level": 4,
+  "number": "5.3.9.1",
+  "title": "Tabular case",
+  "page": 141
+ },
+ {
+  "level": 4,
+  "number": "5.3.9.2",
+  "title": "Deep CFR",
+  "page": 141
+ },
+ {
+  "level": 4,
+  "number": "5.3.9.3",
+  "title": "Applications to Poker and other games",
+  "page": 141
+ },
+ {
+  "level": 3,
+  "number": "5.3.10",
+  "title": "Regularized policy gradient methods",
+  "page": 142
+ },
+ {
+  "level": 4,
+  "number": "5.3.10.1",
+  "title": "Magnetic Mirror Descent (MMD)",
+  "page": 142
+ },
+ {
+  "level": 4,
+  "number": "5.3.10.2",
+  "title": "PPO",
+  "page": 142
+ },
+ {
+  "level": 3,
+  "number": "5.3.11",
+  "title": "Decision-time planning methods",
+  "page": 143
+ },
+ {
+  "level": 4,
+  "number": "5.3.11.1",
+  "title": "Magnetic Mirror Descent Search (MMDS)",
+  "page": 143
+ },
+ {
+  "level": 4,
+  "number": "5.3.11.2",
+  "title": "Belief state approximations",
+  "page": 144
+ },
+ {
+  "level": 4,
+  "number": "5.3.11.3",
+  "title": "Experiments",
+  "page": 144
+ },
+ {
+  "level": 4,
+  "number": "5.3.11.4",
+  "title": "Open questions",
+  "page": 145
+ },
+ {
+  "level": 3,
+  "number": "5.3.12",
+  "title": "MARL for LLM agents",
+  "page": 145
+ },
+ {
+  "level": 1,
+  "number": "6",
+  "title": "LLMs and RL",
+  "page": 147
+ },
+ {
+  "level": 2,
+  "number": "6.1",
+  "title": "Introduction",
+  "page": 147
+ },
+ {
+  "level": 2,
+  "number": "6.2",
+  "title": "RL for LLMs",
+  "page": 147
+ },
+ {
+  "level": 3,
+  "number": "6.2.1",
+  "title": "RL fine tuning (RLFT)",
+  "page": 147
+ },
+ {
+  "level": 3,
+  "number": "6.2.2",
+  "title": "Reward models",
+  "page": 148
+ },
+ {
+  "level": 4,
+  "number": "6.2.2.1",
+  "title": "RL with verifiable rewards (RLVR)",
+  "page": 148
+ },
+ {
+  "level": 4,
+  "number": "6.2.2.2",
+  "title": "Process vs outcome reward models",
+  "page": 148
+ },
+ {
+  "level": 4,
+  "number": "6.2.2.3",
+  "title": "Learning the reward model from human feedback (RLHF)",
+  "page": 148
+ },
+ {
+  "level": 4,
+  "number": "6.2.2.4",
+  "title": "Learning the reward model from AI feedback (RLAIF)",
+  "page": 149
+ },
+ {
+  "level": 4,
+  "number": "6.2.2.5",
+  "title": "Generative reward models (GRM)",
+  "page": 149
+ },
+ {
+  "level": 3,
+  "number": "6.2.3",
+  "title": "Agents which ``think''",
+  "page": 149
+ },
+ {
+  "level": 4,
+  "number": "6.2.3.1",
+  "title": "Chain of thought prompting",
+  "page": 149
+ },
+ {
+  "level": 4,
+  "number": "6.2.3.2",
+  "title": "Training a thinking model using RL",
+  "page": 149
+ },
+ {
+  "level": 4,
+  "number": "6.2.3.3",
+  "title": "Thinking as marginal likelihood maximization",
+  "page": 150
+ },
+ {
+  "level": 4,
+  "number": "6.2.3.4",
+  "title": "Can we bootstrap a model to think from scratch?",
+  "page": 150
+ },
+ {
+  "level": 4,
+  "number": "6.2.3.5",
+  "title": "Agentic AI",
+  "page": 150
+ },
+ {
+  "level": 3,
+  "number": "6.2.4",
+  "title": "Algorithms for single-turn RL",
+  "page": 150
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.1",
+  "title": "Problem setup",
+  "page": 150
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.2",
+  "title": "PPO",
+  "page": 151
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.3",
+  "title": "GRPO",
+  "page": 151
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.4",
+  "title": "DAPO",
+  "page": 152
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.5",
+  "title": "GSPO",
+  "page": 152
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.6",
+  "title": "RLOO",
+  "page": 153
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.7",
+  "title": "REINFORCE++",
+  "page": 153
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.8",
+  "title": "VinePPO",
+  "page": 153
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.9",
+  "title": "Adding a KL regularizer",
+  "page": 154
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.10",
+  "title": "DPO",
+  "page": 154
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.11",
+  "title": "Inference-time scaling using posterior sampling",
+  "page": 155
+ },
+ {
+  "level": 4,
+  "number": "6.2.4.12",
+  "title": "RLFT as amortized posterior sampling",
+  "page": 156
+ },
+ {
+  "level": 3,
+  "number": "6.2.5",
+  "title": "Algorithms for multi-turn RL",
+  "page": 157
+ },
+ {
+  "level": 4,
+  "number": "6.2.5.1",
+  "title": "Example: RAGEN",
+  "page": 157
+ },
+ {
+  "level": 4,
+  "number": "6.2.5.2",
+  "title": "Dealing with invalid actions",
+  "page": 158
+ },
+ {
+  "level": 4,
+  "number": "6.2.5.3",
+  "title": "Turn-level training",
+  "page": 158
+ },
+ {
+  "level": 4,
+  "number": "6.2.5.4",
+  "title": "Self-play for LLM training",
+  "page": 159
+ },
+ {
+  "level": 3,
+  "number": "6.2.6",
+  "title": "Alignment and the assistance game",
+  "page": 160
+ },
+ {
+  "level": 2,
+  "number": "6.3",
+  "title": "LLMs for RL",
+  "page": 160
+ },
+ {
+  "level": 3,
+  "number": "6.3.1",
+  "title": "LLMs for pre-processing the input",
+  "page": 160
+ },
+ {
+  "level": 4,
+  "number": "6.3.1.1",
+  "title": "Example: AlphaProof",
+  "page": 161
+ },
+ {
+  "level": 4,
+  "number": "6.3.1.2",
+  "title": "VLMs for parsing images into structured data",
+  "page": 161
+ },
+ {
+  "level": 4,
+  "number": "6.3.1.3",
+  "title": "Active control of LLM sensor/preprocessor",
+  "page": 161
+ },
+ {
+  "level": 3,
+  "number": "6.3.2",
+  "title": "LLMs for rewards",
+  "page": 161
+ },
+ {
+  "level": 3,
+  "number": "6.3.3",
+  "title": "LLMs for world models",
+  "page": 162
+ },
+ {
+  "level": 4,
+  "number": "6.3.3.1",
+  "title": "LLMs as world models",
+  "page": 162
+ },
+ {
+  "level": 4,
+  "number": "6.3.3.2",
+  "title": "LLMs for generating code world models",
+  "page": 162
+ },
+ {
+  "level": 4,
+  "number": "6.3.3.3",
+  "title": "LLMs for generating partial code world models",
+  "page": 163
+ },
+ {
+  "level": 3,
+  "number": "6.3.4",
+  "title": "LLMs for policies",
+  "page": 163
+ },
+ {
+  "level": 4,
+  "number": "6.3.4.1",
+  "title": "LLMs for generating actions",
+  "page": 163
+ },
+ {
+  "level": 4,
+  "number": "6.3.4.2",
+  "title": "LLMs for generating code policies",
+  "page": 164
+ },
+ {
+  "level": 4,
+  "number": "6.3.4.3",
+  "title": "LLMs for generating code actions",
+  "page": 164
+ },
+ {
+  "level": 4,
+  "number": "6.3.4.4",
+  "title": "In-context RL",
+  "page": 164
+ },
+ {
+  "level": 3,
+  "number": "6.3.5",
+  "title": "Speeding up LLMs",
+  "page": 165
+ },
+ {
+  "level": 4,
+  "number": "6.3.5.1",
+  "title": "Computational complexity of transformer models",
+  "page": 165
+ },
+ {
+  "level": 4,
+  "number": "6.3.5.2",
+  "title": "Modern RNNs",
+  "page": 165
+ },
+ {
+  "level": 2,
+  "number": "6.4",
+  "title": "Implementation details",
+  "page": 165
+ },
+ {
+  "level": 3,
+  "number": "6.4.1",
+  "title": "Policy gradient using Tinker",
+  "page": 166
+ },
+ {
+  "level": 3,
+  "number": "6.4.2",
+  "title": "Rolling out episodes",
+  "page": 168
+ },
+ {
+  "level": 3,
+  "number": "6.4.3",
+  "title": "Computing the advantages",
+  "page": 168
+ },
+ {
+  "level": 3,
+  "number": "6.4.4",
+  "title": "Computing token level loss",
+  "page": 169
+ },
+ {
+  "level": 3,
+  "number": "6.4.5",
+  "title": "Computing metrics related to training stability",
+  "page": 169
+ },
+ {
+  "level": 3,
+  "number": "6.4.6",
+  "title": "Example",
+  "page": 170
+ },
+ {
+  "level": 1,
+  "number": "7",
+  "title": "Other topics in RL",
+  "page": 173
+ },
+ {
+  "level": 2,
+  "number": "7.1",
+  "title": "Regret minimization",
+  "page": 173
+ },
+ {
+  "level": 3,
+  "number": "7.1.1",
+  "title": "Regret for static MDPs",
+  "page": 173
+ },
+ {
+  "level": 3,
+  "number": "7.1.2",
+  "title": "Regret for non-stationary MDPs",
+  "page": 174
+ },
+ {
+  "level": 3,
+  "number": "7.1.3",
+  "title": "Minimizing regret vs maximizing expected utility",
+  "page": 174
+ },
+ {
+  "level": 2,
+  "number": "7.2",
+  "title": "Exploration-exploitation tradeoff",
+  "page": 175
+ },
+ {
+  "level": 3,
+  "number": "7.2.1",
+  "title": "Optimal (Bayesian) approach",
+  "page": 175
+ },
+ {
+  "level": 4,
+  "number": "7.2.1.1",
+  "title": "Bandit case (Gittins indices)",
+  "page": 176
+ },
+ {
+  "level": 4,
+  "number": "7.2.1.2",
+  "title": "MDP case (Bayes Adaptive MDPs)",
+  "page": 176
+ },
+ {
+  "level": 3,
+  "number": "7.2.2",
+  "title": "Thompson sampling",
+  "page": 176
+ },
+ {
+  "level": 4,
+  "number": "7.2.2.1",
+  "title": "Bandit case",
+  "page": 177
+ },
+ {
+  "level": 4,
+  "number": "7.2.2.2",
+  "title": "MDP case (posterior sampling RL)",
+  "page": 177
+ },
+ {
+  "level": 3,
+  "number": "7.2.3",
+  "title": "Upper confidence bounds (UCBs)",
+  "page": 178
+ },
+ {
+  "level": 4,
+  "number": "7.2.3.1",
+  "title": "Basic idea",
+  "page": 178
+ },
+ {
+  "level": 4,
+  "number": "7.2.3.2",
+  "title": "Bandit case: Frequentist approach",
+  "page": 179
+ },
+ {
+  "level": 4,
+  "number": "7.2.3.3",
+  "title": "Bandit case: Bayesian approach",
+  "page": 179
+ },
+ {
+  "level": 4,
+  "number": "7.2.3.4",
+  "title": "MDP case",
+  "page": 179
+ },
+ {
+  "level": 2,
+  "number": "7.3",
+  "title": "Distributional RL",
+  "page": 180
+ },
+ {
+  "level": 3,
+  "number": "7.3.1",
+  "title": "Quantile regression methods",
+  "page": 180
+ },
+ {
+  "level": 3,
+  "number": "7.3.2",
+  "title": "Replacing regression with classification",
+  "page": 180
+ },
+ {
+  "level": 2,
+  "number": "7.4",
+  "title": "Intrinsic motivation for reward-free RL",
+  "page": 181
+ },
+ {
+  "level": 3,
+  "number": "7.4.1",
+  "title": "Knowledge-based intrinsic motivation",
+  "page": 181
+ },
+ {
+  "level": 4,
+  "number": "7.4.1.1",
+  "title": "Exploration bonuses",
+  "page": 181
+ },
+ {
+  "level": 4,
+  "number": "7.4.1.2",
+  "title": "Random Network Distillation (RND)",
+  "page": 181
+ },
+ {
+  "level": 4,
+  "number": "7.4.1.3",
+  "title": "Information-theoretic measures",
+  "page": 182
+ },
+ {
+  "level": 3,
+  "number": "7.4.2",
+  "title": "Competence-based intrinsic motivation",
+  "page": 182
+ },
+ {
+  "level": 4,
+  "number": "7.4.2.1",
+  "title": "Empowerment",
+  "page": 182
+ },
+ {
+  "level": 4,
+  "number": "7.4.2.2",
+  "title": "Curriculum design",
+  "page": 183
+ },
+ {
+  "level": 4,
+  "number": "7.4.2.3",
+  "title": "Using an LLM to choose goals",
+  "page": 183
+ },
+ {
+  "level": 4,
+  "number": "7.4.2.4",
+  "title": "Go-Explore",
+  "page": 183
+ },
+ {
+  "level": 2,
+  "number": "7.5",
+  "title": "Hierarchical RL",
+  "page": 183
+ },
+ {
+  "level": 3,
+  "number": "7.5.1",
+  "title": "HRL using Options",
+  "page": 183
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.1",
+  "title": "Introduction",
+  "page": 183
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.2",
+  "title": "Option hierarchies",
+  "page": 185
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.3",
+  "title": "Hierarchical Q learning",
+  "page": 185
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.4",
+  "title": "MAXQ",
+  "page": 186
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.5",
+  "title": "Option learning using EM",
+  "page": 186
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.6",
+  "title": "Skill chaining",
+  "page": 186
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.7",
+  "title": "Option critic",
+  "page": 186
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.8",
+  "title": "Double actor critic (DAC)",
+  "page": 186
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.9",
+  "title": "Avoiding excessive (or insufficient) option switching",
+  "page": 187
+ },
+ {
+  "level": 4,
+  "number": "7.5.1.10",
+  "title": "MBRL using options",
+  "page": 187
+ },
+ {
+  "level": 3,
+  "number": "7.5.2",
+  "title": "HRL using feudal hierarchies",
+  "page": 187
+ },
+ {
+  "level": 4,
+  "number": "7.5.2.1",
+  "title": "Introduction",
+  "page": 187
+ },
+ {
+  "level": 4,
+  "number": "7.5.2.2",
+  "title": "Comparison with options",
+  "page": 187
+ },
+ {
+  "level": 4,
+  "number": "7.5.2.3",
+  "title": "Feudal Q learning",
+  "page": 188
+ },
+ {
+  "level": 4,
+  "number": "7.5.2.4",
+  "title": "Dealing with nonstationarity using hindsight relabeling (HIRO, HAC)",
+  "page": 188
+ },
+ {
+  "level": 4,
+  "number": "7.5.2.5",
+  "title": "Learning the goal space and policy",
+  "page": 189
+ },
+ {
+  "level": 3,
+  "number": "7.5.3",
+  "title": "Subtask discovery",
+  "page": 189
+ },
+ {
+  "level": 4,
+  "number": "7.5.3.1",
+  "title": "Discovery of subgoals",
+  "page": 189
+ },
+ {
+  "level": 4,
+  "number": "7.5.3.2",
+  "title": "Discovery of skills",
+  "page": 190
+ },
+ {
+  "level": 2,
+  "number": "7.6",
+  "title": "Imitation learning",
+  "page": 190
+ },
+ {
+  "level": 3,
+  "number": "7.6.1",
+  "title": "Imitation learning by behavior cloning",
+  "page": 191
+ },
+ {
+  "level": 3,
+  "number": "7.6.2",
+  "title": "Imitation learning by inverse reinforcement learning",
+  "page": 191
+ },
+ {
+  "level": 3,
+  "number": "7.6.3",
+  "title": "Imitation learning by divergence minimization",
+  "page": 192
+ },
+ {
+  "level": 2,
+  "number": "7.7",
+  "title": "Offline RL",
+  "page": 192
+ },
+ {
+  "level": 3,
+  "number": "7.7.1",
+  "title": "Offline model-free RL",
+  "page": 193
+ },
+ {
+  "level": 4,
+  "number": "7.7.1.1",
+  "title": "Policy constraint methods",
+  "page": 193
+ },
+ {
+  "level": 4,
+  "number": "7.7.1.2",
+  "title": "Behavior-constrained policy gradient methods",
+  "page": 194
+ },
+ {
+  "level": 4,
+  "number": "7.7.1.3",
+  "title": "Uncertainty penalties",
+  "page": 194
+ },
+ {
+  "level": 4,
+  "number": "7.7.1.4",
+  "title": "Conservative Q-learning",
+  "page": 195
+ },
+ {
+  "level": 3,
+  "number": "7.7.2",
+  "title": "Offline model-based RL",
+  "page": 195
+ },
+ {
+  "level": 3,
+  "number": "7.7.3",
+  "title": "Offline RL using reward-conditioned sequence modeling",
+  "page": 196
+ },
+ {
+  "level": 3,
+  "number": "7.7.4",
+  "title": "Offline-to-online methods",
+  "page": 196
+ },
+ {
+  "level": 4,
+  "number": "7.7.4.1",
+  "title": "Calibrated Q learning",
+  "page": 197
+ },
+ {
+  "level": 4,
+  "number": "7.7.4.2",
+  "title": "Dagger",
+  "page": 197
+ },
+ {
+  "level": 2,
+  "number": "7.8",
+  "title": "General RL, AIXI and universal AGI",
+  "page": 197
+ },
+ {
+  "level": 1,
+  "number": "8",
+  "title": "Acknowledgements",
+  "page": 199
+ }
+]

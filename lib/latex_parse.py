@@ -17,6 +17,9 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
+from lib.latex_macros import expand_custom_macros
+from lib.latex_outline import build_sections, parse_headings
+from lib.pdf_outline import pages_for_arxiv
 from lib.models import AlgorithmBlock, MathBlock, Section
 
 
@@ -128,40 +131,151 @@ _ALGO_CMD_RE = re.compile(
     r"\\(State|If|ElsIf|Else|EndIf|For|ForEach|EndFor|While|EndWhile|"
     r"Procedure|EndProcedure|Function|EndFunction|Return|Require|Ensure|"
     r"KwIn|KwOut|KwRet|KwData|KwResult|algorithmicindent|"
-    r"tcp|tcc)\b\s*"
+    # algorithm2e: \Repeat{cond}{body}, inline \lIf/\lFor, layout directives
+    r"Repeat|Until|lIf|lElse|lElseIf|uIf|uElse|eIf|lFor|lForEach|lWhile|"
+    r"ElseIf|BlankLine|DontPrintSemicolon|PrintSemicolon|SetAlgoLined|"
+    r"LinesNumbered|SetKwInOut|SetKwData|SetKwFunction|Indp|Indm|"
+    # [ \t]* not \s* — swallowing the newline runs "\EndFor\n\Return"
+    # together as "end forreturn"
+    r"tcp|tcc)\b[ \t]*"
 )
 _ALGO_COMMENT_RE = re.compile(r"\\(?:COMMENT|Comment|tcp\*?|tcc\*?)\{([^}]*)\}")
+# Math environments are stashed before plain $...$ spans: collapsing a
+# multi-line \begin{cases}...\end{cases} to a single token is what lets the
+# enclosing "$a=\begin{cases}…\end{cases}$" match the single-line $ pattern.
+_MATH_ENV_RE = re.compile(
+    r"\\begin\{(cases|matrix|pmatrix|bmatrix|vmatrix|Bmatrix|Vmatrix|"
+    r"array|aligned|split|smallmatrix|gathered)\}.*?\\end\{\1\}",
+    re.DOTALL,
+)
+# Math spans are preserved verbatim through pseudocode conversion.
+_MATH_SPAN_RE = re.compile(
+    r"\$\$.*?\$\$|\$[^$\n]*\$|\\\(.*?\\\)|\\\[.*?\\\]",
+    re.DOTALL,
+)
+# \label{...} typesets nothing; keeping its brace content leaks the raw key
+# ("algo:Qlearning") into the pseudocode as if it were a line of the algorithm.
+_ALGO_LABEL_RE = re.compile(r"\\label\s*\{[^}]*\}")
+# Nesting depth for restoring stashed math (env inside span inside span).
+_MATH_RESTORE_PASSES = 5
+# \begin{algorithmic}[1] / \end{algorithm} — scaffolding, never a pseudocode line.
+_ALGO_ENV_MARKER_RE = re.compile(
+    r"\\(?:begin|end)\s*\{(?:algorithm\*?|algorithm2e|algorithmic\*?)\}(?:\[[^\]]*\])?"
+)
+# How each algorithmic command reads once its backslash form is gone. Dropping
+# them outright turns "\For{$t=1$ to $T$}" into a bare "$t = 1$ to $T$", which
+# reads as an assertion rather than a loop.
+_ALGO_CMD_WORDS = {
+    "State": "", "algorithmicindent": "", "tcp": "", "tcc": "",
+    "Require": "Require: ", "Ensure": "Ensure: ",
+    "KwIn": "Input: ", "KwOut": "Output: ",
+    "KwData": "Data: ", "KwResult": "Result: ",
+    "If": "if ", "ElsIf": "else if ", "Else": "else", "EndIf": "end if",
+    "For": "for ", "ForEach": "for each ", "EndFor": "end for",
+    "While": "while ", "EndWhile": "end while",
+    "Procedure": "procedure ", "EndProcedure": "end procedure",
+    "Function": "function ", "EndFunction": "end function",
+    "Return": "return ", "KwRet": "return ",
+    # algorithm2e. \Repeat{cond}{body} puts its condition first, so it reads as
+    # "repeat until <cond>" — dropping the word leaves the condition standing
+    # alone as if it were a statement of the algorithm.
+    "Repeat": "repeat until ", "Until": "until ",
+    "lIf": "if ", "uIf": "if ", "eIf": "if ",
+    "lElse": "else ", "uElse": "else ", "lElseIf": "else if ", "ElseIf": "else if ",
+    "lFor": "for ", "lForEach": "for each ", "lWhile": "while ",
+    # Layout directives — they typeset nothing
+    "BlankLine": "", "DontPrintSemicolon": "", "PrintSemicolon": "",
+    "SetAlgoLined": "", "LinesNumbered": "", "SetKwInOut": "",
+    "SetKwData": "", "SetKwFunction": "", "Indp": "", "Indm": "",
+}
 _CAPTION_RE = re.compile(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", re.DOTALL)
 
 
 def _extract_algorithm_caption(block_src: str) -> str | None:
-    """Extract \\caption{} text from an algorithm block, or None if absent."""
+    """Extract \\caption{} text from an algorithm block, or None if absent.
+
+    Math spans are kept intact — stripping every command turns
+    "$\\epsilon$-greedy exploration" into "$$-greedy exploration".
+    """
     m = _CAPTION_RE.search(block_src)
     if not m:
         return None
-    text = re.sub(r"\\[a-zA-Z]+\s*", "", m.group(1))
+
+    math_spans: list[str] = []
+
+    def _stash(match: re.Match[str]) -> str:
+        math_spans.append(match.group(0))
+        return f"\x00M{len(math_spans) - 1}\x00"
+
+    text = _MATH_SPAN_RE.sub(_stash, m.group(1))
+    text = _ALGO_LABEL_RE.sub("", text)
+    text = re.sub(r"\\[a-zA-Z]+\s*", "", text)
     text = re.sub(r"[{}]", "", text)
+    text = re.sub(
+        r"\x00M(\d+)\x00", lambda mm: math_spans[int(mm.group(1))], text
+    )
     return text.strip() or None
 
 
 def _pseudocode_to_text(src: str) -> str:
     """Convert pseudocode LaTeX source to readable plain text.
 
-    Strips algorithmic command prefixes (\\State, \\If, etc.) while
-    preserving indentation structure implied by nested environments.
+    Strips algorithmic command prefixes (\\State, \\If, etc.) and the
+    surrounding environment markers while preserving line structure.
     Converts comments to // style.
+
+    Math spans are held aside before the generic command stripper runs and
+    restored afterwards. Without that, `$\\hat{\\theta}_0 \\leftarrow 0$`
+    loses every symbol and reaches the reader (and the explainer LLM) as
+    `$ _0  0$`.
     """
+    # Remove caption lines first (extracted separately) — they may hold math
+    text = _CAPTION_RE.sub("", src)
+    # Labels typeset nothing and would otherwise survive as their raw key
+    text = _ALGO_LABEL_RE.sub("", text)
+    # Hold math aside so the command stripper below cannot gut it. Environments
+    # go first so a multi-line one collapses to a single token, which lets the
+    # enclosing $...$ span match too.
+    math_spans: list[str] = []
+
+    def _stash(match: re.Match[str]) -> str:
+        math_spans.append(match.group(0))
+        return f"\x00M{len(math_spans) - 1}\x00"
+
+    text = _MATH_ENV_RE.sub(_stash, text)
+    text = _MATH_SPAN_RE.sub(_stash, text)
+    # LaTeX line break — a new line here, not two literal backslashes
+    text = re.sub(r"\\\\(?:\[[^\]]*\])?", "\n", text)
     # Convert comment commands to // notation
-    text = _ALGO_COMMENT_RE.sub(lambda m: f"  // {m.group(1)}", src)
-    # Remove caption lines (already extracted separately)
-    text = _CAPTION_RE.sub("", text)
-    # Remove algorithmic command prefixes — keep their argument/body text
-    text = _ALGO_CMD_RE.sub("", text)
+    text = _ALGO_COMMENT_RE.sub(lambda m: f"  // {m.group(1)}", text)
+    # Drop the environment markers themselves — "\begin{algorithmic}[1]" is
+    # scaffolding, not a pseudocode line
+    text = _ALGO_ENV_MARKER_RE.sub("", text)
+    # Replace algorithmic command prefixes with their plain-English reading,
+    # keeping their argument/body text
+    text = _ALGO_CMD_RE.sub(
+        lambda m: _ALGO_CMD_WORDS.get(m.group(1), ""), text
+    )
     # Strip remaining LaTeX commands but keep their brace content
     text = re.sub(r"\\[a-zA-Z]+\*?\s*\{([^}]*)\}", r"\1", text)
     text = re.sub(r"\\[a-zA-Z]+\*?\s*", " ", text)
+    # algorithm2e terminates statements with "\;" — it typesets nothing
+    text = re.sub(r"\\[;,:!]", "", text)
+    # "}{" joins two arguments; without a separator they run together as
+    # "$u < \epsilon$take random action"
+    text = text.replace("}{", "} {")
     text = re.sub(r"[{}]", "", text)
-    # Collapse excessive blank lines
+    # Restore the math untouched. Looped because an environment stashed first
+    # can sit inside a $...$ span stashed second.
+    placeholder = re.compile(r"\x00M(\d+)\x00")
+    for _ in range(_MATH_RESTORE_PASSES):
+        text, replaced = placeholder.subn(
+            lambda m: math_spans[int(m.group(1))], text
+        )
+        if not replaced:
+            break
+    # Collapse excessive blank lines and trailing whitespace per line
+    text = "\n".join(line.rstrip() for line in text.splitlines())
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -318,7 +432,12 @@ def _preprocess_for_text(latex: str) -> str:
     # 8. Convert LaTeX special characters that pylatexenc fallback misses.
     # \_ must NOT be converted inside inline $...$ math — KaTeX needs \_ to
     # render a literal underscore (plain _ is a subscript operator in math mode).
-    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n]|\\.)+?\$')
+    # NOTE: the alternatives must stay disjoint. `[^$\n]` also matches a
+    # backslash, so `(?:[^$\n]|\\.)` gives the engine two ways to consume every
+    # escape sequence — on an unbalanced `$` that backtracks exponentially
+    # (measured: 300+ s on a single 800-char context window). Excluding `\\`
+    # from the first branch makes the match unambiguous and linear.
+    _INLINE_MATH_RE = re.compile(r'\$\$[\s\S]*?\$\$|\$(?:[^$\n\\]|\\.)+?\$')
 
     def _sub_outside_math(text: str, pat: str, repl: str) -> str:
         parts: list[str] = []
@@ -486,6 +605,32 @@ def _extract_math_matches(latex_body: str) -> list[_RawMatch]:
     return matches
 
 
+_THEOREM_LIKE_RE = re.compile(
+    r"\\begin\{(theorem|lemma|proposition|corollary|definition|conjecture|claim|fact)\}\*?"
+    r"(?:\s*\[[^\]]*\])?",
+)
+
+
+def _enclosing_theorem_context(
+    body: str, pos: int, window: int = 400
+) -> tuple[str, str] | None:
+    """If pos lies inside a theorem-like env, return (env_name, opening_prose).
+
+    The opening prose is the plain-text content between the environment's
+    \\begin header and either the math position or `window` chars, whichever
+    comes first.
+    """
+    spans = [
+        (m.group(1), m.end(), body.find(r"\end{" + m.group(1), m.start()))
+        for m in _THEOREM_LIKE_RE.finditer(body)
+    ]
+    for name, open_end, end in spans:
+        if end != -1 and open_end <= pos < end:
+            opening = _latex_to_text(body[open_end:min(end, open_end + window)]).strip()
+            return name, (opening[:300] or "")
+    return None
+
+
 def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
     """Extract all math blocks from a section body.
 
@@ -502,6 +647,11 @@ def _build_math_blocks(latex_body: str) -> tuple[MathBlock, ...]:
 
     for idx, raw in enumerate(raw_matches):
         ctx_before, ctx_after = _extract_context(clean, raw.start, raw.end, raw.env_type)
+        theorem_tag = _enclosing_theorem_context(clean, raw.start)
+        if theorem_tag:
+            env_name, opening = theorem_tag
+            if opening:
+                ctx_before = f"[Inside {env_name}: {opening}]\n\n{ctx_before}"
         blocks.append(MathBlock(
             order_idx=idx,
             env_type=raw.env_type,
@@ -607,77 +757,38 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def _expand_custom_macros(latex_doc: str) -> str:
-    """Expand simple (zero-argument) custom macros defined in the document.
-
-    Handles \\newcommand, \\renewcommand, \\providecommand, and \\DeclareMathOperator.
-    Only expands macros with no arguments (no [n] or #1 in the body).
-    Leaves the original definitions in place (harmless for downstream parsing).
-    """
-    # Match: \newcommand{\name}{body}, \providecommand{\name}{body}, etc.
-    # Also handles \newcommand\name{body} (no braces around name)
-    _MACRO_DEF_RE = re.compile(
-        r"\\(?:new|renew|provide)command\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"       # \macroName (with or without outer braces)
-        r"(?:\s*\[\d+\])?"           # optional [num_args] — if present, skip expansion
-        r"\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}",   # {body} with one level of nesting
-    )
-    _DECLARE_OP_RE = re.compile(
-        r"\\DeclareMathOperator\s*"
-        r"\{?(\\[a-zA-Z]+)\}?"
-        r"\s*\{([^}]+)\}",
-    )
-
-    macros: dict[str, str] = {}
-
-    for m in _MACRO_DEF_RE.finditer(latex_doc):
-        name = m.group(1)   # e.g. \PtwoB
-        body = m.group(2)   # e.g. \mathcal B
-        # Skip macros that take arguments (#1 in body)
-        if "#" in body:
-            continue
-        macros[name] = body
-
-    for m in _DECLARE_OP_RE.finditer(latex_doc):
-        name = m.group(1)
-        body = m.group(2)
-        macros[name] = rf"\operatorname{{{body}}}"
-
-    if not macros:
-        return latex_doc
-
-    # Build a single regex to replace all macros in one pass.
-    # Sort by length (longest first) to avoid partial matches.
-    sorted_names = sorted(macros, key=len, reverse=True)
-    pattern = re.compile(
-        "(" + "|".join(re.escape(n) for n in sorted_names) + r")(?![a-zA-Z])"
-    )
-
-    def _replace(m: re.Match) -> str:  # type: ignore[type-arg]
-        return macros[m.group(1)]
-
-    # Limit to 3 passes for macros that expand into other macros
-    result = latex_doc
-    for _ in range(3):
-        new_result = pattern.sub(_replace, result)
-        if new_result == result:
-            break
-        result = new_result
-
-    return result
-
-
-def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
+def parse_latex_sections(
+    latex_doc: str,
+    preamble: str = "",
+    arxiv_id: str | None = None,
+) -> tuple[Section, ...]:
     """
     Parse a merged LaTeX document into Section objects with math blocks.
 
     Args:
-        latex_doc: Full LaTeX source (preamble already stripped).
+        latex_doc: LaTeX body (preamble already stripped).
+        preamble:  The stripped preamble, used only as a source of macro
+                   definitions. Omitting it leaves paper-specific macros
+                   unexpanded, which breaks downstream KaTeX rendering.
+        arxiv_id:  When given, the paper's PDF outline is used to attach page
+                   numbers. Omitting it (or any failure downloading/reading the
+                   PDF) simply leaves page fields None.
 
     Returns:
         Tuple of Section objects, each containing zero or more MathBlock objects.
     """
-    latex_doc = _expand_custom_macros(latex_doc)
+    latex_doc = expand_custom_macros(latex_doc, preamble)
+
+    # Structured path: the document has real sectioning commands, so derive the
+    # heading tree directly. Every heading becomes a section, order_idx is
+    # contiguous, and container headings are kept as navigation nodes.
+    headings = parse_headings(latex_doc)
+    if headings:
+        pages = pages_for_arxiv(arxiv_id, headings) if arxiv_id else {}
+        return build_sections(headings, latex_doc, pages)
+
+    # Fallback: no \chapter/\section anywhere (single-section notes, odd
+    # preprints). Keep the heuristic splitter.
     raw_sections = _split_sections(latex_doc)
     sections: list[Section] = []
 
@@ -696,7 +807,7 @@ def parse_latex_sections(latex_doc: str) -> tuple[Section, ...]:
         math_blocks = _build_math_blocks(body)
 
         sections.append(Section(
-            order_idx=idx,
+            order_idx=len(sections),
             title=title or _infer_section_title(idx, plain_text, raw_latex=body),
             plain_text=plain_text,
             raw_latex=body,

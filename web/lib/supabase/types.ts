@@ -37,6 +37,12 @@ export interface Section {
   raw_latex: string | null;
   has_math: boolean | null;
   created_at: string;
+  /** Outline metadata — null for papers processed before migration 008. */
+  level: number | null;        // 1=chapter 2=section 3=subsection 4=subsubsection
+  number: string | null;       // "2.5.3"
+  page_start: number | null;   // 1-based PDF page
+  page_end: number | null;
+  page_source: string | null;  // 'pdf_outline' | 'inferred'
 }
 
 export interface MathBlock {

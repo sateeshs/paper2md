@@ -12,6 +12,11 @@ Usage:
   python explain_math_only.py --section-id <uuid>                # single section (page)
   python explain_math_only.py --max-blocks 100                   # override cap
   python explain_math_only.py --force                            # re-explain all blocks
+  python explain_math_only.py --ask-key                          # type the API key at runtime
+  python explain_math_only.py --dry-run --max-blocks 3           # preview, write nothing
+
+With --ask-key the key is entered at a hidden prompt, held in memory for this
+process only, and never written to .env or any server.
 """
 
 from __future__ import annotations
@@ -24,7 +29,28 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from lib.explanation_quality import find_defect
+from lib.key_prompt import (
+    PROVIDER_KEYS,
+    KeyPromptError,
+    ensure_provider_key,
+    read_key_from_stdin,
+)
+
 load_dotenv(Path(__file__).parent / ".env")
+
+
+# Module-level guard to ensure configure_dspy() is called exactly once per process
+_dspy_configured: bool = False
+
+
+def _ensure_dspy() -> None:
+    """Ensure DSPy is configured exactly once per process."""
+    global _dspy_configured
+    if not _dspy_configured:
+        from lib.dspy_config import configure_dspy
+        configure_dspy()
+        _dspy_configured = True
 
 
 def _get_client():
@@ -32,6 +58,35 @@ def _get_client():
     url = os.environ["SUPABASE_URL"].strip()
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"].strip()
     return create_client(url, key)
+
+
+def _fetch_section(client, section_id: str) -> dict | None:
+    """Resolve a section row with nested paper data. Returns None if unknown."""
+    resp = (
+        client.table("sections")
+        .select("id, title, paper_id, papers(id, arxiv_id, title)")
+        .eq("id", section_id).maybe_single().execute()
+    )
+    if not resp.data:
+        tqdm.write(f"[WARN] Section {section_id} not found in DB.")
+    return resp.data
+
+
+def _fetch_paper(client, arxiv_id: str) -> tuple[dict | None, list[str]]:
+    """Resolve a paper row + its section IDs. Returns (None, []) if unknown."""
+    resp = (
+        client.table("papers").select("id, arxiv_id, title")
+        .eq("arxiv_id", arxiv_id).maybe_single().execute()
+    )
+    paper = resp.data
+    if not paper:
+        tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
+        return None, []
+    secs = client.table("sections").select("id, title, paper_id").eq("paper_id", paper["id"]).execute()
+    section_ids = [s["id"] for s in (secs.data or [])]
+    if not section_ids:
+        tqdm.write(f"[WARN] No sections found for {arxiv_id}.")
+    return paper, section_ids
 
 
 def fetch_unexplained_blocks(
@@ -53,29 +108,15 @@ def fetch_unexplained_blocks(
 
     if section_id:
         # Single section mode — resolve paper via section
-        sec_resp = (
-            client.table("sections")
-            .select("id, title, paper_id, papers(id, arxiv_id, title)")
-            .eq("id", section_id)
-            .single()
-            .execute()
-        )
-        if not sec_resp.data:
-            tqdm.write(f"[WARN] Section {section_id} not found in DB.")
+        sec = _fetch_section(client, section_id)
+        if not sec:
             return []
         section_ids = [section_id]
-        paper_meta = sec_resp.data.get("papers")
-        tqdm.write(f"[INFO] Section: {sec_resp.data.get('title', '?')} (paper: {(paper_meta or {}).get('title', '?')})")
+        paper_meta = sec.get("papers")
+        tqdm.write(f"[INFO] Section: {sec.get('title', '?')} (paper: {(paper_meta or {}).get('title', '?')})")
     elif arxiv_id:
-        paper_resp = client.table("papers").select("id, arxiv_id, title").eq("arxiv_id", arxiv_id).single().execute()
-        if not paper_resp.data:
-            tqdm.write(f"[WARN] Paper {arxiv_id} not found in DB.")
-            return []
-        paper_meta = paper_resp.data
-        secs_resp = client.table("sections").select("id, title, paper_id").eq("paper_id", paper_meta["id"]).execute()
-        section_ids = [s["id"] for s in (secs_resp.data or [])]
-        if not section_ids:
-            tqdm.write(f"[WARN] No sections found for {arxiv_id}.")
+        paper_meta, section_ids = _fetch_paper(client, arxiv_id)
+        if not paper_meta:
             return []
 
     # Build base query
@@ -83,7 +124,7 @@ def fetch_unexplained_blocks(
         client.table("math_blocks")
         .select(
             "id, order_idx, env_type, latex_expr, context_before, context_after, explanation,"
-            "sections(id, title, paper_id, papers(id, arxiv_id, title))"
+            "sections(id, title, level, paper_id, papers(id, arxiv_id, title))"
         )
     )
 
@@ -108,20 +149,49 @@ def fetch_unexplained_blocks(
     return rows
 
 
+def _paper_section_levels(client, paper_uuid: str | None) -> set[int]:
+    """Outline levels present anywhere in a paper, for document-type inference.
+
+    Queried separately from the selected blocks: a capped run may not include
+    any chapter-level section, which would make a book look like an article.
+    """
+    if not paper_uuid:
+        return set()
+    try:
+        resp = (
+            client.table("sections")
+            .select("level")
+            .eq("paper_id", paper_uuid)
+            .not_.is_("level", "null")
+            .execute()
+        )
+        return {r["level"] for r in (resp.data or []) if r.get("level") is not None}
+    except Exception:
+        return set()
+
+
+def _format_exc(e: Exception) -> str:
+    """Format exception for logging."""
+    msg = str(e).strip()
+    if msg:
+        return f"{type(e).__name__}: {msg}"
+    return type(e).__name__
+
+
 def run(
     arxiv_id: str | None,
     max_blocks: int,
     force: bool,
     min_expr_len: int,
-    paper_type: str,
+    paper_type: str | None,
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
-) -> None:
-    from lib.dspy_config import configure_dspy
+    dry_run: bool = False,
+) -> int:
     from lib.dspy_modules import MathExplainer
     from lib.models import MathBlock
 
-    configure_dspy()
+    _ensure_dspy()
     explainer = MathExplainer()
     client = _get_client()
 
@@ -130,37 +200,39 @@ def run(
 
     if not rows:
         tqdm.write("[INFO] No unexplained blocks found.")
-        return
+        return 0
 
-    # Section-aware cap: limit blocks per section before applying global cap
-    if max_blocks_per_section:
-        from collections import defaultdict
-        by_section: dict[str, list[dict]] = defaultdict(list)
-        for r in rows:
-            sid = (r.get("sections") or {}).get("id") or ""
-            by_section[sid].append(r)
+    from lib.math_block_selection import prioritize_and_cap
+    from lib.paper_type import infer_paper_type
+    before = len(rows)
+    rows = prioritize_and_cap(rows, max_blocks=max_blocks, max_blocks_per_section=max_blocks_per_section)
+    tqdm.write(f"[INFO] Selected {len(rows)} of {before} candidate block(s)")
 
-        filtered: list[dict] = []
-        for sec_rows in by_section.values():
-            named = [r for r in sec_rows if r["env_type"] != "inline"][:max_blocks_per_section]
-            inline_r = [r for r in sec_rows if r["env_type"] == "inline"][:max_blocks_per_section]
-            filtered.extend(named)
-            filtered.extend(inline_r)
-        rows = filtered
-        tqdm.write(f"[INFO] After per-section cap ({max_blocks_per_section}/section): {len(rows)} candidates")
+    # An explicit --paper-type wins; the heuristic only fills in when the user
+    # did not say. Inferring over a stated choice silently ignored the flag.
+    titles_by_paper: dict[str, list[str]] = {}
+    paper_uuid_by_arxiv: dict[str, str] = {}
+    for r in rows:
+        sec = r.get("sections") or {}
+        pid = ((sec.get("papers") or {}).get("arxiv_id")) or "?"
+        titles_by_paper.setdefault(pid, []).append(sec.get("title") or "")
+        if sec.get("paper_id"):
+            paper_uuid_by_arxiv.setdefault(pid, sec["paper_id"])
 
-    # Prioritise named envs (equation/align) over inline
-    def priority(r: dict) -> int:
-        return 0 if r["env_type"] != "inline" else 1
-
-    rows.sort(key=priority)
-
-    # Apply global cap
-    if len(rows) > max_blocks:
-        tqdm.write(f"[INFO] {len(rows)} blocks found — capping at {max_blocks}")
-        rows = rows[:max_blocks]
-
-    tqdm.write(f"[INFO] Will explain {len(rows)} block(s)")
+    if paper_type is not None:
+        type_by_paper = {pid: paper_type for pid in titles_by_paper}
+        tqdm.write(f"[INFO] paper type: {paper_type} (from --paper-type)")
+    else:
+        # Levels must come from the paper's full outline, not just the blocks
+        # selected here — a capped run may not include any chapter-level row.
+        type_by_paper = {
+            pid: infer_paper_type(
+                titles,
+                section_levels=_paper_section_levels(client, paper_uuid_by_arxiv.get(pid)),
+            )
+            for pid, titles in titles_by_paper.items()
+        }
+        tqdm.write(f"[INFO] paper types (inferred): {type_by_paper}")
 
     updated = skipped = failed = 0
 
@@ -178,7 +250,9 @@ def run(
             latex_expr=row["latex_expr"],
             context_before=row.get("context_before") or "",
             context_after=row.get("context_after") or "",
-            paper_type=paper_type,
+            paper_type=type_by_paper.get(
+                paper.get("arxiv_id") or "?", paper_type or "research_paper"
+            ),
         )
 
         # Skip trivially short inline expressions
@@ -193,17 +267,44 @@ def run(
             failed += 1
             continue
 
+        # Weak or overloaded models return placeholders and repetition loops
+        # that parse as valid JSON. Writing those is worse than writing
+        # nothing: the block looks explained and never gets retried.
+        defect = find_defect(explained.explanation)
+        if defect:
+            failed += 1
+            tqdm.write(f"[REJECT] block {row['id']}: {defect}")
+            continue
+
+        if dry_run:
+            # Verify the provider and the output before writing to the live DB.
+            preview = json.loads(explained.explanation)
+            tqdm.write(
+                f"\n[DRY RUN] {section_title} — {block.env_type} block {block.order_idx}\n"
+                f"  expr: {block.latex_expr.strip()[:90]}\n"
+                f"  what_it_computes: {str(preview.get('what_it_computes'))[:220]}\n"
+                f"  model: {explained.explanation_model}"
+            )
+            updated += 1
+            continue
+
         # UPDATE in-place — never touch sections or papers rows
-        client.table("math_blocks").update({
-            "explanation":       explained.explanation,
-            "explanation_model": explained.explanation_model,
-        }).eq("id", row["id"]).execute()
+        try:
+            client.table("math_blocks").update({
+                "explanation":       explained.explanation,
+                "explanation_model": explained.explanation_model,
+            }).eq("id", row["id"]).execute()
+            updated += 1
+        except Exception as e:
+            failed += 1
+            tqdm.write(f"[ERROR] update failed for block {row['id']}: {_format_exc(e)}")
 
-        updated += 1
-
+    verb = "would update" if dry_run else "updated"
     tqdm.write(
-        f"[INFO] Done — updated: {updated}, skipped (trivial): {skipped}, failed: {failed}"
+        f"[INFO] Done — {verb}: {updated}, skipped (trivial): {skipped}, failed: {failed}"
+        + ("  (no rows were written)" if dry_run else "")
     )
+    return 1 if failed else 0
 
 
 def main() -> int:
@@ -220,13 +321,43 @@ def main() -> int:
                     help="Re-explain blocks that already have explanations")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Generate explanations and print them without writing to "
+                         "Supabase; use this to check a key and output quality first")
+    ap.add_argument("--key-stdin", action="store_true",
+                    help="Read the API key from stdin (for contexts with no terminal, "
+                         "e.g. piping from a password manager)")
+    ap.add_argument("--ask-key", action="store_true",
+                    help="Prompt for the LLM API key at runtime instead of reading it "
+                         "from the environment; the key is never stored")
+    ap.add_argument("--provider", choices=sorted(PROVIDER_KEYS),
+                    help="LLM provider to use (default: PAPER2MD_LLM_PROVIDER, or gemini)")
     ap.add_argument("--paper-type",
                     choices=["research_paper", "textbook", "lecture_notes"],
-                    default="research_paper",
-                    help="Document type for explanation framing (default: research_paper)")
+                    default=None,
+                    help="Document type for explanation framing. Overrides the "
+                         "heuristic; omit it to infer from the paper's structure.")
     args = ap.parse_args()
 
-    run(
+    if args.force and not (args.arxiv_id or args.section_id):
+        ap.error("--force requires --arxiv-id or --section-id (it would rewrite every block)")
+
+    provider = args.provider or os.environ.get("PAPER2MD_LLM_PROVIDER", "gemini").strip().lower()
+    if args.provider:
+        # An explicit --provider must also steer configure_dspy's selection order.
+        os.environ["PAPER2MD_LLM_PROVIDER"] = provider
+    if args.key_stdin:
+        try:
+            read_key_from_stdin(provider)
+        except KeyPromptError as e:
+            ap.error(str(e))
+    elif args.ask_key:
+        try:
+            ensure_provider_key(provider, ask=True)
+        except KeyPromptError as e:
+            ap.error(str(e))
+
+    return run(
         arxiv_id=args.arxiv_id,
         max_blocks=args.max_blocks,
         force=args.force,
@@ -234,8 +365,8 @@ def main() -> int:
         paper_type=args.paper_type,
         max_blocks_per_section=args.max_blocks_per_section,
         section_id=args.section_id,
+        dry_run=args.dry_run,
     )
-    return 0
 
 
 if __name__ == "__main__":

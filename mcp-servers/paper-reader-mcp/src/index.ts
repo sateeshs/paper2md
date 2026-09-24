@@ -17,8 +17,11 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { aggregatePrerequisites } from './prerequisites'
+import { requireAuth } from './auth'
 
 interface Env {
+  /** Shared bearer token; requests without it are rejected. */
+  MCP_AUTH_TOKEN: string
   SUPABASE_URL: string
   SUPABASE_ANON_KEY: string
 }
@@ -260,6 +263,10 @@ export default {
     if (request.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 })
     }
+
+    // Everything past this point can read the database and spend LLM quota.
+    const denied = requireAuth(request, env)
+    if (denied) return denied
 
     const server = createServer(env)
     const transport = new WebStandardStreamableHTTPServerTransport({

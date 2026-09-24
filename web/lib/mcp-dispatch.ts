@@ -26,7 +26,15 @@ export async function triggerMCPProcessing(arxivId: string): Promise<void> {
     { name: 'queue-trigger', version: '1.0.0' },
     { capabilities: {} }
   )
-  const transport = new StreamableHTTPClientTransport(new URL(baseUrl))
+  const token = process.env.MCP_AUTH_TOKEN?.trim()
+  if (!token) {
+    console.error('[mcp-dispatch] MCP_AUTH_TOKEN is not set — skipping trigger')
+    return
+  }
+
+  const transport = new StreamableHTTPClientTransport(new URL(baseUrl), {
+    requestInit: { headers: { Authorization: `Bearer ${token}` } },
+  })
 
   try {
     await client.connect(transport)
