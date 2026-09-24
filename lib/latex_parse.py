@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from typing import Iterator
 
 from lib.latex_macros import expand_custom_macros
+from lib.latex_outline import build_sections, parse_headings
+from lib.pdf_outline import pages_for_arxiv
 from lib.models import AlgorithmBlock, MathBlock, Section
 
 
@@ -755,7 +757,11 @@ def _split_sections(latex_doc: str) -> list[tuple[str, str]]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def parse_latex_sections(latex_doc: str, preamble: str = "") -> tuple[Section, ...]:
+def parse_latex_sections(
+    latex_doc: str,
+    preamble: str = "",
+    arxiv_id: str | None = None,
+) -> tuple[Section, ...]:
     """
     Parse a merged LaTeX document into Section objects with math blocks.
 
@@ -764,11 +770,25 @@ def parse_latex_sections(latex_doc: str, preamble: str = "") -> tuple[Section, .
         preamble:  The stripped preamble, used only as a source of macro
                    definitions. Omitting it leaves paper-specific macros
                    unexpanded, which breaks downstream KaTeX rendering.
+        arxiv_id:  When given, the paper's PDF outline is used to attach page
+                   numbers. Omitting it (or any failure downloading/reading the
+                   PDF) simply leaves page fields None.
 
     Returns:
         Tuple of Section objects, each containing zero or more MathBlock objects.
     """
     latex_doc = expand_custom_macros(latex_doc, preamble)
+
+    # Structured path: the document has real sectioning commands, so derive the
+    # heading tree directly. Every heading becomes a section, order_idx is
+    # contiguous, and container headings are kept as navigation nodes.
+    headings = parse_headings(latex_doc)
+    if headings:
+        pages = pages_for_arxiv(arxiv_id, headings) if arxiv_id else {}
+        return build_sections(headings, latex_doc, pages)
+
+    # Fallback: no \chapter/\section anywhere (single-section notes, odd
+    # preprints). Keep the heuristic splitter.
     raw_sections = _split_sections(latex_doc)
     sections: list[Section] = []
 
@@ -787,7 +807,7 @@ def parse_latex_sections(latex_doc: str, preamble: str = "") -> tuple[Section, .
         math_blocks = _build_math_blocks(body)
 
         sections.append(Section(
-            order_idx=idx,
+            order_idx=len(sections),
             title=title or _infer_section_title(idx, plain_text, raw_latex=body),
             plain_text=plain_text,
             raw_latex=body,

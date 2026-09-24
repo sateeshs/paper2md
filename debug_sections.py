@@ -48,8 +48,9 @@ print()
 
 # 4. Show final parse_latex_sections() result
 print("=== parse_latex_sections() final sections ===")
-sections = parse_latex_sections(body, split_preamble(full_source))
+sections = parse_latex_sections(body, split_preamble(full_source), arxiv_id=arxiv_id)
 for s in sections:
-    print(f"  §{s.order_idx} {s.title!r:50s}  plain_len={len(s.plain_text or ''):5,}  math={len(s.math_blocks)}")
+    pg = f"p.{s.page_start}-{s.page_end}" if s.page_start else "p.?"
+    print(f"  [{s.order_idx:3d}] {'  '*((s.level or 1)-1)}{s.number or '':<9} {(s.title or '')[:50]:50s} {pg:>10s}  len={len(s.plain_text or ''):6,}  math={len(s.math_blocks)}")
 
 print(f"\nTotal sections kept: {len(sections)}")

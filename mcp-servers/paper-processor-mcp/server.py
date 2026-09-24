@@ -143,7 +143,7 @@ async def create_sections(arxiv_id: str) -> list[dict]:
 
     try:
         sections = await asyncio.to_thread(
-            parse_latex_sections, latex_body, split_preamble(full_src)
+            parse_latex_sections, latex_body, split_preamble(full_src), arxiv_id
         )
     except Exception as exc:
         return _err(f"Failed to parse sections: {exc}")

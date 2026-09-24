@@ -21,6 +21,8 @@ from pathlib import Path
 
 import httpx
 
+from lib.latex_outline import strip_comments
+
 
 # ArXiv source URL pattern
 _SOURCE_URL = "https://arxiv.org/src/{arxiv_id}"
@@ -223,6 +225,11 @@ def _resolve_includes(
         except OSError:
             return m.group(0)
 
+    # Strip comments first: a commented-out directive such as `%\\input{code}`
+    # must not be inlined. Without this the file is pulled in twice — once at the
+    # comment's position — and the orphaned `%` then comments out the included
+    # file's own first line.
+    content = strip_comments(content)
     content = _INPUT_RE.sub(replacer, content)
     return _resolve_local_packages(content, root_dir, depth)
 

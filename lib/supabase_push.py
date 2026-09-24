@@ -174,6 +174,11 @@ def push_paper(paper: Paper) -> None:
             "plain_text": _s(s.plain_text),
             "raw_latex":  _s(s.raw_latex),
             "has_math":   len(s.math_blocks) > 0,
+            "level":       s.level,
+            "number":      s.number,
+            "page_start":  s.page_start,
+            "page_end":    s.page_end,
+            "page_source": s.page_source,
         }
         for s in paper.sections
     ]

@@ -324,7 +324,7 @@ def process_arxiv_id(
             # Preamble holds most \newcommand definitions — without it those
             # macros leak unexpanded into the DB and fail to render.
             preamble = split_preamble(full_latex_source or "")
-            sections = parse_latex_sections(latex, preamble)
+            sections = parse_latex_sections(latex, preamble, arxiv_id=arxiv_id)
             tqdm.write(
                 f"[INFO] {label}: {len(sections)} sections, "
                 f"{sum(len(s.math_blocks) for s in sections)} math blocks"
