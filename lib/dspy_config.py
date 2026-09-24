@@ -28,6 +28,17 @@ import dspy
 
 _COUNTS_FILE = Path.home() / ".paper2md" / "provider_counts.json"
 
+# OpenRouter model is overridable because a paid account should not be forced
+# through the free queue (~70s/call). The free slug stays the default so nothing
+# changes for free-tier keys; the daily_limit / rpm / sleep_s throttles above
+# exist only to stay inside the free tier and are lifted for a paid slug.
+_OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
+_OPENROUTER_MODEL = os.environ.get(
+    "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
+).strip() or _OPENROUTER_FREE_MODEL
+_OPENROUTER_IS_PAID = _OPENROUTER_MODEL != _OPENROUTER_FREE_MODEL
+
+
 PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     "gemini": {
         "model":    "gemini/gemini-2.0-flash",
@@ -44,11 +55,14 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         "sleep_s":  2.0,
     },
     "openrouter": {
-        "model":    "openrouter/openrouter/free",
+        # Free routing by default. Set PAPER2MD_OPENROUTER_MODEL to a paid slug
+        # (e.g. "openrouter/google/gemini-2.0-flash-001") to bypass the free
+        # queue; the throttles below are lifted when that is set.
+        "model":    _OPENROUTER_MODEL,
         "env_key":  "OPENROUTER_API_KEY",
-        "daily_limit": 200,
-        "rpm":      10,
-        "sleep_s":  6.0,
+        "daily_limit": None if _OPENROUTER_IS_PAID else 200,
+        "rpm":      500 if _OPENROUTER_IS_PAID else 10,
+        "sleep_s":  0.1 if _OPENROUTER_IS_PAID else 6.0,
     },
     # Legacy: keep working if user only has OPENAI_API_KEY
     "openai": {
