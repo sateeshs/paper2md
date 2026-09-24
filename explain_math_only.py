@@ -29,6 +29,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from lib.explanation_quality import find_defect
 from lib.key_prompt import (
     PROVIDER_KEYS,
     KeyPromptError,
@@ -264,6 +265,15 @@ def run(
         if not explained.explanation:
             # explain_block failed silently
             failed += 1
+            continue
+
+        # Weak or overloaded models return placeholders and repetition loops
+        # that parse as valid JSON. Writing those is worse than writing
+        # nothing: the block looks explained and never gets retried.
+        defect = find_defect(explained.explanation)
+        if defect:
+            failed += 1
+            tqdm.write(f"[REJECT] block {row['id']}: {defect}")
             continue
 
         if dry_run:
