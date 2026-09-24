@@ -32,6 +32,13 @@ _COUNTS_FILE = Path.home() / ".paper2md" / "provider_counts.json"
 # through the free queue (~70s/call). The free slug stays the default so nothing
 # changes for free-tier keys; the daily_limit / rpm / sleep_s throttles above
 # exist only to stay inside the free tier and are lifted for a paid slug.
+# Google retires model ids without warning — gemini-2.0-flash 404'd with
+# "no longer available". Overridable so a retirement is a one-line env fix
+# rather than a code change; "gemini/gemini-flash-latest" tracks the newest.
+_GEMINI_MODEL = os.environ.get(
+    "PAPER2MD_GEMINI_MODEL", "gemini/gemini-3.8-flash"
+).strip() or "gemini/gemini-3.8-flash"
+
 _OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
 _OPENROUTER_MODEL = os.environ.get(
     "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
@@ -41,7 +48,7 @@ _OPENROUTER_IS_PAID = _OPENROUTER_MODEL != _OPENROUTER_FREE_MODEL
 
 PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     "gemini": {
-        "model":    "gemini/gemini-2.0-flash",
+        "model":    _GEMINI_MODEL,
         "env_key":  "GEMINI_API_KEY",
         "daily_limit": 1_500,
         "rpm":      15,
