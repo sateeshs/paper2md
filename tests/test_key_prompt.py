@@ -238,3 +238,21 @@ def test_dry_run_does_not_write(monkeypatch):
     update_idx = src.index('client.table("math_blocks").update(')
     assert dry_idx < update_idx, "dry_run guard must short-circuit before the update"
     assert "continue" in src[dry_idx:update_idx], "dry_run branch must skip the write"
+
+
+# ── paper-type precedence ──────────────────────────────────────────────────
+
+def test_explicit_paper_type_defaults_to_none():
+    """Default must be None so an explicit choice is distinguishable."""
+    import inspect, explain_math_only
+    src = inspect.getsource(explain_math_only.main)
+    block = src[src.index('"--paper-type"'):src.index('args = ap.parse_args()')]
+    assert "default=None" in block, "--paper-type must default to None, not a type"
+
+
+def test_explicit_paper_type_short_circuits_inference():
+    import inspect, explain_math_only
+    src = inspect.getsource(explain_math_only.run)
+    guard = src.index("if paper_type is not None:")
+    infer = src.index("infer_paper_type(")
+    assert guard < infer, "an explicit --paper-type must win over the heuristic"

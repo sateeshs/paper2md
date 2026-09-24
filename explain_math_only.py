@@ -123,7 +123,7 @@ def fetch_unexplained_blocks(
         client.table("math_blocks")
         .select(
             "id, order_idx, env_type, latex_expr, context_before, context_after, explanation,"
-            "sections(id, title, paper_id, papers(id, arxiv_id, title))"
+            "sections(id, title, level, paper_id, papers(id, arxiv_id, title))"
         )
     )
 
@@ -148,6 +148,27 @@ def fetch_unexplained_blocks(
     return rows
 
 
+def _paper_section_levels(client, paper_uuid: str | None) -> set[int]:
+    """Outline levels present anywhere in a paper, for document-type inference.
+
+    Queried separately from the selected blocks: a capped run may not include
+    any chapter-level section, which would make a book look like an article.
+    """
+    if not paper_uuid:
+        return set()
+    try:
+        resp = (
+            client.table("sections")
+            .select("level")
+            .eq("paper_id", paper_uuid)
+            .not_.is_("level", "null")
+            .execute()
+        )
+        return {r["level"] for r in (resp.data or []) if r.get("level") is not None}
+    except Exception:
+        return set()
+
+
 def _format_exc(e: Exception) -> str:
     """Format exception for logging."""
     msg = str(e).strip()
@@ -161,7 +182,7 @@ def run(
     max_blocks: int,
     force: bool,
     min_expr_len: int,
-    paper_type: str,
+    paper_type: str | None,
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
     dry_run: bool = False,
@@ -186,15 +207,31 @@ def run(
     rows = prioritize_and_cap(rows, max_blocks=max_blocks, max_blocks_per_section=max_blocks_per_section)
     tqdm.write(f"[INFO] Selected {len(rows)} of {before} candidate block(s)")
 
-    # Infer document type per paper from its section titles; the --paper-type
-    # CLI value remains the fallback for rows whose paper can't be resolved.
+    # An explicit --paper-type wins; the heuristic only fills in when the user
+    # did not say. Inferring over a stated choice silently ignored the flag.
     titles_by_paper: dict[str, list[str]] = {}
+    paper_uuid_by_arxiv: dict[str, str] = {}
     for r in rows:
         sec = r.get("sections") or {}
         pid = ((sec.get("papers") or {}).get("arxiv_id")) or "?"
         titles_by_paper.setdefault(pid, []).append(sec.get("title") or "")
-    type_by_paper = {pid: infer_paper_type(titles) for pid, titles in titles_by_paper.items()}
-    tqdm.write(f"[INFO] paper types: {type_by_paper}")
+        if sec.get("paper_id"):
+            paper_uuid_by_arxiv.setdefault(pid, sec["paper_id"])
+
+    if paper_type is not None:
+        type_by_paper = {pid: paper_type for pid in titles_by_paper}
+        tqdm.write(f"[INFO] paper type: {paper_type} (from --paper-type)")
+    else:
+        # Levels must come from the paper's full outline, not just the blocks
+        # selected here — a capped run may not include any chapter-level row.
+        type_by_paper = {
+            pid: infer_paper_type(
+                titles,
+                section_levels=_paper_section_levels(client, paper_uuid_by_arxiv.get(pid)),
+            )
+            for pid, titles in titles_by_paper.items()
+        }
+        tqdm.write(f"[INFO] paper types (inferred): {type_by_paper}")
 
     updated = skipped = failed = 0
 
@@ -212,7 +249,9 @@ def run(
             latex_expr=row["latex_expr"],
             context_before=row.get("context_before") or "",
             context_after=row.get("context_after") or "",
-            paper_type=type_by_paper.get(paper.get("arxiv_id") or "?", paper_type),
+            paper_type=type_by_paper.get(
+                paper.get("arxiv_id") or "?", paper_type or "research_paper"
+            ),
         )
 
         # Skip trivially short inline expressions
@@ -285,8 +324,9 @@ def main() -> int:
                     help="LLM provider to use (default: PAPER2MD_LLM_PROVIDER, or gemini)")
     ap.add_argument("--paper-type",
                     choices=["research_paper", "textbook", "lecture_notes"],
-                    default="research_paper",
-                    help="Document type for explanation framing (default: research_paper)")
+                    default=None,
+                    help="Document type for explanation framing. Overrides the "
+                         "heuristic; omit it to infer from the paper's structure.")
     args = ap.parse_args()
 
     if args.force and not (args.arxiv_id or args.section_id):

@@ -146,3 +146,33 @@ def test_page_fields_are_applied_from_the_mapping():
 def test_starred_heading_gets_none_number_not_empty_string():
     doc = r"\section*{Acknowledgements} thanks"
     assert build_sections(parse_headings(doc), doc)[0].number is None
+
+
+# ── paper-type inference from outline structure ────────────────────────────
+
+def test_chapter_level_implies_textbook():
+    """A \\chapter-using document is a book even with no 'Chapter N' titles."""
+    from lib.paper_type import infer_paper_type
+    titles = ["Introduction", "Value-based RL", "Policy-based RL"]
+    assert infer_paper_type(titles, section_levels={1, 2, 3}) == "textbook"
+
+
+def test_no_chapter_level_stays_a_research_paper():
+    from lib.paper_type import infer_paper_type
+    titles = ["Introduction", "Method", "Experiments", "Conclusion"]
+    assert infer_paper_type(titles, section_levels={2, 3}) == "research_paper"
+
+
+def test_levels_are_optional_and_titles_still_work():
+    from lib.paper_type import infer_paper_type
+    assert infer_paper_type(["Chapter 1: Basics"]) == "textbook"
+    assert infer_paper_type(["Introduction", "Method"]) == "research_paper"
+
+
+def test_levels_come_from_the_whole_paper_not_the_selected_blocks():
+    """A capped run may include no chapter-level row; inference must not be fooled."""
+    import inspect, explain_math_only
+    src = inspect.getsource(explain_math_only.run)
+    assert "_paper_section_levels(client" in src, (
+        "levels must be queried for the paper, not derived from selected rows"
+    )
