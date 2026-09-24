@@ -134,8 +134,10 @@ def fetch_unexplained_blocks(
     if section_ids is not None:
         query = query.in_("section_id", section_ids)
 
-    resp = query.execute()
-    rows = resp.data or []
+    # PostgREST caps a response at 1000 rows. Without paging, a --force run
+    # (which has no "explanation is null" filter to shrink the set) refetches
+    # the same first 1000 rows every time and can never reach the rest.
+    rows = _fetch_all(query)
 
     # Attach paper_meta to rows where join might be null (single-paper mode)
     if arxiv_id and paper_meta:
@@ -147,6 +149,21 @@ def fetch_unexplained_blocks(
     rows = [r for r in rows if r.get("sections") and r["sections"].get("papers")]
 
     return rows
+
+
+_PAGE_SIZE = 1000
+
+
+def _fetch_all(query) -> list[dict]:
+    """Page through a PostgREST query until every matching row is retrieved."""
+    rows: list[dict] = []
+    offset = 0
+    while True:
+        page = query.range(offset, offset + _PAGE_SIZE - 1).execute().data or []
+        rows.extend(page)
+        if len(page) < _PAGE_SIZE:
+            return rows
+        offset += _PAGE_SIZE
 
 
 def _paper_section_levels(client, paper_uuid: str | None) -> set[int]:

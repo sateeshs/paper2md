@@ -97,3 +97,36 @@ def test_low_diversity_text_is_rejected():
 def test_short_repetitive_text_is_not_flagged():
     """Below the length threshold, repetition is not evidence of a loop."""
     assert is_usable(good(intuition="very very very good"))
+
+
+# ── candidate fetch pagination ─────────────────────────────────────────────
+
+def test_fetch_all_pages_past_the_postgrest_row_cap():
+    """PostgREST caps a response at 1000 rows; --force has no filter to shrink
+    the set, so without paging it refetches the same rows forever."""
+    from explain_math_only import _PAGE_SIZE, _fetch_all
+
+    class FakeQuery:
+        def __init__(self, total): self.total, self.calls = total, []
+        def range(self, lo, hi):
+            self.calls.append((lo, hi)); self._lo, self._hi = lo, hi; return self
+        def execute(self):
+            rows = [{"id": i} for i in range(self._lo, min(self._hi + 1, self.total))]
+            return type("R", (), {"data": rows})()
+
+    q = FakeQuery(2060)
+    rows = _fetch_all(q)
+    assert len(rows) == 2060
+    assert q.calls[0] == (0, _PAGE_SIZE - 1)
+    assert len(q.calls) == 3, "should page until a short page is returned"
+
+
+def test_fetch_all_stops_on_a_single_short_page():
+    from explain_math_only import _fetch_all
+
+    class FakeQuery:
+        def range(self, lo, hi): self._lo, self._hi = lo, hi; return self
+        def execute(self):
+            return type("R", (), {"data": [{"id": i} for i in range(5)]})()
+
+    assert len(_fetch_all(FakeQuery())) == 5
