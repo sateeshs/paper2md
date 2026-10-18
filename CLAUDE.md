@@ -209,12 +209,13 @@ MathBlock(order_idx, env_type, latex_expr, context_before, context_after,
 
 ```
 1. Gemini 2.0 Flash      GEMINI_API_KEY         1,500 req/day free
-2. Groq llama-3.3-70b    GROQ_API_KEY           1,000 req/day free
-3. OpenRouter (free)     OPENROUTER_API_KEY       ~200 req/day free
-4. OpenAI gpt-4o-mini    OPENAI_API_KEY           paid fallback
+2. Groq gpt-oss-120b     GROQ_API_KEY           1,000 req/day free
+3. Ollama Cloud (free)   OLLAMA_API_KEY         5h session + weekly limits
+4. OpenRouter (free)     OPENROUTER_API_KEY       ~200 req/day free
+5. OpenAI gpt-4o-mini    OPENAI_API_KEY           paid fallback
 ```
 
-Force a provider: `PAPER2MD_LLM_PROVIDER=gemini` (or `groq`, `openrouter`, `openai`).
+Force a provider: `PAPER2MD_LLM_PROVIDER=gemini` (or `groq`, `ollama`, `openrouter`, `openai`).
 
 ### Key Design Decisions (Python)
 

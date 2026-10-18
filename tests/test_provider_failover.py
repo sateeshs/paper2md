@@ -37,7 +37,8 @@ def providers(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("message", [GEMINI_DAILY, OPENROUTER_DAILY,
-                                     "Rate limit reached on requests per day (RPD)"])
+                                     "Rate limit reached on requests per day (RPD)",
+                                     "you've reached your session usage limit"])
 def test_daily_quota_errors_are_recognised(message):
     assert dspy_config.is_daily_quota_error(Exception(message))
 
@@ -185,3 +186,12 @@ def test_call_returns_to_preferred_provider_once_its_quota_resets(providers, mon
     now["t"] += 601
     dspy_modules._call_with_tracking(lambda **kw: "ok")
     assert configured and configured[-1].startswith("gemini/")
+
+
+def test_ollama_cloud_is_tried_after_groq_and_targets_ollama_com(providers, monkeypatch):
+    monkeypatch.setenv("OLLAMA_API_KEY", "ol-key")
+    dspy_config.mark_provider_exhausted("gemini")
+    assert dspy_config.configure_dspy() == "ollama"
+    lm = dspy_config._make_lm("ollama")
+    assert lm.model.startswith("ollama_chat/")
+    assert lm.kwargs["api_base"] == "https://ollama.com"

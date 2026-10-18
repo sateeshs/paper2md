@@ -40,6 +40,21 @@ _GEMINI_MODEL = os.environ.get(
     "PAPER2MD_GEMINI_MODEL", "gemini/gemini-3.8-flash"
 ).strip() or "gemini/gemini-3.8-flash"
 
+# Groq retired llama-3.3-70b-versatile ("model_not_found"); same override as Gemini.
+_GROQ_DEFAULT_MODEL = "groq/openai/gpt-oss-120b"
+_GROQ_MODEL = os.environ.get(
+    "PAPER2MD_GROQ_MODEL", _GROQ_DEFAULT_MODEL
+).strip() or _GROQ_DEFAULT_MODEL
+
+# Ollama Cloud free tier: no published daily cap — usage is GPU-time metered
+# with 5-hour session and weekly windows, so daily_limit is None and the
+# "usage limit" 429 drives failover instead.
+_OLLAMA_DEFAULT_MODEL = "ollama_chat/gpt-oss:120b"
+_OLLAMA_MODEL = os.environ.get(
+    "PAPER2MD_OLLAMA_MODEL", _OLLAMA_DEFAULT_MODEL
+).strip() or _OLLAMA_DEFAULT_MODEL
+_OLLAMA_API_BASE = "https://ollama.com"
+
 _OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
 _OPENROUTER_MODEL = os.environ.get(
     "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
@@ -56,11 +71,18 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         "sleep_s":  4.0,
     },
     "groq": {
-        "model":    "groq/llama-3.3-70b-versatile",
+        "model":    _GROQ_MODEL,
         "env_key":  "GROQ_API_KEY",
         "daily_limit": 1_000,
         "rpm":      30,
         "sleep_s":  2.0,
+    },
+    "ollama": {
+        "model":    _OLLAMA_MODEL,
+        "env_key":  "OLLAMA_API_KEY",
+        "daily_limit": None,
+        "rpm":      30,
+        "sleep_s":  1.0,
     },
     "openrouter": {
         # Free routing by default. Set PAPER2MD_OPENROUTER_MODEL to a paid slug
@@ -153,8 +175,11 @@ def _make_lm(provider: str) -> dspy.LM | None:
             "X-Title":      "paper2md",
         }
 
+    if provider == "ollama":
+        kwargs["api_base"] = _OLLAMA_API_BASE
+
     # OpenAI-compatible base URLs are handled by LiteLLM inside DSPy
-    # via the provider-prefixed model name (e.g. "groq/llama-3.3-70b-versatile")
+    # via the provider-prefixed model name (e.g. "groq/openai/gpt-oss-120b")
     if provider == "openai":
         base_url = os.environ.get("OPENAI_BASE_URL", "").strip()
         if base_url:
@@ -174,8 +199,9 @@ class ProvidersExhaustedError(RuntimeError):
 
 # Markers of a per-day cap, as opposed to a per-minute one that backoff clears:
 # Gemini "...PerDayPerProject...", OpenRouter "free-models-per-day",
-# Groq "requests per day (RPD)".
-_DAILY_QUOTA_MARKERS = ("perday", "per-day", "per day", "per_day")
+# Groq "requests per day (RPD)", Ollama Cloud "...session usage limit" /
+# "weekly usage limit".
+_DAILY_QUOTA_MARKERS = ("perday", "per-day", "per day", "per_day", "usage limit")
 
 
 def is_daily_quota_error(error: Exception) -> bool:
@@ -209,7 +235,7 @@ def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RE
 
 def _provider_order() -> list[str]:
     explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
-    default = ["gemini", "groq", "openrouter", "openai"]
+    default = ["gemini", "groq", "ollama", "openrouter", "openai"]
     if explicit not in PROVIDER_CONFIG:
         return default
     return [explicit] + [p for p in default if p != explicit]
@@ -234,7 +260,7 @@ def configure_dspy() -> str:
     if not keyed:
         raise RuntimeError(
             "No LLM provider API key found. Set at least one of: "
-            "GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
+            "GEMINI_API_KEY, GROQ_API_KEY, OLLAMA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
     provider = _preferred_provider(keyed)
