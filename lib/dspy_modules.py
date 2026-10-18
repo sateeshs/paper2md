@@ -26,7 +26,10 @@ from tqdm import tqdm
 from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
+    ProvidersExhaustedError,
+    failover_provider,
     increment_provider_count,
+    is_daily_quota_error,
     is_provider_exhausted,
     rate_limit_sleep,
 )
@@ -103,6 +106,10 @@ _PLACEHOLDER_RE = re.compile(
 
 # JSON artifacts: leading ]] or [[ that leak from structured output
 _JSON_ARTIFACT_RE = re.compile(r"^\s*\]{1,2}\s*")
+
+# Truncation from a repetition loop is the usual cause of an empty response;
+# DSPy's own guidance is to raise the temperature. Used only on the last retry.
+_RETRY_TEMPERATURE = 0.9
 
 
 def _wrap_bare_greek(text: str) -> str:
@@ -194,16 +201,24 @@ def _active_provider() -> str:
 def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     """Call a DSPy module, track usage count, and sleep for rate limiting.
     Retries up to 4 times on rate limit errors with exponential backoff.
+    A daily-quota error is not retried — backoff cannot clear it — but fails
+    over to the next provider; ProvidersExhaustedError when none is left.
     """
     provider = _active_provider()
     max_retries = 4
-    for attempt in range(max_retries):
+    attempt = 0
+    while attempt < max_retries:
         try:
             result = module(**kwargs)
             increment_provider_count(provider)
             rate_limit_sleep(provider)
             return result
         except Exception as e:
+            if is_daily_quota_error(e):
+                tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")
+                provider = failover_provider(provider)
+                tqdm.write(f"[INFO] now using {provider}")
+                continue
             msg = str(e).lower()
             is_rate_limit = "ratelimit" in msg or "rate_limit" in msg or "429" in msg or "rate limit" in msg
             if is_rate_limit and attempt < max_retries - 1:
@@ -213,6 +228,7 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
                 wait = int(match.group(1)) + 2 if match else 15 * (2 ** attempt)
                 tqdm.write(f"[WARN] Rate limited (attempt {attempt+1}/{max_retries}), waiting {wait}s…")
                 time.sleep(wait)
+                attempt += 1
             else:
                 raise
 
@@ -234,6 +250,10 @@ class MathExplainer(dspy.Module):
     def __init__(self) -> None:
         super().__init__()
         self.explain = dspy.ChainOfThought(ExplainMathBlock)
+        # Fallback for blocks whose ChainOfThought output overruns max_tokens.
+        # Predict drops the `reasoning` field, which is by far the largest part
+        # of the response, so the seven real fields fit in the same budget.
+        self.explain_terse = dspy.Predict(ExplainMathBlock)
 
     def _should_skip(self, block: MathBlock) -> bool:
         """Skip trivially short inline expressions like $n$, $x$, $i$."""
@@ -241,48 +261,78 @@ class MathExplainer(dspy.Module):
             return True
         return False
 
+    def _run(
+        self,
+        module: dspy.Module,
+        block: MathBlock,
+        paper_title: str,
+        section_title: str,
+        temperature: float | None = None,
+    ) -> str:
+        """Call one predictor and return the sanitized explanation JSON."""
+        extra = {"config": {"temperature": temperature}} if temperature is not None else {}
+        pred = _call_with_tracking(
+            module,
+            paper_title=paper_title,
+            section_title=section_title or "Unknown Section",
+            context_before=block.context_before or "",
+            latex_expr=block.latex_expr,
+            context_after=block.context_after or "",
+            paper_type=block.paper_type,
+            **extra,
+        )
+        raw_fields = {
+            "what_it_computes":          pred.what_it_computes,
+            "symbol_meanings":           pred.symbol_meanings,
+            "intuition":                 pred.intuition,
+            "derivation":                pred.derivation,
+            "proof_role":                pred.proof_role,
+            "prerequisites":             pred.prerequisites,
+            "mathematical_significance": pred.mathematical_significance,
+        }
+        return json.dumps(_sanitize_explanation(raw_fields), ensure_ascii=False)
+
     def explain_block(
         self,
         block: MathBlock,
         paper_title: str,
         section_title: str,
     ) -> MathBlock:
-        """Return a new MathBlock with explanation filled in."""
+        """Return a new MathBlock with explanation filled in.
+
+        Large display equations make ChainOfThought overrun max_tokens; the
+        provider then returns an empty response and the block gets no
+        explanation at all. Retrying the same module is useless — DSPy caches
+        the truncated result and replays it instantly — so the retry uses a
+        different predictor, which is both a smaller response and a distinct
+        cache key.
+        """
         if self._should_skip(block):
             return block
 
-        try:
-            pred = _call_with_tracking(
-                self.explain,
-                paper_title=paper_title,
-                section_title=section_title or "Unknown Section",
-                context_before=block.context_before or "",
-                latex_expr=block.latex_expr,
-                context_after=block.context_after or "",
-                paper_type=block.paper_type,
-            )
-            raw_fields = {
-                "what_it_computes":        pred.what_it_computes,
-                "symbol_meanings":         pred.symbol_meanings,
-                "intuition":               pred.intuition,
-                "derivation":              pred.derivation,
-                "proof_role":              pred.proof_role,
-                "prerequisites":           pred.prerequisites,
-                "mathematical_significance": pred.mathematical_significance,
-            }
-            explanation = json.dumps(
-                _sanitize_explanation(raw_fields),
-                ensure_ascii=False,
-            )
+        attempts = (
+            (self.explain,       "chain-of-thought",       None),
+            (self.explain_terse, "terse",                  None),
+            (self.explain_terse, "terse/high-temperature", _RETRY_TEMPERATURE),
+        )
+        for module, label, temperature in attempts:
+            try:
+                explanation = self._run(
+                    module, block, paper_title, section_title, temperature
+                )
+            except ProvidersExhaustedError:
+                raise  # no predictor can succeed today; let the caller stop
+            except Exception as e:
+                tqdm.write(
+                    f"[WARN] MathExplainer ({label}) failed for block {block.order_idx}: {e}"
+                )
+                continue
             return dataclasses.replace(
                 block,
                 explanation=explanation,
                 explanation_model=_active_provider(),
             )
-        except Exception as e:
-            # Non-fatal: log and continue without explanation
-            tqdm.write(f"[WARN] MathExplainer failed for block {block.order_idx}: {e}")
-            return block
+        return block
 
     def forward(
         self,

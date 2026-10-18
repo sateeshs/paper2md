@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MathBlock as MathBlockType } from "@/lib/supabase/types";
 import { KATEX_OPTIONS, isDisplayMode, prepareLatex } from "@/lib/katex-helpers";
-import { ProseWithMath } from "@/components/ProseWithMath";
+import { ProseBlocks } from "@/components/ProseBlocks";
 import { CodePanel } from "@/components/CodePanel";
 import type { CodeSection, CodeArtifactForSave } from "@/components/CodePanel";
 import { flags } from "@/lib/feature-flags";
@@ -639,9 +639,9 @@ function ExplanationPanel({ explanation }: { explanation: string }) {
   }
 
   return (
-    <p className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950">
-      <ProseWithMath text={explanation} />
-    </p>
+    <div className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950">
+      <ProseBlocks text={explanation} />
+    </div>
   );
 }
 
@@ -649,8 +649,8 @@ function ExplanationRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
-      <dd className="mt-0.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">
-        <ProseWithMath text={value} />
+      <dd className="mt-0.5 text-zinc-700 dark:text-zinc-300">
+        <ProseBlocks text={value} />
       </dd>
     </div>
   );

@@ -9,6 +9,8 @@ interface SectionStub {
   id: string;
   title: string | null;
   order_idx: number;
+  /** Authoritative page from the PDF outline (migration 008). */
+  page_start?: number | null;
 }
 
 function normalizeLine(text: string): string {
@@ -62,8 +64,14 @@ function titleInPage(title: string, pageText: string): boolean {
 }
 
 /**
- * Scans PDF text once and returns a map of sectionId → page number.
- * Falls back to order-based estimate when a title isn't found.
+ * Maps sectionId → 1-based PDF page.
+ *
+ * Papers processed after migration 008 carry `page_start`, derived server-side
+ * from the PDF hyperref outline. That is exact, so it is used directly and no
+ * PDF is downloaded or scanned at all.
+ *
+ * Papers processed before then fall back to scanning the PDF text for heading
+ * lines, which is slower and approximate.
  */
 export function useSectionPageMap(
   arxivId: string,
@@ -75,6 +83,13 @@ export function useSectionPageMap(
   useEffect(() => {
     if (!sections.length) return;
     let cancelled = false;
+
+    // Fast path: the server already resolved every page from the PDF outline.
+    if (sections.every((s) => s.page_start != null)) {
+      setPageMap(new Map(sections.map((s) => [s.id, s.page_start as number])));
+      setScanning(false);
+      return;
+    }
 
     async function scan() {
       setScanning(true);

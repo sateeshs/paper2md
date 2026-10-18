@@ -132,6 +132,32 @@ This prints:
 - Raw `_split_sections()` output with body sizes
 - Final `parse_latex_sections()` output with plain text lengths
 
+### Macro expansion — always pass the preamble
+
+`parse_latex_sections(body, preamble)` **requires** the preamble. Papers define
+almost all of their macros there (`\newcommand`, `\def`, `\NewDocumentCommand`,
+`\DeclarePairedDelimiter`), and `_strip_preamble()` removes it from the body.
+Calling `parse_latex_sections(body)` alone leaves those macros unexpanded; they
+reach the DB as raw control sequences and KaTeX cannot render them.
+
+Get it via `split_preamble(full_src)` from the second element of
+`fetch_arxiv_latex_full()`. `lib/latex_macros.py` handles:
+
+- `\newcommand` / `\renewcommand` / `\providecommand`, including `[n]` and `[n][default]`
+- `\def\name#1#2{...}` (undelimited parameters only)
+- `\DeclareMathOperator`
+- xparse `\NewDocumentCommand` and friends — specs `m`, `o`, `O{d}`, `s`
+- mathtools `\DeclarePairedDelimiter` / `\DeclarePairedDelimiterXPP`
+- macro-defining wrappers (a macro whose body contains `\newcommand`)
+
+Definitions apply **from the point they appear**, so per-chapter redefinitions
+with different arities resolve correctly. expl3-bodied definitions (`\seq_…:Nn`)
+expand to nothing but still consume their arguments — they are bookkeeping
+commands with no typeset output.
+
+Not handled: delimited-parameter `\def`, and macros from packages that are not
+shipped inside the tarball.
+
 **Adaptive splitting**: `latex_parse.py` automatically re-splits any section
 body > 30 000 chars on `\subsection` commands. This handles survey/textbook
 papers that have few top-level `\section{}` blocks with enormous bodies.
@@ -139,7 +165,8 @@ papers that have few top-level `\section{}` blocks with enormous bodies.
 ### Pipeline (per paper)
 
 ```
-arxiv_source.py        Download tar.gz → find main .tex → merge \input{}
+arxiv_source.py        Download tar.gz → find main .tex → merge \input{} + local .sty
+latex_macros.py        Expand the paper's own macros (preamble + body)
 latex_parse.py         Split sections, extract math blocks + context windows
 dspy_modules.py        PaperSummarizer: chunk → map SummarizeChunk → reduce
 dspy_modules.py        MathExplainer: ExplainMathBlock per block (cap: 50)
@@ -155,8 +182,9 @@ supabase_push.py       UPSERT papers, DELETE+INSERT sections+math_blocks
 | `text_clean.py` | Pure normalization | `clean_pdf_text()`, `normalize_for_sentences()` |
 | `content_analysis.py` | Metadata from text | `extract_structured_content()`, `chunk_text_for_llm()` |
 | `cache.py` | SHA-256 hash cache | `PaperCache` — `.get_cached()`, `.store()`, `.clear()` |
-| `arxiv_source.py` | ArXiv LaTeX download | `fetch_arxiv_latex_full(arxiv_id) → (body, full_src)` |
-| `latex_parse.py` | Section + math extraction | `parse_latex_sections(latex_source) → tuple[Section]` |
+| `arxiv_source.py` | ArXiv LaTeX download | `fetch_arxiv_latex_full(arxiv_id) → (body, full_src)`, `split_preamble(full_src)` |
+| `latex_macros.py` | Custom macro expansion | `expand_custom_macros(body, *extra_sources)` |
+| `latex_parse.py` | Section + math extraction | `parse_latex_sections(body, preamble) → tuple[Section]` |
 | `dspy_config.py` | Provider setup + fallback | `configure_dspy() → str` |
 | `dspy_signatures.py` | Typed LLM contracts | `ExplainMathBlock`, `SummarizeChunk`, `ReduceToFinalSummary` |
 | `dspy_modules.py` | DSPy CoT modules | `MathExplainer.forward(paper)`, `PaperSummarizer.forward(paper)` |
@@ -336,6 +364,7 @@ export default async function Page({
 ### Useful Scripts
 
 ```bash
+npm test                    # vitest run — KaTeX helpers, ProseWithMath, render fixture
 npm run type-check          # tsc --noEmit
 npm run gen:types           # regenerate lib/supabase/types.ts from live DB schema
 ```
@@ -407,7 +436,8 @@ modal secret create paper2md-secrets \
   GROQ_API_KEY="..." \
   OPENROUTER_API_KEY="..." \
   PAPER2MD_LLM_PROVIDER="gemini" \
-  PAPER2MD_MAX_MATH_BLOCKS="50"
+  PAPER2MD_MAX_MATH_BLOCKS="50" \
+  MCP_AUTH_TOKEN="$(openssl rand -hex 32)"
 
 # Deploy MCP server + batch cron
 modal deploy mcp-servers/paper-processor-mcp/modal_app.py
@@ -448,6 +478,13 @@ PAPER_READER_MCP_URL=               # Cloudflare Workers URL for paper-reader-mc
 ARXIV_SEARCH_MCP_URL=               # Cloudflare Workers URL for arxiv-search-mcp
 MATH_TO_CODE_MCP_URL=               # Cloudflare Workers URL for math-to-code-mcp (optional)
 
+# Shared bearer token for ALL MCP servers — REQUIRED whenever any MCP URL is set.
+# MCP endpoints hold Supabase credentials and spend LLM quota, and their URLs are
+# not secrets, so every server rejects unauthenticated requests (/health stays
+# public). Generate once with `openssl rand -hex 32` and set the SAME value here,
+# in the Modal secret, and via `wrangler secret put MCP_AUTH_TOKEN` on each Worker.
+MCP_AUTH_TOKEN=
+
 # UI feature flags (client-readable)
 NEXT_PUBLIC_SHOW_CHAT=true          # show /chat page (default false until MCP live)
 NEXT_PUBLIC_SHOW_CODE_TOGGLE=true   # show Code toggle on MathBlock (default true)
@@ -470,6 +507,8 @@ GITHUB_KB_REPO=                     # e.g. "paper2md-kb"
 - [ ] Deploy `paper-processor-mcp` to Modal (`modal deploy mcp-servers/paper-processor-mcp/modal_app.py`)
 - [ ] Deploy `paper-reader-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/paper-reader-mcp/`)
 - [ ] Deploy `arxiv-search-mcp` to Cloudflare Workers (`wrangler deploy` in `mcp-servers/arxiv-search-mcp/`)
+- [ ] Generate `MCP_AUTH_TOKEN` (`openssl rand -hex 32`) and set the same value on
+      all three servers + Vercel — servers refuse every request without it
 - [ ] Add MCP URLs to Vercel env vars + set `NEXT_PUBLIC_SHOW_CHAT=true`
 - [ ] Verify `GET /api/health` returns `{ status: 'ok' }` for all 3 servers
 

@@ -10,3 +10,8 @@ ENVIRONMENT = "production"
 #   wrangler secret put SUPABASE_URL
 #   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 #   wrangler secret put OPENROUTER_API_KEY
+
+# Shared bearer token — REQUIRED. The server refuses all MCP requests
+# without it (/health stays public). Must match MCP_AUTH_TOKEN in the
+# Next.js app's environment.
+#   wrangler secret put MCP_AUTH_TOKEN
