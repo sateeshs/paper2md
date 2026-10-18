@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -30,13 +31,55 @@ from tqdm import tqdm
 load_dotenv(Path(__file__).parent / ".env")
 
 SECTION_SELECT = "id, order_idx, title, raw_latex"
-MATH_SELECT = "id, order_idx, latex_expr, context_before, context_after"
+MATH_SELECT = "id, order_idx, latex_expr, context_before, context_after, explanation"
 # Fields on math_blocks that hold LaTeX and therefore need the same expansion.
 MATH_LATEX_FIELDS = ("latex_expr", "context_before", "context_after")
-ALGO_SELECT = "id, order_idx, raw_pseudocode, pseudocode_text, context_before, context_after"
+ALGO_SELECT = ("id, order_idx, raw_pseudocode, pseudocode_text, "
+              "context_before, context_after, explanation")
 # Algorithm pseudocode carries the paper's macros too — a stale "$\\vw$" is an
 # undefined control sequence in KaTeX exactly like a stale "$\\policy$".
 ALGO_LATEX_FIELDS = ("raw_pseudocode", "pseudocode_text", "context_before", "context_after")
+
+
+def expand_explanation_json(value: str, preamble: str) -> str | None:
+    """Expand the paper's macros inside an explanation JSON document.
+
+    The LLM wrote these explanations while the source still said "$\\vtheta$",
+    so the prose quotes macros KaTeX cannot resolve even after latex_expr was
+    repaired. Each string leaf is expanded and the document re-serialised, so
+    the JSON structure is never touched by the regex-based expander.
+
+    Returns the new JSON text, or None when the row needs no UPDATE — nothing
+    changed, or the column does not hold JSON (older rows stored bare prose).
+    """
+    from lib.latex_macros import expand_custom_macros
+
+    try:
+        doc = json.loads(value)
+    except (ValueError, TypeError):
+        return None
+
+    changed = False
+
+    def _walk(node):
+        nonlocal changed
+        if isinstance(node, str):
+            expanded = expand_custom_macros(node, preamble)
+            if expanded and expanded != node:
+                changed = True
+                return expanded
+            return node
+        if isinstance(node, list):
+            return [_walk(item) for item in node]
+        if isinstance(node, dict):
+            return {key: _walk(item) for key, item in node.items()}
+        return node
+
+    result = _walk(doc)
+    if not changed:
+        return None
+    return json.dumps(result, ensure_ascii=False)
+
 
 
 def _get_client():
@@ -112,6 +155,9 @@ def _repair_paper(client, paper: dict, *, dry_run: bool) -> tuple[int, int, int]
                 expanded_value = expand_custom_macros(value, preamble)
                 if expanded_value and expanded_value != value:
                     changes[field] = expanded_value
+            explanation = expand_explanation_json(block.get("explanation") or "", preamble)
+            if explanation is not None:
+                changes["explanation"] = explanation
             if not changes:
                 continue
             if not dry_run:
@@ -136,6 +182,9 @@ def _repair_paper(client, paper: dict, *, dry_run: bool) -> tuple[int, int, int]
                 expanded_value = expand_custom_macros(value, preamble)
                 if expanded_value and expanded_value != value:
                     changes[field] = expanded_value
+            explanation = expand_explanation_json(algo.get("explanation") or "", preamble)
+            if explanation is not None:
+                changes["explanation"] = explanation
             if not changes:
                 continue
             if not dry_run:

@@ -321,3 +321,41 @@ def test_reserved_names_are_matched_without_the_backslash():
     # \cite must survive so citation handling downstream still sees it.
     sty = r"\newcommand{\cite}[1]{[#1]}"
     assert r"\cite{key}" in expand_custom_macros(r"see \cite{key}", sty)
+
+
+# 2409.02668 defines \Id[d] with ifthen's \ifthenelse. Pasting that body in
+# verbatim leaves \ifthenelse for KaTeX, which has no such command.
+IFTHEN_ID_STY = r"""\newcommand{\Id}[1][]{\ifthenelse{\equal{#1}{}}
+        {\mathrm{Id}}
+        {\mathrm{Id}_{\mathbb{R}^{#1}}}
+        }"""
+
+
+def test_ifthenelse_equal_takes_the_false_branch_for_a_given_argument():
+    out = expand_custom_macros(r"$\Id[d]$", IFTHEN_ID_STY)
+    assert "ifthenelse" not in out
+    assert re.sub(r"\s+", "", out) == r"$\mathrm{Id}_{\mathbb{R}^{d}}$"
+
+
+def test_ifthenelse_equal_takes_the_true_branch_when_the_argument_is_empty():
+    out = expand_custom_macros(r"$\Id$", IFTHEN_ID_STY)
+    assert re.sub(r"\s+", "", out) == r"$\mathrm{Id}$"
+
+
+def test_ifthenelse_with_an_unsupported_condition_is_left_alone():
+    src = r"$\ifthenelse{\boolean{flag}}{a}{b}$"
+    assert expand_custom_macros(src) == src
+
+
+def test_an_inline_formula_stays_on_one_line_after_a_multiline_body():
+    # The inline-math matcher rejects "\n" inside $...$; TeX reads a line break
+    # in a macro body as a space, so the expansion must not carry it into math.
+    out = expand_custom_macros(r"$\Id[d]$ and $x$", IFTHEN_ID_STY)
+    assert "\n" not in out
+
+
+def test_the_letter_s_is_a_valid_undelimited_argument():
+    # 2409.02668 writes \pe X s and \pe xs for X^{(s)}.
+    sty = r"\newcommand{\pe}[2]{#1^{(#2)}}"
+    assert expand_custom_macros(r"$\pe X s$", sty) == "$X^{(s)}$"
+    assert expand_custom_macros(r"$\pe xs$", sty) == "$x^{(s)}$"

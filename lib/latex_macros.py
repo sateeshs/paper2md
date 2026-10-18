@@ -112,7 +112,7 @@ _ARITY_RE = re.compile(r"\s*\[\s*(\d)\s*\]")
 _DEF_PARAMS_RE = re.compile(r"\s*((?:#\d)*)\s*(?=\{)")
 # A single-token argument is one character — unless it is a control
 # sequence, in which case the whole \name is the argument (\frac\alpha\beta).
-_ARG_TOKEN_RE = re.compile(r"\s*(\\[a-zA-Z]+|\\.|[^\\$}&%#\\s])")
+_ARG_TOKEN_RE = re.compile(r"\s*(\\[a-zA-Z]+|\\.|[^\\$}&%#\s])")
 
 
 def _skip_ws(text: str, pos: int) -> int:
@@ -332,6 +332,52 @@ def _read_args(text: str, pos: int, spec: Spec) -> tuple[list[str], int] | None:
     return args, pos
 
 
+_BLANK_LINE_RE = re.compile(r"\n[ \t]*\n\s*")
+_LINE_BREAK_RE = re.compile(r"[ \t]*\n[ \t]*")
+
+
+def _soft_breaks_to_spaces(body: str) -> str:
+    r"""Turn single line breaks in a macro body into spaces, as TeX does.
+
+    Multi-line bodies are common (\Id in 2409.02668 spans four lines), and a
+    raw "\n" carried into an inline $...$ stops the inline-math matcher from
+    recognising the formula at all. Blank lines are kept: they mean \par.
+    """
+    paragraphs = _BLANK_LINE_RE.split(body)
+    return "\n\n".join(_LINE_BREAK_RE.sub(" ", p) for p in paragraphs)
+
+
+_EQUAL_COND_RE = re.compile(r"\s*\\equal\s*$")
+
+
+def _resolve_ifthenelse(text: str, pos: int) -> tuple[str, int] | None:
+    r"""Evaluate ifthen's \ifthenelse{\equal{A}{B}}{yes}{no} starting at `pos`.
+
+    Returns (chosen_branch, index_after) or None when the condition is anything
+    other than \equal. By the time a macro body reaches here its #n parameters
+    are already literal text, so the string comparison is exactly what LaTeX
+    would do. Papers use this for optional-argument variants such as
+    \Id / \Id[d]; left unevaluated, KaTeX sees an undefined \ifthenelse.
+    """
+    cond = _match_braced(text, _skip_ws(text, pos))
+    if cond is None:
+        return None
+    inner, after = cond
+    head = inner.find("{")
+    if head == -1 or not _EQUAL_COND_RE.fullmatch(inner[:head]):
+        return None
+    lhs = _match_braced(inner, head)
+    rhs = lhs and _match_braced(inner, _skip_ws(inner, lhs[1]))
+    if not rhs or inner[rhs[1]:].strip():
+        return None
+    yes = _match_braced(text, _skip_ws(text, after))
+    no = yes and _match_braced(text, _skip_ws(text, yes[1]))
+    if not no:
+        return None
+    chosen = yes[0] if lhs[0].strip() == rhs[0].strip() else no[0]
+    return chosen, no[1]
+
+
 def _expand_stream(
     text: str, macros: dict[str, tuple[Spec, str]], depth: int = 0
 ) -> str:
@@ -361,12 +407,19 @@ def _expand_stream(
                 # \providecommand only defines when the name is still free.
                 reserved = mname.lstrip("\\") in _RESERVED_NAMES
                 if not reserved and not (name == "providecommand" and mname in macros):
-                    macros[mname] = (spec, body)
+                    macros[mname] = (spec, _soft_breaks_to_spaces(body))
                 pos = after
                 continue
             out.append(m.group(0))
             pos = m.end()
             continue
+
+        if name == "ifthenelse":
+            resolved = _resolve_ifthenelse(text, m.end())
+            if resolved is not None and depth < _MAX_MACRO_PASSES:
+                out.append(_expand_stream(resolved[0], macros, depth + 1))
+                pos = resolved[1]
+                continue
 
         entry = macros.get("\\" + name)
         if entry is None:
