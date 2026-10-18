@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from datetime import date
 from pathlib import Path
@@ -120,7 +121,7 @@ def get_provider_count(provider: str) -> int:
 def is_provider_exhausted(provider: str) -> bool:
     """Return True if provider has hit its daily free limit."""
     cfg = PROVIDER_CONFIG.get(provider, {})
-    if _load_counts().get(f"{provider}:{date.today()}:exhausted"):
+    if _load_counts().get(f"{provider}:exhausted_until", 0) > time.time():
         return True
     limit = cfg.get("daily_limit")
     if limit is None:
@@ -183,10 +184,26 @@ def is_daily_quota_error(error: Exception) -> bool:
     return any(marker in msg for marker in _DAILY_QUOTA_MARKERS)
 
 
-def mark_provider_exhausted(provider: str) -> None:
-    """Record that `provider` refused a call for today's quota."""
+# Used when a quota error carries no retry hint (OpenRouter, Groq).
+DEFAULT_QUOTA_RETRY_S = 3600
+_RETRY_DELAY_RE = re.compile(r'retryDelay"?\s*:\s*"?(\d+)s')
+
+
+def quota_retry_after(error: Exception) -> int:
+    """Seconds until the provider says the quota resets (Gemini's retryDelay)."""
+    match = _RETRY_DELAY_RE.search(str(error))
+    return int(match.group(1)) if match else DEFAULT_QUOTA_RETRY_S
+
+
+def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RETRY_S) -> None:
+    """Record that `provider` is out of quota for the next `retry_after_s` seconds.
+
+    An expiry time rather than a per-date flag: Gemini resets at midnight
+    Pacific, not local midnight, so a date flag either skipped Gemini for the
+    rest of the day or retried it hours before the reset.
+    """
     counts = _load_counts()
-    counts[f"{provider}:{date.today()}:exhausted"] = True
+    counts[f"{provider}:exhausted_until"] = time.time() + retry_after_s
     _save_counts(counts)
 
 
@@ -213,32 +230,51 @@ def configure_dspy() -> str:
     Raises: RuntimeError if no provider has a key;
             ProvidersExhaustedError if every keyed provider is exhausted today.
     """
-    keyed = [p for p in _provider_order()
-             if os.environ.get(PROVIDER_CONFIG[p]["env_key"], "").strip()]
+    keyed = _keyed_providers()
     if not keyed:
         raise RuntimeError(
             "No LLM provider API key found. Set at least one of: "
             "GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
-    usable = [p for p in keyed if not is_provider_exhausted(p)]
-    if not usable:
+    provider = _preferred_provider(keyed)
+    if provider is None:
         raise ProvidersExhaustedError(
             f"Daily quota exhausted for every configured provider: {', '.join(keyed)}"
         )
-
-    provider = usable[0]
     dspy.configure(lm=_make_lm(provider))
     return provider
 
 
-def failover_provider(provider: str) -> str:
-    """Mark `provider` exhausted for today and switch DSPy to the next one.
+def _keyed_providers() -> list[str]:
+    return [p for p in _provider_order()
+            if os.environ.get(PROVIDER_CONFIG[p]["env_key"], "").strip()]
+
+
+def _preferred_provider(keyed: list[str]) -> str | None:
+    return next((p for p in keyed if not is_provider_exhausted(p)), None)
+
+
+def failover_provider(provider: str, retry_after_s: int = DEFAULT_QUOTA_RETRY_S) -> str:
+    """Mark `provider` exhausted and switch DSPy to the next one.
 
     Returns the new provider's name; raises ProvidersExhaustedError if none is left.
     """
-    mark_provider_exhausted(provider)
+    mark_provider_exhausted(provider, retry_after_s)
     return configure_dspy()
+
+
+def restore_preferred_provider(current: str) -> str:
+    """Switch back to a higher-priority provider whose quota window has passed.
+
+    A long run that failed over to a slow fallback would otherwise stay there
+    after the preferred provider's quota resets. Returns the provider in use.
+    """
+    preferred = _preferred_provider(_keyed_providers())
+    if preferred is None or preferred == current:
+        return current
+    dspy.configure(lm=_make_lm(preferred))
+    return preferred
 
 
 def get_sleep_for_provider(provider: str) -> float:

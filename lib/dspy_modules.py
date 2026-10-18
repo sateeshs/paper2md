@@ -31,7 +31,9 @@ from lib.dspy_config import (
     increment_provider_count,
     is_daily_quota_error,
     is_provider_exhausted,
+    quota_retry_after,
     rate_limit_sleep,
+    restore_preferred_provider,
 )
 from lib.dspy_signatures import (
     ExplainAlgorithmBlock,
@@ -205,6 +207,11 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     over to the next provider; ProvidersExhaustedError when none is left.
     """
     provider = _active_provider()
+    if provider != "unknown":
+        restored = restore_preferred_provider(provider)
+        if restored != provider:
+            tqdm.write(f"[INFO] {restored} quota window passed — switching back from {provider}")
+            provider = restored
     max_retries = 4
     attempt = 0
     while attempt < max_retries:
@@ -216,7 +223,7 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
         except Exception as e:
             if is_daily_quota_error(e):
                 tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")
-                provider = failover_provider(provider)
+                provider = failover_provider(provider, quota_retry_after(e))
                 tqdm.write(f"[INFO] now using {provider}")
                 continue
             msg = str(e).lower()
