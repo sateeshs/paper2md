@@ -14,6 +14,16 @@ export const KATEX_OPTIONS: KatexOptions = {
   strict: "ignore",
   errorColor: "currentColor", // unknown macros render in normal text color, not red
   macros: {
+    // Real LaTeX/package commands KaTeX does not implement. These are standard
+    // across LaTeX, not paper-specific shorthands — unlike the entries below,
+    // which exist only for rows written before latex_parse.py expanded macros.
+    "\\ignorespaces": "{}",
+    "\\allowbreak": "{}",
+    "\\xspace": "{}",
+    "\\ensuremath": "#1",
+    "\\nicefrac": "{}^{#1}\\!/\\!_{#2}",   // nicefrac package
+    "\\mathbbm": "\\mathbb{#1}",             // bbm package
+    "\\vvvert": "\\vert\\!\\vert\\!\\vert",   // triple bar (mathabx/mathdesign)
     // Number sets
     "\\R": "\\mathbb{R}",
     "\\N": "\\mathbb{N}",
@@ -131,6 +141,56 @@ export const KATEX_OPTIONS: KatexOptions = {
     "\\mN": "\\mathbb{N}",
     "\\mZ": "\\mathbb{Z}",
     "\\mQ": "\\mathbb{Q}",
+    // Bold Greek suffixed with "b" (common in ML/math textbooks, e.g. \Lambdab)
+    "\\Alphab": "\\boldsymbol{\\Alpha}",
+    "\\Betab": "\\boldsymbol{\\Beta}",
+    "\\Gammab": "\\boldsymbol{\\Gamma}",
+    "\\Deltab": "\\boldsymbol{\\Delta}",
+    "\\Epsilonb": "\\boldsymbol{\\Epsilon}",
+    "\\Zetab": "\\boldsymbol{\\Zeta}",
+    "\\Etab": "\\boldsymbol{\\Eta}",
+    "\\Thetab": "\\boldsymbol{\\Theta}",
+    "\\Iotab": "\\boldsymbol{\\Iota}",
+    "\\Kappab": "\\boldsymbol{\\Kappa}",
+    "\\Lambdab": "\\boldsymbol{\\Lambda}",
+    "\\Mub": "\\boldsymbol{\\Mu}",
+    "\\Nub": "\\boldsymbol{\\Nu}",
+    "\\Xib": "\\boldsymbol{\\Xi}",
+    "\\Omicronb": "\\boldsymbol{\\Omicron}",
+    "\\Pib": "\\boldsymbol{\\Pi}",
+    "\\Rhob": "\\boldsymbol{\\Rho}",
+    "\\Sigmab": "\\boldsymbol{\\Sigma}",
+    "\\Taub": "\\boldsymbol{\\Tau}",
+    "\\Upsilonb": "\\boldsymbol{\\Upsilon}",
+    "\\Phib": "\\boldsymbol{\\Phi}",
+    "\\Chib": "\\boldsymbol{\\Chi}",
+    "\\Psib": "\\boldsymbol{\\Psi}",
+    "\\Omegab": "\\boldsymbol{\\Omega}",
+    // Lowercase bold Greek suffixed with "b"
+    "\\alphab": "\\boldsymbol{\\alpha}",
+    "\\betab": "\\boldsymbol{\\beta}",
+    "\\gammab": "\\boldsymbol{\\gamma}",
+    "\\deltab": "\\boldsymbol{\\delta}",
+    "\\epsilonb": "\\boldsymbol{\\epsilon}",
+    "\\varepsilonb": "\\boldsymbol{\\varepsilon}",
+    "\\zetab": "\\boldsymbol{\\zeta}",
+    "\\etab": "\\boldsymbol{\\eta}",
+    "\\thetab": "\\boldsymbol{\\theta}",
+    "\\iotab": "\\boldsymbol{\\iota}",
+    "\\kappab": "\\boldsymbol{\\kappa}",
+    "\\lambdab": "\\boldsymbol{\\lambda}",
+    "\\mub": "\\boldsymbol{\\mu}",
+    "\\nub": "\\boldsymbol{\\nu}",
+    "\\xib": "\\boldsymbol{\\xi}",
+    "\\pib": "\\boldsymbol{\\pi}",
+    "\\rhob": "\\boldsymbol{\\rho}",
+    "\\sigmab": "\\boldsymbol{\\sigma}",
+    "\\taub": "\\boldsymbol{\\tau}",
+    "\\upsilonb": "\\boldsymbol{\\upsilon}",
+    "\\phib": "\\boldsymbol{\\phi}",
+    "\\chib": "\\boldsymbol{\\chi}",
+    "\\psib": "\\boldsymbol{\\psi}",
+    "\\omegab": "\\boldsymbol{\\omega}",
   },
 };
 
@@ -161,6 +221,18 @@ export function isDisplayMode(envType: string): boolean {
 }
 
 /**
+ * Single-letter names that are genuine LaTeX/KaTeX commands and must never be
+ * rewritten into plain variables.
+ *
+ *   accents / special chars : a b c d H i j k l L o O r t u v
+ *   text symbols            : P S
+ *   defined in KATEX_OPTIONS: C E K N P Q R Z (number sets)
+ */
+const RESERVED_SINGLE_LETTER_COMMANDS = new Set(
+  "abcdHijklLoOrtuvPSCEKNQRZ".split("")
+);
+
+/**
  * Prepare a latex_expr for katex.render().
  * Strips delimiters and fixes environments that KaTeX can't handle as top-level.
  */
@@ -177,29 +249,76 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
       .replace(/^\\begin\{subequations\}/, "")
       .replace(/\\end\{subequations\}$/, "")
       .trim();
-    // eqnarray / eqnarray* are not supported by KaTeX — rewrite to align / align*
+    // Environments amsmath defines but KaTeX does not implement.
+    // eqnarray → align, multline → gather (both are single-column display
+    // stacks; multline's first/last-line alignment is the only difference).
     s = s
       .replace(/\\begin\{eqnarray\*\}/g, "\\begin{align*}")
       .replace(/\\end\{eqnarray\*\}/g,   "\\end{align*}")
       .replace(/\\begin\{eqnarray\}/g,   "\\begin{align}")
-      .replace(/\\end\{eqnarray\}/g,     "\\end{align}");
+      .replace(/\\end\{eqnarray\}/g,     "\\end{align}")
+      .replace(/\\begin\{multline\*\}/g, "\\begin{gather*}")
+      .replace(/\\end\{multline\*\}/g,   "\\end{gather*}")
+      .replace(/\\begin\{multline\}/g,   "\\begin{gather}")
+      .replace(/\\end\{multline\}/g,     "\\end{gather}")
+      // mathtools \begin{multlined} is the *inner* variant, used inside an
+      // outer equation. \begin{gathered} is its KaTeX-supported equivalent.
+      .replace(/\\begin\{multlined\}(?:\[[^\]]*\])?/g, "\\begin{gathered}")
+      .replace(/\\end\{multlined\}/g,    "\\end{gathered}");
   }
+
+  // Unsupported packages: \xymatrix (XY-pic commutative diagrams)
+  if (/\\xymatrix\b/.test(s)) {
+    return "\\text{[diagram — xymatrix not supported by KaTeX]}";
+  }
+
+  // Strip non-Latin/non-Math Unicode produced by pylatexenc bugs
+  // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
+  s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
+
+  // Fallback for rows written before the pipeline expanded preamble macros:
+  // papers define \a, \u, \A, \V etc. as shorthand for vectors/matrices, and
+  // those used to reach the DB unexpanded. Rewriting \x → {x} renders the
+  // variable name instead of a KaTeX "undefined control sequence".
+  //
+  // Only letters that are NOT real single-letter LaTeX commands may be
+  // rewritten. The previous version rewrote every letter, which corrupted valid
+  // markup: \v{s} → {v}{s} (caron), \c{c} → {c}{c} (cedilla), \hat{\i} →
+  // \hat{{i}} (dotless i), plus \j \l \L \o \O \S \t \u \b \d \r \H \k.
+  // Newly processed papers no longer need this at all — their macros are
+  // resolved upstream in latex_parse.py.
+  //
+  // IMPORTANT: use {letter} (braced) not a bare letter, so a preceding command
+  // like \top doesn't merge: \top\a → \top{a} not \topa.
+  s = s.replace(/\\([a-zA-Z])(?![a-zA-Z])/g, (match, letter: string) =>
+    RESERVED_SINGLE_LETTER_COMMANDS.has(letter) ? match : `{${letter}}`
+  );
 
   // Strip LaTeX % comments (everything from % to end of line)
   s = s.replace(/%[^\r\n]*/g, "").replace(/\n{3,}/g, "\n\n").trim();
 
   // Strip \label{...} — KaTeX doesn't know this command
   s = s.replace(/\\label\{[^}]*\}/g, "");
+  // Cross-references typeset an equation number we never captured, so there is
+  // nothing to render. Drop the parentheses the reference sat in as well —
+  // "problem (\ref{eq.control})" should read "problem", not "problem ()".
+  s = s.replace(/\s*\(\s*\\(?:eq)?ref\{[^}]*\}\s*\)/g, "");
+  s = s.replace(/\\(?:eq)?ref\{[^}]*\}/g, "");
+  // Setup commands that configure a package and typeset nothing
+  s = s.replace(/\\(?:mathtoolsset|allowdisplaybreaks|setlength|arraycolsep)\s*\{[^}]*\}/g, "");
+  s = s.replace(/\\(?:allowdisplaybreaks|displaybreak)\b/g, "");
   // Strip \nonumber
   s = s.replace(/\\nonumber/g, "");
   // \mbox → \text
   s = s.replace(/\\mbox\{([^}]*)\}/g, "\\text{$1}");
 
-  // After all cleanup, return empty string if nothing remains
-  // (e.g. an equation that was entirely commented out)
+  // After all cleanup, return empty string if nothing meaningful remains
+  // (e.g. an equation that was entirely commented out, or junk whitespace-only extractions)
   const bodyStripped = s
     .replace(/\\begin\{[^}]+\}/g, "")
     .replace(/\\end\{[^}]+\}/g, "")
+    .replace(/\\\\/g, "")       // strip line breaks
+    .replace(/[.\s,;]+/g, "")   // strip whitespace and punctuation-only residue
     .trim();
   if (!bodyStripped) return "";
 

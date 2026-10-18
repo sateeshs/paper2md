@@ -6,6 +6,12 @@ import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { useSectionPageMap } from "@/hooks/useSectionPageMap";
+import {
+  PageBadge,
+  SectionNumber,
+  indentClass,
+  titleWeightClass,
+} from "@/components/SectionMeta";
 
 interface PaperSplitViewProps {
   paper: PaperWithSections;
@@ -163,25 +169,24 @@ function SectionRow({
         href={`/paper/${arxivId}/${section.id}`}
         onMouseEnter={onHover}
         onFocus={onHover}
-        className={`flex items-center gap-4 rounded-lg border px-4 py-3 transition-colors ${
+        className={`flex items-center gap-4 rounded-lg border px-4 py-3 transition-colors ${indentClass(section.level)} ${
           active
             ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950"
             : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
         }`}
       >
         <div className="min-w-0 flex-1">
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-0.5">
-            §{section.order_idx + 1}
-            {pdfPage && (
-              <span className="ml-2 text-zinc-300 dark:text-zinc-600">
-                p.{pdfPage}
-              </span>
+          <p className="mb-0.5 flex items-center gap-2">
+            <SectionNumber section={section} />
+            {section.page_start == null && pdfPage && (
+              <span className="text-xs text-zinc-300 dark:text-zinc-600">p.{pdfPage}</span>
             )}
           </p>
-          <p className="font-medium truncate">
+          <p className={`truncate ${titleWeightClass(section.level)}`}>
             {section.title ?? "Untitled section"}
           </p>
-          {section.plain_text && (
+          {/* Chapter/section nodes have no prose of their own — their children do. */}
+          {section.plain_text && section.plain_text.trim().length > 0 && (
             <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1">
               {section.plain_text.slice(0, 120)}
             </p>
@@ -189,6 +194,7 @@ function SectionRow({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <PageBadge section={section} />
           {section.has_math && mathCount > 0 && (
             <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-xs font-medium">
               {mathCount} eq

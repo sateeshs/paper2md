@@ -41,6 +41,13 @@ class Section:
     raw_latex: str | None = None
     math_blocks: tuple[MathBlock, ...] = field(default_factory=tuple)
     algorithm_blocks: tuple[AlgorithmBlock, ...] = field(default_factory=tuple)
+    # Outline metadata — populated for LaTeX papers parsed via lib.latex_outline.
+    # All None for PDF-sourced papers and the heuristic fallback path.
+    level: int | None = None        # 1=chapter 2=section 3=subsection 4=subsubsection
+    number: str | None = None       # "2.5.3"
+    page_start: int | None = None   # 1-based PDF page
+    page_end: int | None = None
+    page_source: str | None = None  # 'pdf_outline' | 'inferred' 
 
 
 @dataclass(frozen=True)

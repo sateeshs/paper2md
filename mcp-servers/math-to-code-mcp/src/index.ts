@@ -20,12 +20,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
+import { requireAuth } from './auth'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface Env {
+  /** Shared bearer token; requests without it are rejected. */
+  MCP_AUTH_TOKEN: string
   SUPABASE_URL: string
   SUPABASE_SERVICE_ROLE_KEY: string
   OPENROUTER_API_KEY: string
@@ -233,8 +236,8 @@ CRITICAL OUTPUT FORMAT:
 - The response must be directly parseable by JSON.parse() with zero modifications`
 
 // OpenRouter uses the OpenAI-compatible chat completions API.
-// Default model: google/gemini-2.0-flash-001 (fast, free tier available)
-const OPENROUTER_MODEL = 'google/gemini-2.0-flash-001'
+// Default model: google/gemini-2.5-flash (fast, free tier available)
+const OPENROUTER_MODEL = 'google/gemini-2.5-flash'
 
 const MAX_LLM_RETRIES = 2
 
@@ -692,6 +695,10 @@ export default {
     if (request.method !== 'POST') {
       return new Response('Method not allowed', { status: 405 })
     }
+
+    // Everything past this point can read the database and spend LLM quota.
+    const denied = requireAuth(request, env)
+    if (denied) return denied
 
     const server = createServer(env)
     const transport = new WebStandardStreamableHTTPServerTransport({

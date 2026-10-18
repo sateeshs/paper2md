@@ -17,6 +17,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import re
 import time
 
 import dspy
@@ -25,9 +26,14 @@ from tqdm import tqdm
 from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
+    ProvidersExhaustedError,
+    failover_provider,
     increment_provider_count,
+    is_daily_quota_error,
     is_provider_exhausted,
+    quota_retry_after,
     rate_limit_sleep,
+    restore_preferred_provider,
 )
 from lib.dspy_signatures import (
     ExplainAlgorithmBlock,
@@ -38,6 +44,144 @@ from lib.dspy_signatures import (
     SummarizeChunk,
 )
 from lib.models import AlgorithmBlock, MathBlock, Paper, Section
+
+
+# ---------------------------------------------------------------------------
+# Explanation post-processing — sanitise LLM output before storing
+# ---------------------------------------------------------------------------
+
+# Unicode Greek → LaTeX mapping (outside $...$ these break KaTeX)
+_GREEK_MAP: dict[str, str] = {
+    "α": r"\alpha", "β": r"\beta", "γ": r"\gamma", "δ": r"\delta",
+    "ε": r"\varepsilon", "ζ": r"\zeta", "η": r"\eta", "θ": r"\theta",
+    "ι": r"\iota", "κ": r"\kappa", "λ": r"\lambda", "μ": r"\mu",
+    "ν": r"\nu", "ξ": r"\xi", "π": r"\pi", "ρ": r"\rho",
+    "σ": r"\sigma", "τ": r"\tau", "υ": r"\upsilon", "φ": r"\varphi",
+    "χ": r"\chi", "ψ": r"\psi", "ω": r"\omega",
+    "Γ": r"\Gamma", "Δ": r"\Delta", "Θ": r"\Theta", "Λ": r"\Lambda",
+    "Ξ": r"\Xi", "Π": r"\Pi", "Σ": r"\Sigma", "Φ": r"\Phi",
+    "Ψ": r"\Psi", "Ω": r"\Omega",
+    "∑": r"\sum", "∏": r"\prod", "∫": r"\int", "∞": r"\infty",
+    "∈": r"\in", "∉": r"\notin", "⊂": r"\subset", "⊃": r"\supset",
+    "≤": r"\leq", "≥": r"\geq", "≠": r"\neq", "≈": r"\approx",
+    "→": r"\to", "←": r"\leftarrow", "↔": r"\leftrightarrow",
+    "⊤": r"\top", "⊥": r"\bot", "∀": r"\forall", "∃": r"\exists",
+    "∇": r"\nabla", "∂": r"\partial", "×": r"\times", "⊗": r"\otimes",
+    "⊕": r"\oplus", "·": r"\cdot",
+}
+
+# Build a single regex that matches any bare Unicode math symbol NOT already inside $...$
+_GREEK_CHARS_RE = re.compile(
+    "|".join(re.escape(ch) for ch in _GREEK_MAP)
+)
+
+# Patterns that signal the LLM echoed a DSPy field description instead of generating content
+_FIELD_DESC_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*", re.I),
+    re.compile(r"^\s*list\s+the\s+\d+\s+most\s+important", re.I),
+    re.compile(r"^\s*comma[- ]separated\s+list\s+of", re.I),
+    re.compile(r"^\s*1-\d+\s+sentences?\.\s*", re.I),
+    re.compile(r"^\s*what\s+does\s+this\s+expression\s+compute", re.I),
+    re.compile(r"^\s*briefly\s+walk\s+through", re.I),
+    re.compile(r"^\s*explain\s+the\s+intuition\s+in\s+plain", re.I),
+    re.compile(r"^\s*what\s+logical\s+role", re.I),
+    re.compile(r"^\s*why\s+does\s+this\s+expression\s+matter", re.I),
+)
+
+# Quadruple-escaped backslashes (\\\\) that appear in LLM output
+_QUAD_BACKSLASH_RE = re.compile(r"\\\\\\\\")
+# Double-escaped that should be single (but not in \\n, \\t, etc.)
+_DOUBLE_BACKSLASH_RE = re.compile(r"\\\\(?=[a-zA-Z{])")
+
+# All known explanation field names — LLM sometimes echoes these as literal placeholders
+_EXPLANATION_FIELD_NAMES = frozenset({
+    "what_it_computes", "symbol_meanings", "derivation", "intuition",
+    "proof_role", "prerequisites", "mathematical_significance",
+    "paper_relevance",
+})
+
+# Match placeholder patterns: {field_name}, {{field_name}}, or bare field_name as entire value
+_PLACEHOLDER_RE = re.compile(
+    r"^\s*\{?\{?\s*(" + "|".join(_EXPLANATION_FIELD_NAMES) + r")\s*\}?\}?\s*$",
+    re.I,
+)
+
+# JSON artifacts: leading ]] or [[ that leak from structured output
+_JSON_ARTIFACT_RE = re.compile(r"^\s*\]{1,2}\s*")
+
+# Truncation from a repetition loop is the usual cause of an empty response;
+# DSPy's own guidance is to raise the temperature. Used only on the last retry.
+_RETRY_TEMPERATURE = 0.9
+
+
+def _wrap_bare_greek(text: str) -> str:
+    """Replace Unicode Greek/math symbols outside $...$ with $\\symbol$."""
+    # Split text on $...$ spans to avoid touching content already in math mode
+    parts = re.split(r"(\$[^$]+\$)", text)
+    result: list[str] = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Inside $...$ — leave as-is
+            result.append(part)
+        else:
+            # Outside math delimiters — wrap bare Greek
+            result.append(
+                _GREEK_CHARS_RE.sub(
+                    lambda m: f"${_GREEK_MAP[m.group()]}$",
+                    part,
+                )
+            )
+    return "".join(result)
+
+
+def _fix_escaped_backslashes(text: str) -> str:
+    """Fix over-escaped LaTeX backslashes from LLM output."""
+    text = _QUAD_BACKSLASH_RE.sub(r"\\\\", text)
+    return text
+
+
+def _is_echoed_description(text: str) -> bool:
+    """Return True if text looks like a parroted DSPy field description."""
+    return any(p.search(text) for p in _FIELD_DESC_PATTERNS)
+
+
+def _sanitize_explanation_field(value: str) -> str:
+    """Clean a single explanation field value from LLM output."""
+    if not value or not value.strip():
+        return value
+
+    # Detect placeholder echoes: {what_it_computes}, {{symbol_meanings}}, etc.
+    if _PLACEHOLDER_RE.match(value):
+        return ""
+
+    # Strip echoed field descriptions
+    if _is_echoed_description(value):
+        # Try to salvage: the LLM sometimes prefixes the description then adds real content
+        # e.g. ": 2 sentences max. This formula defines..."
+        cleaned = re.sub(
+            r"^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*",
+            "",
+            value,
+            flags=re.I,
+        ).strip()
+        if cleaned and not _is_echoed_description(cleaned):
+            value = cleaned
+        else:
+            return ""
+
+    # Strip JSON artifacts like leading ]]
+    value = _JSON_ARTIFACT_RE.sub("", value).strip()
+    if not value:
+        return ""
+
+    value = _wrap_bare_greek(value)
+    value = _fix_escaped_backslashes(value)
+    return value
+
+
+def _sanitize_explanation(fields: dict[str, str]) -> dict[str, str]:
+    """Post-process all explanation fields from LLM output."""
+    return {k: _sanitize_explanation_field(v) for k, v in fields.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -59,16 +203,29 @@ def _active_provider() -> str:
 def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     """Call a DSPy module, track usage count, and sleep for rate limiting.
     Retries up to 4 times on rate limit errors with exponential backoff.
+    A daily-quota error is not retried — backoff cannot clear it — but fails
+    over to the next provider; ProvidersExhaustedError when none is left.
     """
     provider = _active_provider()
+    if provider != "unknown":
+        restored = restore_preferred_provider(provider)
+        if restored != provider:
+            tqdm.write(f"[INFO] {restored} quota window passed — switching back from {provider}")
+            provider = restored
     max_retries = 4
-    for attempt in range(max_retries):
+    attempt = 0
+    while attempt < max_retries:
         try:
             result = module(**kwargs)
             increment_provider_count(provider)
             rate_limit_sleep(provider)
             return result
         except Exception as e:
+            if is_daily_quota_error(e):
+                tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")
+                provider = failover_provider(provider, quota_retry_after(e))
+                tqdm.write(f"[INFO] now using {provider}")
+                continue
             msg = str(e).lower()
             is_rate_limit = "ratelimit" in msg or "rate_limit" in msg or "429" in msg or "rate limit" in msg
             if is_rate_limit and attempt < max_retries - 1:
@@ -78,6 +235,7 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
                 wait = int(match.group(1)) + 2 if match else 15 * (2 ** attempt)
                 tqdm.write(f"[WARN] Rate limited (attempt {attempt+1}/{max_retries}), waiting {wait}s…")
                 time.sleep(wait)
+                attempt += 1
             else:
                 raise
 
@@ -99,6 +257,10 @@ class MathExplainer(dspy.Module):
     def __init__(self) -> None:
         super().__init__()
         self.explain = dspy.ChainOfThought(ExplainMathBlock)
+        # Fallback for blocks whose ChainOfThought output overruns max_tokens.
+        # Predict drops the `reasoning` field, which is by far the largest part
+        # of the response, so the seven real fields fit in the same budget.
+        self.explain_terse = dspy.Predict(ExplainMathBlock)
 
     def _should_skip(self, block: MathBlock) -> bool:
         """Skip trivially short inline expressions like $n$, $x$, $i$."""
@@ -106,44 +268,78 @@ class MathExplainer(dspy.Module):
             return True
         return False
 
+    def _run(
+        self,
+        module: dspy.Module,
+        block: MathBlock,
+        paper_title: str,
+        section_title: str,
+        temperature: float | None = None,
+    ) -> str:
+        """Call one predictor and return the sanitized explanation JSON."""
+        extra = {"config": {"temperature": temperature}} if temperature is not None else {}
+        pred = _call_with_tracking(
+            module,
+            paper_title=paper_title,
+            section_title=section_title or "Unknown Section",
+            context_before=block.context_before or "",
+            latex_expr=block.latex_expr,
+            context_after=block.context_after or "",
+            paper_type=block.paper_type,
+            **extra,
+        )
+        raw_fields = {
+            "what_it_computes":          pred.what_it_computes,
+            "symbol_meanings":           pred.symbol_meanings,
+            "intuition":                 pred.intuition,
+            "derivation":                pred.derivation,
+            "proof_role":                pred.proof_role,
+            "prerequisites":             pred.prerequisites,
+            "mathematical_significance": pred.mathematical_significance,
+        }
+        return json.dumps(_sanitize_explanation(raw_fields), ensure_ascii=False)
+
     def explain_block(
         self,
         block: MathBlock,
         paper_title: str,
         section_title: str,
     ) -> MathBlock:
-        """Return a new MathBlock with explanation filled in."""
+        """Return a new MathBlock with explanation filled in.
+
+        Large display equations make ChainOfThought overrun max_tokens; the
+        provider then returns an empty response and the block gets no
+        explanation at all. Retrying the same module is useless — DSPy caches
+        the truncated result and replays it instantly — so the retry uses a
+        different predictor, which is both a smaller response and a distinct
+        cache key.
+        """
         if self._should_skip(block):
             return block
 
-        try:
-            pred = _call_with_tracking(
-                self.explain,
-                paper_title=paper_title,
-                section_title=section_title or "Unknown Section",
-                context_before=block.context_before or "",
-                latex_expr=block.latex_expr,
-                context_after=block.context_after or "",
-                paper_type=block.paper_type,
-            )
-            explanation = json.dumps({
-                "what_it_computes":        pred.what_it_computes,
-                "symbol_meanings":         pred.symbol_meanings,
-                "intuition":               pred.intuition,
-                "derivation":              pred.derivation,
-                "proof_role":              pred.proof_role,
-                "prerequisites":           pred.prerequisites,
-                "mathematical_significance": pred.mathematical_significance,
-            }, ensure_ascii=False)
+        attempts = (
+            (self.explain,       "chain-of-thought",       None),
+            (self.explain_terse, "terse",                  None),
+            (self.explain_terse, "terse/high-temperature", _RETRY_TEMPERATURE),
+        )
+        for module, label, temperature in attempts:
+            try:
+                explanation = self._run(
+                    module, block, paper_title, section_title, temperature
+                )
+            except ProvidersExhaustedError:
+                raise  # no predictor can succeed today; let the caller stop
+            except Exception as e:
+                tqdm.write(
+                    f"[WARN] MathExplainer ({label}) failed for block {block.order_idx}: {e}"
+                )
+                continue
             return dataclasses.replace(
                 block,
                 explanation=explanation,
                 explanation_model=_active_provider(),
             )
-        except Exception as e:
-            # Non-fatal: log and continue without explanation
-            tqdm.write(f"[WARN] MathExplainer failed for block {block.order_idx}: {e}")
-            return block
+        return block
 
     def forward(
         self,

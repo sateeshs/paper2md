@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { PdfPageViewer } from "@/components/PdfPageViewer";
-import { extractPageTexts } from "@/lib/pdf-doc";
 
 interface PdfSectionPaneProps {
   arxivId: string;
@@ -37,28 +36,19 @@ function normalizeTitle(title: string): string {
  * Rejects:   "Supervised Fine-Tuning . . . . . . 12"   (TOC dot-leader entries)
  */
 function isHeadingLine(rawLine: string, normTitle: string): boolean {
-  // Reject TOC dot-leader entries: ". . . . ." pattern (PDF.js extracts spaced dots)
   if (/\.\s+\.\s+\./.test(rawLine)) return false;
-  // Reject diagram/figure bullet items (·, •, -, *)
   if (/^[\s·•\-\*]/.test(rawLine.trim())) return false;
   const stripped = rawLine.trim()
-    .replace(/^\d+(\.\d+)*\.?\s+/, "")       // strip optional leading "3.1 "
-    .replace(/^[ivxlcdmIVXLCDM]+\.\s+/i, ""); // strip roman "IV. "
+    .replace(/^\d+(\.\d+)*\.?\s+/, "")
+    .replace(/^[ivxlcdmIVXLCDM]+\.\s+/i, "");
   return normalizeLine(stripped) === normTitle;
 }
 
-/**
- * Extract candidate normalized titles to match against.
- * For "Chapter 3: Nash Equilibrium" this returns both the full normalized form
- * AND just the subtitle "nash equilibrium", since typeset PDFs often have
- * "Chapter 3" and "Nash Equilibrium" on separate lines.
- */
 function titleVariants(title: string): string[] {
   const full = normalizeTitle(title);
   const variants: string[] = [];
   if (full) variants.push(full);
 
-  // "Chapter N: Subtitle" → also try "subtitle"
   const chapterMatch = /^chapter\s+\d+[:\s]\s*(.+)/i.exec(title);
   if (chapterMatch) {
     const sub = normalizeTitle(chapterMatch[1].trim());
@@ -68,73 +58,76 @@ function titleVariants(title: string): string[] {
   return variants;
 }
 
-/** Finds which PDF page contains the section title as a heading. */
-async function findPage(
+/** Check if a page's text contains a heading matching any of the title variants. */
+function titleInPage(title: string, pageText: string): boolean {
+  const lines = pageText.split("\n");
+  return titleVariants(title).some((norm) =>
+    norm.length >= 3 && lines.some((line) => isHeadingLine(line, norm))
+  );
+}
+
+/** Estimate page from section position (instant, no PDF text extraction). */
+function estimatePage(
+  orderIdx: number | undefined,
+  totalSections: number | undefined,
+  numPages: number,
+): number {
+  if (orderIdx !== undefined && totalSections && totalSections > 0) {
+    return Math.max(1, Math.round(((orderIdx + 0.5) / totalSections) * numPages));
+  }
+  return 1;
+}
+
+/**
+ * Scan ALL pages of the PDF for the section title.
+ * Skips TOC zone (first ~10% of pages) unless no body match is found.
+ * Returns the first body-page match, or falls back to estimation.
+ */
+async function findPageByFullScan(
   arxivId: string,
   title: string,
-  orderIdx?: number,
-  totalSections?: number,
+  orderIdx: number | undefined,
+  totalSections: number | undefined,
 ): Promise<number> {
   const variants = titleVariants(title);
+  if (variants.length === 0) {
+    // No usable title — fall back to estimation
+    const { getPdfDocument } = await import("@/lib/pdf-doc");
+    const doc = await getPdfDocument(arxivId);
+    return estimatePage(orderIdx, totalSections, doc.numPages);
+  }
 
   const { extractPageTexts, getPdfDocument } = await import("@/lib/pdf-doc");
-  const texts = await extractPageTexts(arxivId);
-  const scannedPages = texts.length - 1;
-  const tocZone = Math.max(3, Math.ceil(scannedPages * 0.1));
+  const [pageTexts, doc] = await Promise.all([
+    extractPageTexts(arxivId),
+    getPdfDocument(arxivId),
+  ]);
+  const totalPages = doc.numPages;
+  // TOC zone: cap at 5 pages — 10% was too aggressive for long papers (157pp → 16pp TOC zone)
+  const tocZone = Math.min(5, Math.max(2, Math.ceil(totalPages * 0.03)));
+  const scannedPages = pageTexts.length - 1; // texts[0] is placeholder
 
-  if (variants.length > 0) {
-    for (const normTitle of variants) {
-      // Pass 1: heading-line exact match within scanned pages
-      const matches: number[] = [];
-      for (let p = 1; p <= scannedPages; p++) {
-        if (texts[p].split("\n").some((line) => isHeadingLine(line, normTitle))) {
-          matches.push(p);
-        }
-      }
-      if (matches.length > 0) {
-        const bodyMatches = matches.filter((p) => p > tocZone);
-        return bodyMatches.length > 0 ? bodyMatches[0] : matches[0];
-      }
-    }
-
-    // Pass 2: substring fallback within scanned pages
-    for (const normTitle of variants) {
-      const fallbacks: number[] = [];
-      for (let p = 1; p <= scannedPages; p++) {
-        if (normalizeLine(texts[p]).includes(normTitle)) fallbacks.push(p);
-      }
-      if (fallbacks.length > 0) {
-        const bodyFallbacks = fallbacks.filter((p) => p > tocZone);
-        return bodyFallbacks.length > 0 ? bodyFallbacks[0] : fallbacks[0];
-      }
-    }
-
-    // Pass 2b: fuzzy — match if 80%+ of title words appear on the page
-    const primary = variants[0];
-    const titleWords = primary.split(" ").filter((w) => w.length >= 3);
-    if (titleWords.length >= 2) {
-      const fuzzyMatches: number[] = [];
-      for (let p = 1; p <= scannedPages; p++) {
-        const pageNorm = normalizeLine(texts[p]);
-        const matched = titleWords.filter((w) => pageNorm.includes(w)).length;
-        if (matched / titleWords.length >= 0.8) fuzzyMatches.push(p);
-      }
-      if (fuzzyMatches.length > 0) {
-        const bodyFuzzy = fuzzyMatches.filter((p) => p > tocZone);
-        return bodyFuzzy.length > 0 ? bodyFuzzy[0] : fuzzyMatches[0];
-      }
-    }
+  // Collect all matching pages
+  const matches: number[] = [];
+  for (let p = 1; p <= scannedPages; p++) {
+    if (titleInPage(title, pageTexts[p])) matches.push(p);
   }
 
-  // Pass 3: ratio-based estimate using actual PDF total pages.
-  // Needed when the section falls beyond MAX_SCAN_PAGES (e.g. long textbooks).
-  if (orderIdx !== undefined && totalSections && totalSections > 0) {
-    const doc = await getPdfDocument(arxivId);
-    const actualTotal = doc.numPages;
-    return Math.max(1, Math.round(((orderIdx + 0.5) / totalSections) * actualTotal));
+  if (matches.length > 0) {
+    // Prefer body pages over TOC-zone pages
+    const bodyMatches = matches.filter((p) => p > tocZone);
+    if (bodyMatches.length > 0) {
+      // Among body matches, pick the one closest to the estimated page
+      const estimated = estimatePage(orderIdx, totalSections, totalPages);
+      bodyMatches.sort((a, b) => Math.abs(a - estimated) - Math.abs(b - estimated));
+      return bodyMatches[0];
+    }
+    // All matches in TOC zone — return last one (most likely the actual heading, not TOC entry)
+    return matches[matches.length - 1];
   }
 
-  return 1;
+  // No match found — fall back to estimation
+  return estimatePage(orderIdx, totalSections, totalPages);
 }
 
 export function PdfSectionPane({
@@ -146,7 +139,26 @@ export function PdfSectionPane({
   const [targetPage, setTargetPage] = useState<number>(1);
 
   useEffect(() => {
-    findPage(arxivId, sectionTitle, orderIdx, totalSections).then(setTargetPage);
+    let cancelled = false;
+
+    async function resolve() {
+      const { getPdfDocument } = await import("@/lib/pdf-doc");
+      const doc = await getPdfDocument(arxivId);
+      const numPages = doc.numPages;
+
+      // 1. Show estimated page immediately while full scan runs
+      const estimated = estimatePage(orderIdx, totalSections, numPages);
+      if (!cancelled) setTargetPage(estimated);
+
+      // 2. Full-scan all pages for an exact title match
+      const exact = await findPageByFullScan(arxivId, sectionTitle, orderIdx, totalSections);
+      if (!cancelled && exact !== estimated) {
+        setTargetPage(exact);
+      }
+    }
+
+    resolve();
+    return () => { cancelled = true; };
   }, [arxivId, sectionTitle, orderIdx, totalSections]);
 
   return <PdfPageViewer arxivId={arxivId} targetPage={targetPage} />;

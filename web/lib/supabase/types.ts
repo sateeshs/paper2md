@@ -37,6 +37,12 @@ export interface Section {
   raw_latex: string | null;
   has_math: boolean | null;
   created_at: string;
+  /** Outline metadata — null for papers processed before migration 008. */
+  level: number | null;        // 1=chapter 2=section 3=subsection 4=subsubsection
+  number: string | null;       // "2.5.3"
+  page_start: number | null;   // 1-based PDF page
+  page_end: number | null;
+  page_source: string | null;  // 'pdf_outline' | 'inferred'
 }
 
 export interface MathBlock {
@@ -49,6 +55,9 @@ export interface MathBlock {
   context_after: string | null;
   explanation: string | null; // JSON: {what_it_computes, symbol_meanings, intuition, derivation, proof_role, prerequisites, mathematical_significance}
   explanation_model: string | null;
+  viz_image_url: string | null;
+  viz_video_url: string | null;
+  viz_manim_code: string | null;
   created_at: string;
 }
 

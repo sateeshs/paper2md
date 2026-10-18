@@ -74,9 +74,22 @@ export default async function SectionPage({ params }: PageProps) {
         </nav>
 
         <div className="flex items-start justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold">
-            {section.title ?? `Section ${section.order_idx + 1}`}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold">
+              {section.number ? `${section.number} ` : ""}
+              {section.title ?? `Section ${section.order_idx + 1}`}
+            </h1>
+            {section.page_start != null && (
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400 font-mono tabular-nums">
+                {section.page_end != null && section.page_end > section.page_start
+                  ? `pages ${section.page_start}–${section.page_end}`
+                  : `page ${section.page_start}`}
+                {section.page_source === "inferred" && (
+                  <span className="ml-1 italic text-zinc-400"> (approx.)</span>
+                )}
+              </p>
+            )}
+          </div>
           <DownloadSectionButton
             section={{
               id: section.id,
@@ -220,6 +233,13 @@ function cleanPlainText(text: string): string {
   for (let i = 0; i < mathRegions.length; i++) {
     result = result.replace(`\x00MATH${i}\x00`, mathRegions[i]);
   }
+
+  // Strip non-Latin/non-Math Unicode characters that pylatexenc sometimes
+  // produces when it misinterprets custom LaTeX macros (e.g. \Ba, \a).
+  // Myanmar (U+1000-109F), Thai (U+0E00-0E7F), Tibetan (U+0F00-0FFF).
+  // eslint-disable-next-line no-control-regex
+  result = result.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
+
   return result;
 }
 

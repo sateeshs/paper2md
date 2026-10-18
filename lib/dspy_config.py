@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from datetime import date
 from pathlib import Path
@@ -28,9 +29,27 @@ import dspy
 
 _COUNTS_FILE = Path.home() / ".paper2md" / "provider_counts.json"
 
+# OpenRouter model is overridable because a paid account should not be forced
+# through the free queue (~70s/call). The free slug stays the default so nothing
+# changes for free-tier keys; the daily_limit / rpm / sleep_s throttles above
+# exist only to stay inside the free tier and are lifted for a paid slug.
+# Google retires model ids without warning — gemini-2.0-flash 404'd with
+# "no longer available". Overridable so a retirement is a one-line env fix
+# rather than a code change; "gemini/gemini-flash-latest" tracks the newest.
+_GEMINI_MODEL = os.environ.get(
+    "PAPER2MD_GEMINI_MODEL", "gemini/gemini-3.8-flash"
+).strip() or "gemini/gemini-3.8-flash"
+
+_OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
+_OPENROUTER_MODEL = os.environ.get(
+    "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
+).strip() or _OPENROUTER_FREE_MODEL
+_OPENROUTER_IS_PAID = _OPENROUTER_MODEL != _OPENROUTER_FREE_MODEL
+
+
 PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     "gemini": {
-        "model":    "gemini/gemini-2.0-flash",
+        "model":    _GEMINI_MODEL,
         "env_key":  "GEMINI_API_KEY",
         "daily_limit": 1_500,
         "rpm":      15,
@@ -44,11 +63,14 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         "sleep_s":  2.0,
     },
     "openrouter": {
-        "model":    "openrouter/openrouter/free",
+        # Free routing by default. Set PAPER2MD_OPENROUTER_MODEL to a paid slug
+        # (e.g. "openrouter/google/gemini-2.0-flash-001") to bypass the free
+        # queue; the throttles below are lifted when that is set.
+        "model":    _OPENROUTER_MODEL,
         "env_key":  "OPENROUTER_API_KEY",
-        "daily_limit": 200,
-        "rpm":      10,
-        "sleep_s":  6.0,
+        "daily_limit": None if _OPENROUTER_IS_PAID else 200,
+        "rpm":      500 if _OPENROUTER_IS_PAID else 10,
+        "sleep_s":  0.1 if _OPENROUTER_IS_PAID else 6.0,
     },
     # Legacy: keep working if user only has OPENAI_API_KEY
     "openai": {
@@ -99,6 +121,8 @@ def get_provider_count(provider: str) -> int:
 def is_provider_exhausted(provider: str) -> bool:
     """Return True if provider has hit its daily free limit."""
     cfg = PROVIDER_CONFIG.get(provider, {})
+    if _load_counts().get(f"{provider}:exhausted_until", 0) > time.time():
+        return True
     limit = cfg.get("daily_limit")
     if limit is None:
         return False
@@ -144,55 +168,113 @@ def _make_lm(provider: str) -> dspy.LM | None:
     return dspy.LM(cfg["model"], **kwargs)
 
 
+class ProvidersExhaustedError(RuntimeError):
+    """Every provider with an API key has used up today's quota."""
+
+
+# Markers of a per-day cap, as opposed to a per-minute one that backoff clears:
+# Gemini "...PerDayPerProject...", OpenRouter "free-models-per-day",
+# Groq "requests per day (RPD)".
+_DAILY_QUOTA_MARKERS = ("perday", "per-day", "per day", "per_day")
+
+
+def is_daily_quota_error(error: Exception) -> bool:
+    """Return True if `error` is a 429 for a daily quota, not a per-minute one."""
+    msg = str(error).lower()
+    return any(marker in msg for marker in _DAILY_QUOTA_MARKERS)
+
+
+# Used when a quota error carries no retry hint (OpenRouter, Groq).
+DEFAULT_QUOTA_RETRY_S = 3600
+_RETRY_DELAY_RE = re.compile(r'retryDelay"?\s*:\s*"?(\d+)s')
+
+
+def quota_retry_after(error: Exception) -> int:
+    """Seconds until the provider says the quota resets (Gemini's retryDelay)."""
+    match = _RETRY_DELAY_RE.search(str(error))
+    return int(match.group(1)) if match else DEFAULT_QUOTA_RETRY_S
+
+
+def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RETRY_S) -> None:
+    """Record that `provider` is out of quota for the next `retry_after_s` seconds.
+
+    An expiry time rather than a per-date flag: Gemini resets at midnight
+    Pacific, not local midnight, so a date flag either skipped Gemini for the
+    rest of the day or retried it hours before the reset.
+    """
+    counts = _load_counts()
+    counts[f"{provider}:exhausted_until"] = time.time() + retry_after_s
+    _save_counts(counts)
+
+
+def _provider_order() -> list[str]:
+    explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
+    default = ["gemini", "groq", "openrouter", "openai"]
+    if explicit not in PROVIDER_CONFIG:
+        return default
+    return [explicit] + [p for p in default if p != explicit]
+
+
 def configure_dspy() -> str:
     """
-    Configure DSPy with primary provider + fallback chain.
+    Configure DSPy with the first usable provider.
 
     Provider selection order:
       1. PAPER2MD_LLM_PROVIDER env var (explicit)
       2. First provider with API key set and not exhausted
 
-    Returns: name of the primary provider configured.
-    Raises: RuntimeError if no provider is available.
+    Failover is done by failover_provider() when a call hits a daily quota —
+    dspy.LM has no fallback chain of its own.
+
+    Returns: name of the provider configured.
+    Raises: RuntimeError if no provider has a key;
+            ProvidersExhaustedError if every keyed provider is exhausted today.
     """
-    explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
-    order = (
-        [explicit] + [p for p in ["gemini", "groq", "openrouter", "openai"] if p != explicit]
-        if explicit in PROVIDER_CONFIG
-        else ["gemini", "groq", "openrouter", "openai"]
-    )
-
-    primary_lm: dspy.LM | None = None
-    primary_name: str = ""
-    fallback_lms: list[dspy.LM] = []
-
-    for provider in order:
-        lm = _make_lm(provider)
-        if lm is None:
-            continue
-        if primary_lm is None:
-            primary_lm = lm
-            primary_name = provider
-        else:
-            fallback_lms.append(lm)
-
-    if primary_lm is None:
+    keyed = _keyed_providers()
+    if not keyed:
         raise RuntimeError(
             "No LLM provider API key found. Set at least one of: "
             "GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
-    if fallback_lms:
-        primary_lm = dspy.LM(
-            PROVIDER_CONFIG[primary_name]["model"],
-            api_key=os.environ.get(PROVIDER_CONFIG[primary_name]["env_key"], ""),
-            max_tokens=4000,
-            temperature=0.2,
-            fallback=fallback_lms,
+    provider = _preferred_provider(keyed)
+    if provider is None:
+        raise ProvidersExhaustedError(
+            f"Daily quota exhausted for every configured provider: {', '.join(keyed)}"
         )
+    dspy.configure(lm=_make_lm(provider))
+    return provider
 
-    dspy.configure(lm=primary_lm)
-    return primary_name
+
+def _keyed_providers() -> list[str]:
+    return [p for p in _provider_order()
+            if os.environ.get(PROVIDER_CONFIG[p]["env_key"], "").strip()]
+
+
+def _preferred_provider(keyed: list[str]) -> str | None:
+    return next((p for p in keyed if not is_provider_exhausted(p)), None)
+
+
+def failover_provider(provider: str, retry_after_s: int = DEFAULT_QUOTA_RETRY_S) -> str:
+    """Mark `provider` exhausted and switch DSPy to the next one.
+
+    Returns the new provider's name; raises ProvidersExhaustedError if none is left.
+    """
+    mark_provider_exhausted(provider, retry_after_s)
+    return configure_dspy()
+
+
+def restore_preferred_provider(current: str) -> str:
+    """Switch back to a higher-priority provider whose quota window has passed.
+
+    A long run that failed over to a slow fallback would otherwise stay there
+    after the preferred provider's quota resets. Returns the provider in use.
+    """
+    preferred = _preferred_provider(_keyed_providers())
+    if preferred is None or preferred == current:
+        return current
+    dspy.configure(lm=_make_lm(preferred))
+    return preferred
 
 
 def get_sleep_for_provider(provider: str) -> float:

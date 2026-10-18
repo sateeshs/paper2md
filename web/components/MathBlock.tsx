@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MathBlock as MathBlockType } from "@/lib/supabase/types";
 import { KATEX_OPTIONS, isDisplayMode, prepareLatex } from "@/lib/katex-helpers";
-import { ProseWithMath } from "@/components/ProseWithMath";
+import { ProseBlocks } from "@/components/ProseBlocks";
 import { CodePanel } from "@/components/CodePanel";
 import type { CodeSection, CodeArtifactForSave } from "@/components/CodePanel";
 import { flags } from "@/lib/feature-flags";
@@ -14,6 +14,8 @@ interface MathBlockProps {
 
 type Library = "numpy" | "pytorch" | "jax" | "scipy";
 type CodeState = "idle" | "loading" | "ready" | "error" | "not_implementable";
+type VizMode = "static" | "animated";
+type VizState = "idle" | "loading" | "ready" | "error" | "saving";
 
 interface CodeArtifact {
   function_name?: string;
@@ -71,6 +73,17 @@ export function MathBlock({ block }: MathBlockProps) {
   const [codeData, setCodeData] = useState<CodeArtifact | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [library, setLibrary] = useState<Library>("numpy");
+
+  // Visualize state
+  const [showViz, setShowViz] = useState(false);
+  const [vizMode, setVizMode] = useState<VizMode>("static");
+  const [vizState, setVizState] = useState<VizState>("idle");
+  const [vizUrl, setVizUrl] = useState<string | null>(null);
+  const [vizCode, setVizCode] = useState<string | null>(null);
+  const [vizError, setVizError] = useState<string | null>(null);
+  const [vizSaved, setVizSaved] = useState(false);
+  const [vizImageData, setVizImageData] = useState<string | null>(null);
+  const [vizContentType, setVizContentType] = useState<string | null>(null);
 
   const displayMode = isDisplayMode(block.env_type);
   const prepared = prepareLatex(block.latex_expr, displayMode);
@@ -133,6 +146,86 @@ export function MathBlock({ block }: MathBlockProps) {
     }
   }
 
+  function handleVizModeChange(next: VizMode) {
+    setVizMode(next);
+    if (vizState === "ready") {
+      setVizState("idle");
+      setVizUrl(null);
+      setVizCode(null);
+      setVizSaved(false);
+      setVizImageData(null);
+      setVizContentType(null);
+    }
+  }
+
+  async function handleVizToggle() {
+    const next = !showViz;
+    setShowViz(next);
+
+    if (next && vizState === "idle") {
+      setVizState("loading");
+      try {
+        const res = await fetch(`/api/math/${block.id}/visualize`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: vizMode }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setVizError(data.error ?? "Visualization failed");
+          setVizCode(data.manim_code ?? null);
+          setVizState("error");
+        } else if (data.saved) {
+          // Previously saved — URL from DB
+          setVizUrl(data.image_url ?? data.video_url ?? null);
+          setVizCode(data.manim_code ?? null);
+          setVizSaved(true);
+          setVizState("ready");
+        } else {
+          // Fresh render — base64 preview (not yet saved)
+          setVizImageData(data.image_data ?? null);
+          setVizContentType(data.content_type ?? null);
+          setVizCode(data.manim_code ?? null);
+          setVizSaved(false);
+          setVizState("ready");
+        }
+      } catch (err) {
+        setVizError(err instanceof Error ? err.message : "Network error");
+        setVizState("error");
+      }
+    }
+  }
+
+  async function handleVizSave() {
+    if (!vizImageData) return;
+    setVizState("saving");
+    try {
+      const res = await fetch(`/api/math/${block.id}/visualize/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image_data: vizImageData,
+          manim_code: vizCode,
+          mode: vizMode,
+          content_type: vizContentType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setVizError(data.error ?? "Save failed");
+        setVizState("error");
+      } else {
+        setVizUrl(data.image_url ?? data.video_url ?? null);
+        setVizSaved(true);
+        setVizImageData(null);
+        setVizState("ready");
+      }
+    } catch (err) {
+      setVizError(err instanceof Error ? err.message : "Save failed");
+      setVizState("error");
+    }
+  }
+
   // Expression is entirely commented-out or empty — nothing to render
   if (!prepared) return null;
 
@@ -174,6 +267,9 @@ export function MathBlock({ block }: MathBlockProps) {
           : []),
       ]
     : [];
+
+  // Hide blocks with no renderable content (junk whitespace-only extractions)
+  if (!prepared) return null;
 
   return (
     <div className="my-4 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
@@ -289,6 +385,110 @@ export function MathBlock({ block }: MathBlockProps) {
           )}
         </div>
       )}
+
+      {/* Visualize toggle (ManimGL-generated diagrams) */}
+      {flags.SHOW_VISUALIZE && block.explanation && (
+        <div className="border-t border-zinc-200 dark:border-zinc-700">
+          <div className="flex items-center gap-2 px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+            <button
+              onClick={handleVizToggle}
+              className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400 flex-1 text-left"
+            >
+              <span>{showViz ? "▾" : "▸"}</span>
+              <span>Visualize</span>
+              {vizState === "loading" && (
+                <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-ping ml-1 opacity-75" />
+              )}
+            </button>
+
+            {/* Mode picker: Static vs Animated */}
+            <select
+              value={vizMode}
+              onChange={(e) => handleVizModeChange(e.target.value as VizMode)}
+              className="text-xs text-zinc-500 dark:text-zinc-400 bg-transparent border border-zinc-200 dark:border-zinc-600 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              aria-label="Visualization mode"
+            >
+              <option value="static">Static</option>
+              <option value="animated">Animated</option>
+            </select>
+          </div>
+
+          {showViz && (
+            <div className="bg-white dark:bg-zinc-950">
+              {(vizState === "loading" || vizState === "saving") && (
+                <div className="px-4 py-4 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="inline-block w-3 h-3 rounded-full bg-purple-500 animate-ping opacity-75" />
+                  {vizState === "saving"
+                    ? "Saving…"
+                    : `Generating ${vizMode === "animated" ? "animation" : "diagram"}… this may take 30–60s on first load`}
+                </div>
+              )}
+              {vizState === "error" && (
+                <div className="px-4 py-3">
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    {vizError ?? "Visualization failed. Try again."}
+                  </p>
+                  {vizCode && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-zinc-400 cursor-pointer">
+                        Show generated ManimGL code
+                      </summary>
+                      <pre className="mt-1 text-xs text-zinc-500 overflow-x-auto p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
+                        {vizCode}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+              {vizState === "ready" && (
+                <div className="px-4 py-3">
+                  {/* Show image: base64 preview OR saved URL */}
+                  {vizImageData && !vizSaved && (
+                    <img
+                      src={`data:${vizContentType ?? "image/png"};base64,${vizImageData}`}
+                      alt={vizMode === "animated" ? "Math animation preview" : "Math visualization preview"}
+                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                  )}
+                  {vizUrl && vizSaved && (
+                    <img
+                      src={vizUrl}
+                      alt={vizMode === "animated" ? "Math animation" : "Math visualization"}
+                      className="max-w-full rounded border border-zinc-200 dark:border-zinc-700"
+                    />
+                  )}
+
+                  {/* Save button — only shown for unsaved previews */}
+                  {!vizSaved && vizImageData && (
+                    <button
+                      onClick={handleVizSave}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-700 rounded transition-colors"
+                    >
+                      Save
+                    </button>
+                  )}
+                  {vizSaved && (
+                    <span className="mt-2 inline-block text-xs text-green-600 dark:text-green-400">
+                      ✓ Saved
+                    </span>
+                  )}
+
+                  {vizCode && (
+                    <details className="mt-2">
+                      <summary className="text-xs text-zinc-400 cursor-pointer">
+                        Show ManimGL code
+                      </summary>
+                      <pre className="mt-1 text-xs text-zinc-500 overflow-x-auto p-2 bg-zinc-50 dark:bg-zinc-900 rounded">
+                        {vizCode}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -304,11 +504,86 @@ type ExplanationV2 = {
   paper_relevance?: string; // legacy key — kept for backward compat
 };
 
+// Unicode Greek → LaTeX replacements for bare symbols outside $...$
+const GREEK_MAP: Record<string, string> = {
+  α: "\\alpha", β: "\\beta", γ: "\\gamma", δ: "\\delta",
+  ε: "\\varepsilon", ζ: "\\zeta", η: "\\eta", θ: "\\theta",
+  ι: "\\iota", κ: "\\kappa", λ: "\\lambda", μ: "\\mu",
+  ν: "\\nu", ξ: "\\xi", π: "\\pi", ρ: "\\rho",
+  σ: "\\sigma", τ: "\\tau", υ: "\\upsilon", φ: "\\varphi",
+  χ: "\\chi", ψ: "\\psi", ω: "\\omega",
+  Γ: "\\Gamma", Δ: "\\Delta", Θ: "\\Theta", Λ: "\\Lambda",
+  Ξ: "\\Xi", Π: "\\Pi", Σ: "\\Sigma", Φ: "\\Phi",
+  Ψ: "\\Psi", Ω: "\\Omega",
+  "∑": "\\sum", "∏": "\\prod", "∫": "\\int", "∞": "\\infty",
+  "∈": "\\in", "≤": "\\leq", "≥": "\\geq", "≠": "\\neq",
+  "≈": "\\approx", "→": "\\to", "∇": "\\nabla", "∂": "\\partial",
+  "×": "\\times", "·": "\\cdot",
+};
+
+const GREEK_RE = new RegExp(
+  Object.keys(GREEK_MAP).map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"),
+  "g",
+);
+
+const FIELD_DESC_RE = /^\s*:?\s*\d[\d-]*\s*sentences?\s*(max|min)?\.?\s*/i;
+
+// Known field names the LLM may echo as placeholders
+const FIELD_NAMES = new Set([
+  "what_it_computes", "symbol_meanings", "derivation", "intuition",
+  "proof_role", "prerequisites", "mathematical_significance", "paper_relevance",
+]);
+
+// Match {field_name}, {{field_name}}, or bare field_name as entire value
+const PLACEHOLDER_RE = /^\s*\{?\{?\s*(\w+)\s*\}?\}?\s*$/;
+
+// JSON artifacts: leading ]] that leak from structured output
+const JSON_ARTIFACT_RE = /^\s*\]{1,2}\s*/;
+
+function sanitizeField(value: string | undefined): string {
+  if (!value?.trim()) return "";
+  let v = value;
+
+  // Detect placeholder echoes: {what_it_computes}, {{symbol_meanings}}, etc.
+  const placeholderMatch = PLACEHOLDER_RE.exec(v);
+  if (placeholderMatch && FIELD_NAMES.has(placeholderMatch[1])) return "";
+
+  // Strip echoed DSPy field descriptions
+  if (FIELD_DESC_RE.test(v)) {
+    v = v.replace(FIELD_DESC_RE, "").trim();
+    if (!v) return "";
+  }
+
+  // Strip JSON artifacts like leading ]]
+  v = v.replace(JSON_ARTIFACT_RE, "").trim();
+  if (!v) return "";
+
+  // Replace bare Unicode Greek outside $...$ with $\symbol$
+  const parts = v.split(/(\$[^$]+\$)/);
+  v = parts
+    .map((p, i) =>
+      i % 2 === 1 ? p : p.replace(GREEK_RE, (m) => `$${GREEK_MAP[m]}$`),
+    )
+    .join("");
+  // Fix quadruple-escaped backslashes
+  v = v.replace(/\\\\\\\\/g, "\\\\");
+  return v;
+}
+
+function sanitizeExplanation(parsed: ExplanationV2): ExplanationV2 {
+  const result: ExplanationV2 = {};
+  for (const key of Object.keys(parsed) as (keyof ExplanationV2)[]) {
+    const cleaned = sanitizeField(parsed[key]);
+    if (cleaned) result[key] = cleaned;
+  }
+  return result;
+}
+
 function ExplanationPanel({ explanation }: { explanation: string }) {
   // Explanation is a JSON string from DSPy structured output
   let parsed: ExplanationV2 | null = null;
   try {
-    parsed = JSON.parse(explanation);
+    parsed = sanitizeExplanation(JSON.parse(explanation));
   } catch {
     // plain text fallback
   }
@@ -364,9 +639,9 @@ function ExplanationPanel({ explanation }: { explanation: string }) {
   }
 
   return (
-    <p className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950">
-      <ProseWithMath text={explanation} />
-    </p>
+    <div className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-950">
+      <ProseBlocks text={explanation} />
+    </div>
   );
 }
 
@@ -374,8 +649,8 @@ function ExplanationRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
-      <dd className="mt-0.5 text-zinc-700 dark:text-zinc-300 leading-relaxed">
-        <ProseWithMath text={value} />
+      <dd className="mt-0.5 text-zinc-700 dark:text-zinc-300">
+        <ProseBlocks text={value} />
       </dd>
     </div>
   );
