@@ -5,6 +5,7 @@
  * independently of Next.js request context.
  */
 
+import { SEARCH_RESULT_LIMIT } from "@/lib/section-search";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
@@ -52,6 +53,30 @@ export async function getSectionsPaged(
     .order("order_idx", { ascending: true })
     .range(from, to);
   if (error) throw new Error(`getSectionsPaged: ${error.message}`);
+  return { sections: (data ?? []) as SectionWithMathCount[], total: count ?? 0 };
+}
+
+/**
+ * Sections whose title or text contains every term (case-insensitive), in
+ * reading order. Terms must come from parseSectionQuery, which strips the
+ * characters that would break the or() filter.
+ */
+export async function searchSections(
+  client: Client,
+  paperId: string,
+  terms: string[]
+): Promise<{ sections: SectionWithMathCount[]; total: number }> {
+  let query = client
+    .from("sections")
+    .select("*, math_blocks(id)", { count: "exact" })
+    .eq("paper_id", paperId);
+  for (const term of terms) {
+    query = query.or(`title.ilike.%${term}%,plain_text.ilike.%${term}%`);
+  }
+  const { data, error, count } = await query
+    .order("order_idx", { ascending: true })
+    .limit(SEARCH_RESULT_LIMIT);
+  if (error) throw new Error(`searchSections: ${error.message}`);
   return { sections: (data ?? []) as SectionWithMathCount[], total: count ?? 0 };
 }
 
