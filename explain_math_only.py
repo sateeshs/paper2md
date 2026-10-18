@@ -40,6 +40,10 @@ from lib.key_prompt import (
 load_dotenv(Path(__file__).parent / ".env")
 
 
+# Exit status when every provider's daily quota is used up — distinct from 1
+# (some blocks failed) so a scheduler can wait for the reset and rerun.
+EXIT_QUOTA_EXHAUSTED = 3
+
 # Module-level guard to ensure configure_dspy() is called exactly once per process
 _dspy_configured: bool = False
 
@@ -208,7 +212,13 @@ def run(
     from lib.dspy_modules import MathExplainer
     from lib.models import MathBlock
 
-    _ensure_dspy()
+    from lib.dspy_config import ProvidersExhaustedError
+
+    try:
+        _ensure_dspy()
+    except ProvidersExhaustedError as e:
+        tqdm.write(f"[STOP] {e} — retry after the quotas reset")
+        return EXIT_QUOTA_EXHAUSTED
     explainer = MathExplainer()
     client = _get_client()
 
@@ -252,6 +262,7 @@ def run(
         tqdm.write(f"[INFO] paper types (inferred): {type_by_paper}")
 
     updated = skipped = failed = 0
+    exhausted = False
 
     for row in tqdm(rows, desc="Explaining math", unit="block"):
         section = row.get("sections") or {}
@@ -277,7 +288,14 @@ def run(
             skipped += 1
             continue
 
-        explained = explainer.explain_block(block, paper_title, section_title)
+        try:
+            explained = explainer.explain_block(block, paper_title, section_title)
+        except ProvidersExhaustedError as e:
+            # Every remaining block would fail the same way; stop so a rerun
+            # after the quota resets picks up exactly where this left off.
+            tqdm.write(f"[STOP] {e} — retry after the quotas reset")
+            exhausted = True
+            break
 
         if not explained.explanation:
             # explain_block failed silently
@@ -321,6 +339,8 @@ def run(
         f"[INFO] Done — {verb}: {updated}, skipped (trivial): {skipped}, failed: {failed}"
         + ("  (no rows were written)" if dry_run else "")
     )
+    if exhausted:
+        return EXIT_QUOTA_EXHAUSTED
     return 1 if failed else 0
 
 

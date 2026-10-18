@@ -26,7 +26,10 @@ from tqdm import tqdm
 from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
+    ProvidersExhaustedError,
+    failover_provider,
     increment_provider_count,
+    is_daily_quota_error,
     is_provider_exhausted,
     rate_limit_sleep,
 )
@@ -198,16 +201,24 @@ def _active_provider() -> str:
 def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     """Call a DSPy module, track usage count, and sleep for rate limiting.
     Retries up to 4 times on rate limit errors with exponential backoff.
+    A daily-quota error is not retried — backoff cannot clear it — but fails
+    over to the next provider; ProvidersExhaustedError when none is left.
     """
     provider = _active_provider()
     max_retries = 4
-    for attempt in range(max_retries):
+    attempt = 0
+    while attempt < max_retries:
         try:
             result = module(**kwargs)
             increment_provider_count(provider)
             rate_limit_sleep(provider)
             return result
         except Exception as e:
+            if is_daily_quota_error(e):
+                tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")
+                provider = failover_provider(provider)
+                tqdm.write(f"[INFO] now using {provider}")
+                continue
             msg = str(e).lower()
             is_rate_limit = "ratelimit" in msg or "rate_limit" in msg or "429" in msg or "rate limit" in msg
             if is_rate_limit and attempt < max_retries - 1:
@@ -217,6 +228,7 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
                 wait = int(match.group(1)) + 2 if match else 15 * (2 ** attempt)
                 tqdm.write(f"[WARN] Rate limited (attempt {attempt+1}/{max_retries}), waiting {wait}s…")
                 time.sleep(wait)
+                attempt += 1
             else:
                 raise
 
@@ -308,6 +320,8 @@ class MathExplainer(dspy.Module):
                 explanation = self._run(
                     module, block, paper_title, section_title, temperature
                 )
+            except ProvidersExhaustedError:
+                raise  # no predictor can succeed today; let the caller stop
             except Exception as e:
                 tqdm.write(
                     f"[WARN] MathExplainer ({label}) failed for block {block.order_idx}: {e}"

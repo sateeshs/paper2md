@@ -120,6 +120,8 @@ def get_provider_count(provider: str) -> int:
 def is_provider_exhausted(provider: str) -> bool:
     """Return True if provider has hit its daily free limit."""
     cfg = PROVIDER_CONFIG.get(provider, {})
+    if _load_counts().get(f"{provider}:{date.today()}:exhausted"):
+        return True
     limit = cfg.get("daily_limit")
     if limit is None:
         return False
@@ -165,55 +167,78 @@ def _make_lm(provider: str) -> dspy.LM | None:
     return dspy.LM(cfg["model"], **kwargs)
 
 
+class ProvidersExhaustedError(RuntimeError):
+    """Every provider with an API key has used up today's quota."""
+
+
+# Markers of a per-day cap, as opposed to a per-minute one that backoff clears:
+# Gemini "...PerDayPerProject...", OpenRouter "free-models-per-day",
+# Groq "requests per day (RPD)".
+_DAILY_QUOTA_MARKERS = ("perday", "per-day", "per day", "per_day")
+
+
+def is_daily_quota_error(error: Exception) -> bool:
+    """Return True if `error` is a 429 for a daily quota, not a per-minute one."""
+    msg = str(error).lower()
+    return any(marker in msg for marker in _DAILY_QUOTA_MARKERS)
+
+
+def mark_provider_exhausted(provider: str) -> None:
+    """Record that `provider` refused a call for today's quota."""
+    counts = _load_counts()
+    counts[f"{provider}:{date.today()}:exhausted"] = True
+    _save_counts(counts)
+
+
+def _provider_order() -> list[str]:
+    explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
+    default = ["gemini", "groq", "openrouter", "openai"]
+    if explicit not in PROVIDER_CONFIG:
+        return default
+    return [explicit] + [p for p in default if p != explicit]
+
+
 def configure_dspy() -> str:
     """
-    Configure DSPy with primary provider + fallback chain.
+    Configure DSPy with the first usable provider.
 
     Provider selection order:
       1. PAPER2MD_LLM_PROVIDER env var (explicit)
       2. First provider with API key set and not exhausted
 
-    Returns: name of the primary provider configured.
-    Raises: RuntimeError if no provider is available.
+    Failover is done by failover_provider() when a call hits a daily quota —
+    dspy.LM has no fallback chain of its own.
+
+    Returns: name of the provider configured.
+    Raises: RuntimeError if no provider has a key;
+            ProvidersExhaustedError if every keyed provider is exhausted today.
     """
-    explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
-    order = (
-        [explicit] + [p for p in ["gemini", "groq", "openrouter", "openai"] if p != explicit]
-        if explicit in PROVIDER_CONFIG
-        else ["gemini", "groq", "openrouter", "openai"]
-    )
-
-    primary_lm: dspy.LM | None = None
-    primary_name: str = ""
-    fallback_lms: list[dspy.LM] = []
-
-    for provider in order:
-        lm = _make_lm(provider)
-        if lm is None:
-            continue
-        if primary_lm is None:
-            primary_lm = lm
-            primary_name = provider
-        else:
-            fallback_lms.append(lm)
-
-    if primary_lm is None:
+    keyed = [p for p in _provider_order()
+             if os.environ.get(PROVIDER_CONFIG[p]["env_key"], "").strip()]
+    if not keyed:
         raise RuntimeError(
             "No LLM provider API key found. Set at least one of: "
             "GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
-    if fallback_lms:
-        primary_lm = dspy.LM(
-            PROVIDER_CONFIG[primary_name]["model"],
-            api_key=os.environ.get(PROVIDER_CONFIG[primary_name]["env_key"], ""),
-            max_tokens=4000,
-            temperature=0.2,
-            fallback=fallback_lms,
+    usable = [p for p in keyed if not is_provider_exhausted(p)]
+    if not usable:
+        raise ProvidersExhaustedError(
+            f"Daily quota exhausted for every configured provider: {', '.join(keyed)}"
         )
 
-    dspy.configure(lm=primary_lm)
-    return primary_name
+    provider = usable[0]
+    dspy.configure(lm=_make_lm(provider))
+    return provider
+
+
+def failover_provider(provider: str) -> str:
+    """Mark `provider` exhausted for today and switch DSPy to the next one.
+
+    Returns the new provider's name; raises ProvidersExhaustedError if none is left.
+    """
+    mark_provider_exhausted(provider)
+    return configure_dspy()
 
 
 def get_sleep_for_provider(provider: str) -> float:
