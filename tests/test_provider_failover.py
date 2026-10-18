@@ -66,8 +66,9 @@ def test_call_fails_over_to_next_provider_on_daily_quota(providers, monkeypatch)
     monkeypatch.setattr(dspy_modules, "_active_provider", lambda: active["name"])
     monkeypatch.setattr(dspy_modules, "rate_limit_sleep", lambda p: None)
 
-    def fake_failover(provider):
-        dspy_config.mark_provider_exhausted(provider)
+    def fake_failover(provider, retry_after_s):
+        assert retry_after_s == 12442           # Gemini's own retryDelay
+        dspy_config.mark_provider_exhausted(provider, retry_after_s)
         active["name"] = "openrouter"
         return "openrouter"
 
@@ -146,3 +147,41 @@ def test_run_stops_at_first_exhausted_block_with_distinct_exit_code(monkeypatch)
 
     assert code == emo.EXIT_QUOTA_EXHAUSTED
     assert calls == [0]
+
+
+def test_retry_delay_is_read_from_the_quota_error():
+    assert dspy_config.quota_retry_after(Exception(GEMINI_DAILY)) == 12442
+    assert dspy_config.quota_retry_after(Exception(OPENROUTER_DAILY)) == \
+        dspy_config.DEFAULT_QUOTA_RETRY_S
+
+
+def test_exhaustion_expires_when_the_retry_window_passes(providers, monkeypatch):
+    # Local midnight is not the reset: Gemini resets at midnight Pacific, so a
+    # flag keyed by the local date skipped Gemini for the rest of the day.
+    now = {"t": 1_000_000.0}
+    monkeypatch.setattr(dspy_config.time, "time", lambda: now["t"])
+    dspy_config.mark_provider_exhausted("gemini", retry_after_s=600)
+    assert dspy_config.is_provider_exhausted("gemini")
+    now["t"] += 601
+    assert not dspy_config.is_provider_exhausted("gemini")
+
+
+def test_call_returns_to_preferred_provider_once_its_quota_resets(providers, monkeypatch):
+    from lib import dspy_modules
+
+    configured: list[str] = []
+    monkeypatch.setattr(dspy_config.dspy, "configure",
+                        lambda lm: configured.append(lm.model))
+    monkeypatch.setattr(dspy_modules, "_active_provider", lambda: "openrouter")
+    monkeypatch.setattr(dspy_modules, "rate_limit_sleep", lambda p: None)
+
+    now = {"t": 1_000_000.0}
+    monkeypatch.setattr(dspy_config.time, "time", lambda: now["t"])
+    dspy_config.mark_provider_exhausted("gemini", retry_after_s=600)
+
+    dspy_modules._call_with_tracking(lambda **kw: "ok")
+    assert configured == []                     # still inside Gemini's window
+
+    now["t"] += 601
+    dspy_modules._call_with_tracking(lambda **kw: "ok")
+    assert configured and configured[-1].startswith("gemini/")
