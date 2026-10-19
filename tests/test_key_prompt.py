@@ -233,11 +233,11 @@ def test_explain_script_exposes_dry_run_and_ask_key():
 def test_dry_run_does_not_write(monkeypatch):
     """--dry-run must never reach the Supabase update path."""
     import inspect, explain_math_only
-    src = inspect.getsource(explain_math_only.run)
+    src = inspect.getsource(explain_math_only._record)
     dry_idx = src.index("if dry_run:")
     update_idx = src.index('client.table("math_blocks").update(')
     assert dry_idx < update_idx, "dry_run guard must short-circuit before the update"
-    assert "continue" in src[dry_idx:update_idx], "dry_run branch must skip the write"
+    assert "return" in src[dry_idx:update_idx], "dry_run branch must skip the write"
 
 
 # ── paper-type precedence ──────────────────────────────────────────────────

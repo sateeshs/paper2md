@@ -116,7 +116,10 @@ python explain_math_only.py --arxiv-id 2409.02668 --paper-type textbook
 ```
 
 Key options: `--min-expr-len` (skip trivial inline exprs, default 6),
-`--paper-type` (`research_paper` | `textbook` | `lecture_notes`).
+`--paper-type` (`research_paper` | `textbook` | `lecture_notes`),
+`--workers N` (explain N blocks concurrently, default 1 — free providers spend
+most of each call generating, so 4 workers roughly quadruple throughput; call
+starts stay spaced to each provider's rpm across all workers).
 
 ### Debugging section count issues
 
