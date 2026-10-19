@@ -276,6 +276,15 @@ export function prepareLatex(expr: string, displayMode: boolean): string {
   // (Myanmar U+1000-109F, Thai U+0E00-0E7F, Tibetan U+0F00-0FFF)
   s = s.replace(/[\u1000-\u109F\u0E00-\u0E7F\u0F00-\u0FFF]/g, "");
 
+  // Model-written explanations quote paper shorthand as \text{\A}. Once \A is
+  // expanded that becomes \text{\mathbf{A}}, and KaTeX refuses math font
+  // commands in text mode — so drop the \text{} wrapper around them.
+  s = s.replace(/\\text\{\s*(\\math[a-z]+\{[^{}]*\})\s*\}/g, "$1");
+  // JSON double-escaping leaves "\\mathbf{a}^\\top" in model-written inline
+  // math, which KaTeX parses as line breaks. A line break means nothing inline,
+  // so read a doubled backslash before a command name as a single one.
+  if (!displayMode) s = s.replace(/\\\\(?=[A-Za-z])/g, "\\");
+
   // Fallback for rows written before the pipeline expanded preamble macros:
   // papers define \a, \u, \A, \V etc. as shorthand for vectors/matrices, and
   // those used to reach the DB unexpanded. Rewriting \x → {x} renders the

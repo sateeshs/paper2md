@@ -141,3 +141,30 @@ describe("isDisplayMode", () => {
     expect(isDisplayMode("inline")).toBe(false);
   });
 });
+
+describe("prepareLatex — model-written explanation artifacts", () => {
+  // Explanations quoted paper shorthand as \text{\A}; once \A was expanded to
+  // \mathbf{A} KaTeX rejected it ("Can't use function '\mathbf' in text mode").
+  it("unwraps a math font command sitting inside \\text{}", () => {
+    expect(prepareLatex("\\mathbf{y}_i = \\text{\\mathbf{A}} \\mathbf{x}_i", false)).toBe(
+      "\\mathbf{y}_i = \\mathbf{A} \\mathbf{x}_i"
+    );
+  });
+
+  it("keeps ordinary \\text{} content", () => {
+    expect(prepareLatex("x \\text{ for all } y", false)).toBe("x \\text{ for all } y");
+  });
+
+  // JSON double-escaping left "\\mathbf{a}_1^\\top" in inline math, which KaTeX
+  // reads as line breaks ("Got function '\\' with no arguments as superscript").
+  it("reads a doubled backslash before a command as one backslash in inline math", () => {
+    expect(prepareLatex("\\\\mathbf{a}_1^\\\\top\\\\mathbf{a}_1", false)).toBe(
+      "\\mathbf{a}_1^\\top\\mathbf{a}_1"
+    );
+  });
+
+  it("leaves real line breaks in display math alone", () => {
+    const align = "\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}";
+    expect(prepareLatex(align, true)).toBe(align);
+  });
+});
