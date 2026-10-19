@@ -119,7 +119,10 @@ Key options: `--min-expr-len` (skip trivial inline exprs, default 6),
 `--paper-type` (`research_paper` | `textbook` | `lecture_notes`),
 `--workers N` (explain N blocks concurrently, default 1 — free providers spend
 most of each call generating, so 4 workers roughly quadruple throughput; call
-starts stay spaced to each provider's rpm across all workers).
+starts stay spaced to each provider's rpm across all workers),
+`--one-per-provider` (each free provider with quota left explains one block at
+a time, so every quota is spent concurrently; a provider that runs out hands
+its block to another; ignores `--workers`).
 
 ### Debugging section count issues
 

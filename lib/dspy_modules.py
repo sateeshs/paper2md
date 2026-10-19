@@ -20,7 +20,8 @@ import os
 import re
 import threading
 import time
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 
 import dspy
 from tqdm import tqdm
@@ -28,12 +29,15 @@ from tqdm import tqdm
 from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
+    ProviderQuotaError,
     ProvidersExhaustedError,
     active_lm,
     failover_provider,
     increment_provider_count,
     is_daily_quota_error,
     is_provider_exhausted,
+    lm_for,
+    mark_provider_exhausted,
     quota_retry_after,
     rate_limit_sleep,
     restore_preferred_provider,
@@ -195,6 +199,22 @@ def _sanitize_explanation(fields: dict[str, str]) -> dict[str, str]:
 # Provider that served this thread's most recent successful call — the shared
 # active provider may already have failed over by the time a worker records it.
 _last_call = threading.local()
+_pinned = threading.local()
+
+
+@contextmanager
+def pinned_provider(provider: str) -> Iterator[None]:
+    """Send this thread's calls to `provider` only — no failover, no restore."""
+    _pinned.provider = provider
+    try:
+        yield
+    finally:
+        _pinned.provider = None
+
+
+def pinned_provider_name() -> str | None:
+    """The provider this thread is pinned to, or None when it follows the shared one."""
+    return getattr(_pinned, "provider", None)
 
 
 def _active_provider() -> str:
@@ -203,8 +223,8 @@ def _active_provider() -> str:
     if lm is None:
         return "unknown"
     model: str = getattr(lm, "model", "") or ""
-    for name in PROVIDER_CONFIG:
-        if name in model.lower():
+    for name, cfg in PROVIDER_CONFIG.items():
+        if model.lower().startswith(cfg["model"].split("/", 1)[0] + "/"):
             return name
     return "unknown"
 
@@ -214,9 +234,12 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     Retries up to 4 times on rate limit errors with exponential backoff.
     A daily-quota error is not retried — backoff cannot clear it — but fails
     over to the next provider; ProvidersExhaustedError when none is left.
+    A thread under pinned_provider() never switches: it marks its provider
+    spent and raises ProviderQuotaError so the caller can reassign the block.
     """
-    provider = _active_provider()
-    if provider != "unknown":
+    pinned = pinned_provider_name()
+    provider = pinned or _active_provider()
+    if pinned is None and provider != "unknown":
         restored = restore_preferred_provider(provider)
         if restored != provider:
             tqdm.write(f"[INFO] {restored} quota window passed — switching back from {provider}")
@@ -226,7 +249,7 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     while attempt < max_retries:
         try:
             wait_for_call_slot(provider)
-            lm = active_lm()
+            lm = lm_for(provider) if pinned else active_lm()
             with dspy.context(lm=lm) if lm is not None else nullcontext():
                 result = module(**kwargs)
             increment_provider_count(provider)
@@ -234,6 +257,10 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
             rate_limit_sleep(provider)
             return result
         except Exception as e:
+            if is_daily_quota_error(e) and pinned:
+                # The caller hands this block to another provider.
+                mark_provider_exhausted(provider, quota_retry_after(e))
+                raise ProviderQuotaError(provider) from e
             if is_daily_quota_error(e):
                 tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")
                 provider = failover_provider(provider, quota_retry_after(e))

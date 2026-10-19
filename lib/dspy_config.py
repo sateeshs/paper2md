@@ -162,8 +162,13 @@ def _load_counts() -> dict[str, Any]:
 
 
 def _save_counts(counts: dict[str, Any]) -> None:
+    # Write-then-rename: readers outside _state_lock (is_provider_exhausted)
+    # would otherwise see a half-written file, parse it as {} and treat a
+    # spent provider as live.
     _COUNTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _COUNTS_FILE.write_text(json.dumps(counts, indent=2))
+    tmp = _COUNTS_FILE.with_name(f"{_COUNTS_FILE.name}.{threading.get_ident()}.tmp")
+    tmp.write_text(json.dumps(counts, indent=2))
+    os.replace(tmp, _COUNTS_FILE)
 
 
 def quota_day(provider: str, now: float | None = None) -> str:
@@ -244,6 +249,38 @@ def _make_lm(provider: str) -> dspy.LM | None:
 
 class ProvidersExhaustedError(RuntimeError):
     """Every provider with an API key has used up today's quota."""
+
+
+class ProviderQuotaError(ProvidersExhaustedError):
+    """One provider used up its quota; the other providers may still have some."""
+
+    def __init__(self, provider: str) -> None:
+        super().__init__(f"{provider} quota exhausted")
+        self.provider = provider
+
+
+# Paid providers never take a share of the blocks in one-per-provider mode.
+_PAID_PROVIDERS = frozenset({"openai"})
+
+
+def live_providers() -> list[str]:
+    """Free providers with a key and quota left, in priority order."""
+    return [p for p in _keyed_providers()
+            if p not in _PAID_PROVIDERS and not is_provider_exhausted(p)]
+
+
+_lm_by_provider: dict[str, dspy.LM] = {}
+
+
+def lm_for(provider: str) -> dspy.LM | None:
+    """A cached LM for `provider`, independent of the shared active one."""
+    with _state_lock:
+        if provider not in _lm_by_provider:
+            lm = _make_lm(provider)
+            if lm is None:
+                return None
+            _lm_by_provider[provider] = lm
+        return _lm_by_provider[provider]
 
 
 # Markers of a per-day cap, as opposed to a per-minute one that backoff clears:

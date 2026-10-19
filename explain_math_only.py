@@ -331,6 +331,87 @@ def _explain_rows(
     return counts
 
 
+def _explain_on(explainer, provider: str, block, paper_title: str, section_title: str):
+    """Explain one block on one provider (runs on a worker thread)."""
+    from lib.dspy_modules import pinned_provider
+
+    with pinned_provider(provider):
+        return explainer.explain_block(block, paper_title, section_title)
+
+
+def _explain_rows_per_provider(
+    rows: list[dict],
+    explainer,
+    client,
+    type_by_paper: dict[str, str],
+    paper_type: str | None,
+    min_expr_len: int,
+    dry_run: bool,
+) -> dict:
+    """Give every provider with quota left exactly one block at a time.
+
+    All free quotas are spent concurrently instead of one after another. A
+    provider that runs out puts its block back for another provider; the run
+    stops once no provider is left and blocks remain.
+    """
+    from collections import deque
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    from lib.dspy_config import PROVIDER_CONFIG, ProviderQuotaError, live_providers
+
+    counts = {"updated": 0, "skipped": 0, "failed": 0, "exhausted": False}
+    queue = deque(rows)
+    in_flight: dict = {}
+
+    with ThreadPoolExecutor(max_workers=len(PROVIDER_CONFIG)) as pool, \
+            tqdm(total=len(rows), desc="Explaining math", unit="block") as bar:
+
+        def next_block():
+            while queue:
+                row = queue.popleft()
+                block, paper_title, section_title = _block_for_row(row, type_by_paper, paper_type)
+                if block.env_type == "inline" and len(block.latex_expr.strip()) < min_expr_len:
+                    counts["skipped"] += 1
+                    bar.update()
+                    continue
+                return row, block, paper_title, section_title
+            return None
+
+        def fill() -> None:
+            busy = {provider for provider, *_ in in_flight.values()}
+            for provider in live_providers():
+                if provider in busy:
+                    continue
+                item = next_block()
+                if item is None:
+                    return
+                row, block, paper_title, section_title = item
+                future = pool.submit(_explain_on, explainer, provider, block, paper_title, section_title)
+                in_flight[future] = (provider, row, block, section_title)
+
+        tqdm.write(f"[INFO] one block at a time on each of: {', '.join(live_providers()) or 'none'}")
+        fill()
+        while in_flight:
+            done, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            for future in done:
+                provider, row, block, section_title = in_flight.pop(future)
+                try:
+                    explained = future.result()
+                except ProviderQuotaError:
+                    tqdm.write(f"[INFO] {provider} quota spent — its block goes to another provider")
+                    queue.appendleft(row)
+                    continue
+                bar.update()
+                written = _record(row, block, explained, section_title, client, dry_run)
+                counts["updated" if written else "failed"] += 1
+            fill()
+
+        if next_block() is not None:
+            tqdm.write("[STOP] Every provider's quota is spent — retry after the quotas reset")
+            counts["exhausted"] = True
+    return counts
+
+
 def run(
     arxiv_id: str | None,
     max_blocks: int,
@@ -341,6 +422,7 @@ def run(
     section_id: str | None = None,
     dry_run: bool = False,
     workers: int = 1,
+    one_per_provider: bool = False,
 ) -> int:
     from lib.dspy_modules import MathExplainer
 
@@ -395,9 +477,14 @@ def run(
         }
         tqdm.write(f"[INFO] paper types (inferred): {type_by_paper}")
 
-    counts = _explain_rows(
-        rows, explainer, client, type_by_paper, paper_type, min_expr_len, dry_run, workers
-    )
+    if one_per_provider:
+        counts = _explain_rows_per_provider(
+            rows, explainer, client, type_by_paper, paper_type, min_expr_len, dry_run
+        )
+    else:
+        counts = _explain_rows(
+            rows, explainer, client, type_by_paper, paper_type, min_expr_len, dry_run, workers
+        )
     updated, skipped, failed = counts["updated"], counts["skipped"], counts["failed"]
     exhausted = counts["exhausted"]
     if arxiv_id and not dry_run and not exhausted and len(rows) == before:
@@ -428,6 +515,9 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=1, metavar="N",
                     help="Explain N blocks concurrently (default 1). Calls stay "
                          "spaced to each provider's rpm across all workers.")
+    ap.add_argument("--one-per-provider", action="store_true",
+                    help="Give every free provider with quota left one block at a "
+                         "time, so all quotas are spent concurrently (ignores --workers)")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
     ap.add_argument("--dry-run", action="store_true",
@@ -476,6 +566,7 @@ def main() -> int:
         section_id=args.section_id,
         dry_run=args.dry_run,
         workers=args.workers,
+        one_per_provider=args.one_per_provider,
     )
 
 
