@@ -209,6 +209,11 @@ def is_provider_exhausted(provider: str) -> bool:
 # DSPy LM factory
 # ---------------------------------------------------------------------------
 
+# Per-call ceiling. Without one a provider that accepts the connection and
+# never answers holds a worker forever (an NVIDIA call hung for 26+ minutes).
+LM_TIMEOUT_S = 300
+
+
 def _make_lm(provider: str) -> dspy.LM | None:
     """Build a dspy.LM for provider if its API key is set."""
     cfg = PROVIDER_CONFIG[provider]
@@ -220,6 +225,7 @@ def _make_lm(provider: str) -> dspy.LM | None:
         "api_key":    api_key,
         "max_tokens": 8000,
         "temperature": 0.2,
+        "timeout":    LM_TIMEOUT_S,
     }
 
     # OpenRouter requires an extra header

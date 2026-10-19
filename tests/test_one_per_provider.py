@@ -131,3 +131,34 @@ def test_stops_with_quota_exit_when_every_provider_is_spent(keyed, monkeypatch):
 
     assert code == emo.EXIT_QUOTA_EXHAUSTED
     assert sorted(calls) == ["gemini", "groq", "nvidia"]
+
+
+def test_lm_calls_have_a_timeout(keyed):
+    assert dspy_config._make_lm("nvidia").kwargs["timeout"] == dspy_config.LM_TIMEOUT_S
+
+
+def test_provider_whose_quota_returns_joins_while_lanes_are_busy(keyed, monkeypatch):
+    emo = keyed
+    monkeypatch.setattr(emo, "REFILL_INTERVAL_S", 0.02)
+    dspy_config.mark_provider_exhausted("gemini")
+    dspy_config.mark_provider_exhausted("groq")
+    used: set[str] = set()
+
+    class SlowNvidia:
+        def explain_block(self, block, *args):
+            provider = dspy_modules.pinned_provider_name()
+            used.add(provider)
+            if provider == "nvidia" and "gemini" not in used:
+                # Gemini's quota comes back while this lane is still busy.
+                counts = dspy_config._load_counts()
+                counts.pop("gemini:exhausted_until")
+                dspy_config._save_counts(counts)
+                deadline = time.monotonic() + 2
+                while "gemini" not in used and time.monotonic() < deadline:
+                    time.sleep(0.01)
+            return _explained(block)
+
+    code = _run(emo, monkeypatch, SlowNvidia, rows=4)
+
+    assert code == 0
+    assert "gemini" in used

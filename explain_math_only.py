@@ -40,6 +40,10 @@ from lib.key_prompt import (
 load_dotenv(Path(__file__).parent / ".env")
 
 
+# How often one-per-provider mode looks for providers whose quota came back,
+# even while every lane is still busy with a block.
+REFILL_INTERVAL_S = 60
+
 # Exit status when every provider's daily quota is used up — distinct from 1
 # (some blocks failed) so a scheduler can wait for the reset and rerun.
 EXIT_QUOTA_EXHAUSTED = 3
@@ -392,7 +396,7 @@ def _explain_rows_per_provider(
         tqdm.write(f"[INFO] one block at a time on each of: {', '.join(live_providers()) or 'none'}")
         fill()
         while in_flight:
-            done, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            done, _ = wait(in_flight, timeout=REFILL_INTERVAL_S, return_when=FIRST_COMPLETED)
             for future in done:
                 provider, row, block, section_title = in_flight.pop(future)
                 try:
