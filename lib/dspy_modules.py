@@ -268,6 +268,8 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
                 continue
             msg = str(e).lower()
             is_rate_limit = "ratelimit" in msg or "rate_limit" in msg or "429" in msg or "rate limit" in msg
+            # A 503 "temporarily overloaded" clears the same way a per-minute 429 does.
+            is_rate_limit = is_rate_limit or "serviceunavailable" in msg or "overloaded" in msg
             if is_rate_limit and attempt < max_retries - 1:
                 # Use retry_after from response if available, else exponential backoff
                 import re

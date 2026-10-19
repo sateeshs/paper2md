@@ -162,3 +162,20 @@ def test_provider_whose_quota_returns_joins_while_lanes_are_busy(keyed, monkeypa
 
     assert code == 0
     assert "gemini" in used
+
+
+def test_overloaded_provider_is_retried_with_backoff(keyed, monkeypatch):
+    monkeypatch.setattr(dspy_modules, "wait_for_call_slot", lambda _p: None)
+    monkeypatch.setattr(dspy_modules, "rate_limit_sleep", lambda _p: None)
+    monkeypatch.setattr(dspy_modules.time, "sleep", lambda _s: None)
+    calls: list[int] = []
+
+    def overloaded_once(**_kw):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("ServiceUnavailableError: Service temporarily overloaded")
+        return "ok"
+
+    with dspy_modules.pinned_provider("nvidia"):
+        assert dspy_modules._call_with_tracking(overloaded_once) == "ok"
+    assert len(calls) == 2
