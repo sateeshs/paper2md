@@ -6,6 +6,9 @@ import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { useSectionPageMap } from "@/hooks/useSectionPageMap";
+import { useSectionSearch } from "@/hooks/useSectionSearch";
+import { Highlighted } from "@/components/Highlighted";
+import { snippetAround } from "@/lib/section-search";
 import {
   PageBadge,
   SectionNumber,
@@ -29,6 +32,11 @@ export function PaperSplitView({ paper, arxivId, citations = [], totalSections }
 
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const { pageMap, scanning } = useSectionPageMap(arxivId, sections);
+
+  const [query, setQuery] = useState("");
+  const search = useSectionSearch(arxivId, query);
+  const isSearching = search.terms !== null;
+  const visibleSections = isSearching ? search.results : sections;
 
   const targetPage = activeSectionId ? (pageMap.get(activeSectionId) ?? 1) : 1;
 
@@ -101,17 +109,48 @@ export function PaperSplitView({ paper, arxivId, citations = [], totalSections }
             )}
           </div>
 
-          {sections.length === 0 ? (
-            <p className="text-sm text-zinc-400">No sections extracted.</p>
+          <div className="relative mb-2">
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setQuery("");
+              }}
+              placeholder={`Search ${totalSections} sections by title or text…`}
+              aria-label="Search sections"
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          {isSearching && (
+            <p className="mb-3 text-xs text-zinc-400" aria-live="polite">
+              {search.searching
+                ? "Searching…"
+                : search.error
+                  ? search.error
+                  : search.total > search.results.length
+                    ? `Showing first ${search.results.length} of ${search.total} matching sections`
+                    : `${search.total} matching section${search.total === 1 ? "" : "s"}`}
+            </p>
+          )}
+
+          {visibleSections.length === 0 ? (
+            !isSearching ? (
+              <p className="text-sm text-zinc-400">No sections extracted.</p>
+            ) : !search.searching && !search.error ? (
+              <p className="text-sm text-zinc-400">No sections match &ldquo;{query.trim()}&rdquo;.</p>
+            ) : null
           ) : (
             <ul className="space-y-1.5">
-              {sections.map((section) => (
+              {visibleSections.map((section) => (
                 <SectionRow
                   key={section.id}
                   section={section}
                   arxivId={arxivId}
                   active={section.id === activeSectionId}
                   pdfPage={pageMap.get(section.id)}
+                  terms={search.terms ?? []}
                   onHover={() => setActiveSectionId(section.id)}
                 />
               ))}
@@ -119,7 +158,7 @@ export function PaperSplitView({ paper, arxivId, citations = [], totalSections }
           )}
 
           {/* Infinite scroll loading indicator */}
-          {loading && (
+          {!isSearching && loading && (
             <div className="flex justify-center py-6">
               <span className="flex gap-1">
                 {[0, 1, 2].map((i) => (
@@ -134,7 +173,7 @@ export function PaperSplitView({ paper, arxivId, citations = [], totalSections }
           )}
 
           {/* Sentinel — triggers next page load when scrolled into view */}
-          {hasMore && !loading && <div ref={sentinelRef} className="h-4" />}
+          {!isSearching && hasMore && !loading && <div ref={sentinelRef} className="h-4" />}
 
           <CitationsPanel citations={citations} />
         </div>
@@ -153,15 +192,19 @@ function SectionRow({
   arxivId,
   active,
   pdfPage,
+  terms,
   onHover,
 }: {
   section: SectionWithMathCount;
   arxivId: string;
   active: boolean;
   pdfPage: number | undefined;
+  terms: string[];
   onHover: () => void;
 }) {
   const mathCount = section.math_blocks?.length ?? 0;
+  const body = section.plain_text?.trim() ?? "";
+  const preview = terms.length > 0 ? snippetAround(body, terms) : body.slice(0, 120);
 
   return (
     <li>
@@ -183,12 +226,14 @@ function SectionRow({
             )}
           </p>
           <p className={`truncate ${titleWeightClass(section.level)}`}>
-            {section.title ?? "Untitled section"}
+            <Highlighted text={section.title ?? "Untitled section"} terms={terms} />
           </p>
           {/* Chapter/section nodes have no prose of their own — their children do. */}
-          {section.plain_text && section.plain_text.trim().length > 0 && (
-            <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1">
-              {section.plain_text.slice(0, 120)}
+          {body.length > 0 && (
+            <p
+              className={`mt-0.5 text-sm text-zinc-500 dark:text-zinc-400 ${terms.length > 0 ? "line-clamp-2" : "line-clamp-1"}`}
+            >
+              <Highlighted text={preview} terms={terms} />
             </p>
           )}
         </div>

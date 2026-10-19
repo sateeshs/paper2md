@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
-import { getSectionsPaged } from "@/lib/supabase/queries";
+import { getSectionsPaged, searchSections } from "@/lib/supabase/queries";
+import { parseSectionQuery } from "@/lib/section-search";
 
 export async function GET(
   req: Request,
@@ -9,6 +10,11 @@ export async function GET(
   const { arxiv_id } = await params;
   const url = new URL(req.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
+  const rawQuery = url.searchParams.get("q");
+  const terms = parseSectionQuery(rawQuery);
+  if (rawQuery !== null && terms === null) {
+    return NextResponse.json({ error: "Query must contain a term of at least 2 characters" }, { status: 400 });
+  }
 
   const supabase = createServiceClient();
 
@@ -23,6 +29,8 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const result = await getSectionsPaged(supabase, paper.id, page);
+  const result = terms
+    ? await searchSections(supabase, paper.id, terms)
+    : await getSectionsPaged(supabase, paper.id, page);
   return NextResponse.json(result);
 }
