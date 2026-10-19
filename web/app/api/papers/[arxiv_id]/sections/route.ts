@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { VIEWABLE_STATUSES } from "@/lib/paper-status";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getSectionsPaged, searchSections } from "@/lib/supabase/queries";
 import { parseSectionQuery } from "@/lib/section-search";
@@ -22,7 +23,7 @@ export async function GET(
     .from("papers")
     .select("id")
     .eq("arxiv_id", arxiv_id)
-    .eq("status", "complete")
+    .in("status", [...VIEWABLE_STATUSES])
     .maybeSingle();
 
   if (!paper) {

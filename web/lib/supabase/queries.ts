@@ -5,6 +5,7 @@
  * independently of Next.js request context.
  */
 
+import { VIEWABLE_STATUSES } from "@/lib/paper-status";
 import { SEARCH_RESULT_LIMIT } from "@/lib/section-search";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -32,7 +33,7 @@ export async function getPaperMeta(
     .from("papers")
     .select("*")
     .eq("arxiv_id", arxivId)
-    .eq("status", "complete")
+    .in("status", [...VIEWABLE_STATUSES])
     .maybeSingle();
   if (error) throw new Error(`getPaperMeta: ${error.message}`);
   return data;
@@ -140,7 +141,7 @@ export async function getPaperWithSections(
     `
     )
     .eq("arxiv_id", arxivId)
-    .eq("status", "complete")
+    .in("status", [...VIEWABLE_STATUSES])
     .order("order_idx", { referencedTable: "sections" })
     .maybeSingle();
 
@@ -214,7 +215,7 @@ export async function getAllCompletePaperIds(
   const { data, error } = await client
     .from("papers")
     .select("*")
-    .eq("status", "complete")
+    .in("status", [...VIEWABLE_STATUSES])
     .not("arxiv_id", "is", null);
 
   if (error) throw new Error(`getAllCompletePaperIds: ${error.message}`);

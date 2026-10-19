@@ -18,7 +18,7 @@ export interface Paper {
   authors: string[] | null;
   source_type: string;
   pdf_filename: string | null;
-  status: "pending" | "processing" | "complete" | "error";
+  status: "pending" | "processing" | "explaining" | "complete" | "error";
   error_msg: string | null;
   liked: boolean | null;
   liked_at: string | null;
@@ -92,7 +92,7 @@ export interface SatSession {
   question: string;
   subject: "math" | "english" | "reading";
   user_context: string | null;
-  status: "pending" | "processing" | "complete" | "error";
+  status: "pending" | "processing" | "explaining" | "complete" | "error";
   explanation: string | null;
   step_by_step: string | null;
   key_concepts: string | null;
@@ -144,7 +144,7 @@ export type Database = {
           authors?: string[] | null;
           source_type: string;
           pdf_filename?: string | null;
-          status?: "pending" | "processing" | "complete" | "error";
+          status?: "pending" | "processing" | "explaining" | "complete" | "error";
           error_msg?: string | null;
           liked?: boolean | null;
           liked_at?: string | null;

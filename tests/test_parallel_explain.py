@@ -106,16 +106,19 @@ class _FakeClient:
     def __init__(self) -> None:
         self.updated: list[str] = []
         self._payload: dict = {}
+        self._table = ""
 
-    def table(self, _name):
+    def table(self, name):
+        self._table = name
         return self
 
     def update(self, payload):
         self._payload = payload
         return self
 
-    def eq(self, _col, value):
-        self.updated.append(value)
+    def eq(self, col, value):
+        if self._table == "math_blocks" and col == "id":
+            self.updated.append(value)
         return self
 
     def execute(self):

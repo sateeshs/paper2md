@@ -1,4 +1,5 @@
 import type { Paper } from "@/lib/supabase/types";
+import { isViewableStatus } from "@/lib/paper-status";
 import { ProcessButton } from "@/components/ProcessButton";
 import { LiveStatusBadge } from "@/components/LiveStatusBadge";
 
@@ -7,7 +8,7 @@ interface PaperRowProps {
 }
 
 export function PaperRow({ paper }: PaperRowProps) {
-  const isComplete = paper.status === "complete";
+  const isComplete = isViewableStatus(paper.status);
   const isLive = paper.status === "pending" || paper.status === "processing";
   const href = isComplete && paper.arxiv_id ? `/paper/${paper.arxiv_id}` : null;
 
@@ -22,7 +23,9 @@ export function PaperRow({ paper }: PaperRowProps) {
             <LiveStatusBadge arxivId={paper.arxiv_id} initialStatus={paper.status} />
           ) : (
             <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-              paper.status === "complete" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"
+              paper.status === "complete" ? "bg-green-50 text-green-700"
+                : paper.status === "explaining" ? "bg-indigo-50 text-indigo-600"
+                : "bg-red-50 text-red-600"
             }`}>
               {paper.status}
             </span>

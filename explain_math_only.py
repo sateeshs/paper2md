@@ -256,6 +256,17 @@ def _record(row: dict, block, explained, section_title: str, client, dry_run: bo
         return False
 
 
+def _complete_if_explaining(client, arxiv_id: str) -> None:
+    """Flip a paper readable-while-explaining ("explaining") to "complete".
+
+    Called once a pass has worked through every remaining block. Blocks that
+    stayed unexplained (trivial, or rejected every time) do not hold it back.
+    """
+    client.table("papers").update({"status": "complete"}).eq(
+        "arxiv_id", arxiv_id
+    ).eq("status", "explaining").execute()
+
+
 def _explain_rows(
     rows: list[dict],
     explainer,
@@ -348,6 +359,8 @@ def run(
 
     if not rows:
         tqdm.write("[INFO] No unexplained blocks found.")
+        if arxiv_id and not dry_run:
+            _complete_if_explaining(client, arxiv_id)
         return 0
 
     from lib.math_block_selection import prioritize_and_cap
@@ -387,6 +400,8 @@ def run(
     )
     updated, skipped, failed = counts["updated"], counts["skipped"], counts["failed"]
     exhausted = counts["exhausted"]
+    if arxiv_id and not dry_run and not exhausted and len(rows) == before:
+        _complete_if_explaining(client, arxiv_id)
 
     verb = "would update" if dry_run else "updated"
     tqdm.write(
