@@ -6,7 +6,7 @@ interface PaperStatusStreamProps {
   arxivId: string;
 }
 
-type StreamStatus = "pending" | "processing" | "complete" | "error";
+type StreamStatus = "pending" | "processing" | "explaining" | "complete" | "error";
 
 export function PaperStatusStream({ arxivId }: PaperStatusStreamProps) {
   const [status, setStatus] = useState<StreamStatus>("pending");
@@ -32,7 +32,7 @@ export function PaperStatusStream({ arxivId }: PaperStatusStreamProps) {
     return () => es.close();
   }, [arxivId]);
 
-  if (status === "complete") {
+  if (status === "complete" || status === "explaining") {
     return (
       <div className="mt-3 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2.5 text-sm text-green-700">
         <span>✓</span>

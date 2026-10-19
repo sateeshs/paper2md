@@ -13,6 +13,7 @@ import { DISPLAY_ENV_TYPES } from "@/lib/katex-helpers";
 import { aggregatePrerequisites } from "@/lib/prerequisites";
 import { BackButton } from "@/components/BackButton";
 import { DownloadSectionButton } from "@/components/DownloadSectionButton";
+import { ExplanationsInProgress } from "@/components/ExplanationsInProgress";
 
 export const revalidate = 3600;
 
@@ -72,6 +73,8 @@ export default async function SectionPage({ params }: PageProps) {
             {section.title ?? `Section ${section.order_idx + 1}`}
           </span>
         </nav>
+
+        <ExplanationsInProgress status={paper.status} />
 
         <div className="flex items-start justify-between gap-4 mb-6">
           <div className="min-w-0">

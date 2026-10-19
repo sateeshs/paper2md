@@ -1,5 +1,6 @@
 "use client";
 
+import { isViewableStatus } from "@/lib/paper-status";
 import { useState, useEffect } from "react";
 import type { PaperCitation } from "@/lib/supabase/types";
 
@@ -27,7 +28,7 @@ export function CitationsPanel({ citations }: CitationsPanelProps) {
       .then((statusMap: Record<string, string>) => {
         const initial: Record<string, "idle" | "loading" | "queued" | "exists" | "error"> = {};
         for (const [id, status] of Object.entries(statusMap)) {
-          if (status === "complete") initial[id] = "exists";
+          if (isViewableStatus(status)) initial[id] = "exists";
           else if (status === "pending" || status === "processing") initial[id] = "queued";
           // "error" stays "idle" — allow re-queue
         }

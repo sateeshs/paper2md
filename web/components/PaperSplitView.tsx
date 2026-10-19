@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { PaperCitation, PaperWithSections, SectionWithMathCount } from "@/lib/supabase/types";
 import { PdfPageViewer } from "@/components/PdfPageViewer";
 import { LikeButton } from "@/components/LikeButton";
+import { ExplanationsInProgress } from "@/components/ExplanationsInProgress";
 import { CitationsPanel } from "@/components/CitationsPanel";
 import { useSectionPageMap } from "@/hooks/useSectionPageMap";
 import { useSectionSearch } from "@/hooks/useSectionSearch";
@@ -91,6 +92,7 @@ export function PaperSplitView({ paper, arxivId, citations = [], totalSections }
             {paper.arxiv_id && (
               <p className="text-sm text-zinc-400 mt-1">arXiv:{paper.arxiv_id}</p>
             )}
+            <ExplanationsInProgress status={paper.status} />
             <div className="mt-3">
               <LikeButton
                 arxivId={paper.arxiv_id ?? ""}

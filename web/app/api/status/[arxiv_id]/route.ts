@@ -46,7 +46,7 @@ export async function GET(
           send(status, title);
         }
 
-        if (status === "complete" || status === "error") {
+        if (status === "complete" || status === "explaining" || status === "error") {
           break;
         }
 

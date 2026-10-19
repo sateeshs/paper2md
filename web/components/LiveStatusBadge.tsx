@@ -10,6 +10,7 @@ interface LiveStatusBadgeProps {
 const BADGE_CLASS: Record<string, string> = {
   pending:    "bg-amber-50 text-amber-600",
   processing: "bg-blue-50 text-blue-600",
+  explaining: "bg-indigo-50 text-indigo-600",
   complete:   "bg-green-50 text-green-700",
   error:      "bg-red-50 text-red-600",
 };
@@ -20,7 +21,7 @@ export function LiveStatusBadge({ arxivId, initialStatus }: LiveStatusBadgeProps
 
   useEffect(() => {
     // Only stream for non-terminal statuses
-    if (status === "complete" || status === "error") return;
+    if (status === "complete" || status === "explaining" || status === "error") return;
 
     const es = new EventSource(`/api/status/${arxivId}`);
     es.onmessage = (e) => {
@@ -34,14 +35,14 @@ export function LiveStatusBadge({ arxivId, initialStatus }: LiveStatusBadgeProps
     return () => es.close();
   }, [arxivId, status]);
 
-  const isLive = status !== "complete" && status !== "error";
+  const isLive = status !== "complete" && status !== "explaining" && status !== "error";
 
   return (
     <span className={`inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${BADGE_CLASS[status] ?? "bg-zinc-100 text-zinc-500"}`}>
       {isLive && (
         <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
       )}
-      {status === "complete" && title ? (
+      {(status === "complete" || status === "explaining") && title ? (
         <a href={`/paper/${arxivId}`} className="underline underline-offset-2">
           {title}
         </a>
