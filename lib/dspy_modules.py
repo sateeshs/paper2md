@@ -18,7 +18,9 @@ import dataclasses
 import json
 import os
 import re
+import threading
 import time
+from contextlib import nullcontext
 
 import dspy
 from tqdm import tqdm
@@ -27,6 +29,7 @@ from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
     ProvidersExhaustedError,
+    active_lm,
     failover_provider,
     increment_provider_count,
     is_daily_quota_error,
@@ -34,6 +37,7 @@ from lib.dspy_config import (
     quota_retry_after,
     rate_limit_sleep,
     restore_preferred_provider,
+    wait_for_call_slot,
 )
 from lib.dspy_signatures import (
     ExplainAlgorithmBlock,
@@ -188,9 +192,14 @@ def _sanitize_explanation(fields: dict[str, str]) -> dict[str, str]:
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Provider that served this thread's most recent successful call — the shared
+# active provider may already have failed over by the time a worker records it.
+_last_call = threading.local()
+
+
 def _active_provider() -> str:
     """Return the name of the currently configured primary DSPy provider."""
-    lm = dspy.settings.lm
+    lm = active_lm() or dspy.settings.lm
     if lm is None:
         return "unknown"
     model: str = getattr(lm, "model", "") or ""
@@ -216,8 +225,12 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     attempt = 0
     while attempt < max_retries:
         try:
-            result = module(**kwargs)
+            wait_for_call_slot(provider)
+            lm = active_lm()
+            with dspy.context(lm=lm) if lm is not None else nullcontext():
+                result = module(**kwargs)
             increment_provider_count(provider)
+            _last_call.provider = provider
             rate_limit_sleep(provider)
             return result
         except Exception as e:
@@ -337,7 +350,7 @@ class MathExplainer(dspy.Module):
             return dataclasses.replace(
                 block,
                 explanation=explanation,
-                explanation_model=_active_provider(),
+                explanation_model=getattr(_last_call, "provider", None) or _active_provider(),
             )
         return block
 

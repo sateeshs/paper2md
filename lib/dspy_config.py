@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,6 +130,12 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
 # Daily usage tracking
 # ---------------------------------------------------------------------------
 
+# explain_math_only.py --workers runs calls on several threads. They share the
+# usage file (read-modify-write) and the active LM, so both are guarded here.
+_state_lock = threading.RLock()
+_active_lm: dspy.LM | None = None
+
+
 def _load_counts() -> dict[str, Any]:
     if not _COUNTS_FILE.exists():
         return {}
@@ -152,11 +159,12 @@ def quota_day(provider: str, now: float | None = None) -> str:
 
 def increment_provider_count(provider: str) -> int:
     """Increment daily call count for provider. Returns new count."""
-    counts = _load_counts()
-    key = f"{provider}:{quota_day(provider)}"
-    counts[key] = counts.get(key, 0) + 1
-    _save_counts(counts)
-    return counts[key]
+    with _state_lock:
+        counts = _load_counts()
+        key = f"{provider}:{quota_day(provider)}"
+        counts[key] = counts.get(key, 0) + 1
+        _save_counts(counts)
+        return counts[key]
 
 
 def get_provider_count(provider: str) -> int:
@@ -253,9 +261,10 @@ def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RE
     Pacific, not local midnight, so a date flag either skipped Gemini for the
     rest of the day or retried it hours before the reset.
     """
-    counts = _load_counts()
-    counts[f"{provider}:exhausted_until"] = time.time() + retry_after_s
-    _save_counts(counts)
+    with _state_lock:
+        counts = _load_counts()
+        counts[f"{provider}:exhausted_until"] = time.time() + retry_after_s
+        _save_counts(counts)
 
 
 def _provider_order() -> list[str]:
@@ -288,13 +297,31 @@ def configure_dspy() -> str:
             "GEMINI_API_KEY, GROQ_API_KEY, OLLAMA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
-    provider = _preferred_provider(keyed)
-    if provider is None:
-        raise ProvidersExhaustedError(
-            f"Daily quota exhausted for every configured provider: {', '.join(keyed)}"
-        )
-    dspy.configure(lm=_make_lm(provider))
-    return provider
+    with _state_lock:
+        provider = _preferred_provider(keyed)
+        if provider is None:
+            raise ProvidersExhaustedError(
+                f"Daily quota exhausted for every configured provider: {', '.join(keyed)}"
+            )
+        _activate(provider)
+        return provider
+
+
+def _activate(provider: str) -> None:
+    """Make `provider` the LM every thread uses for its next call.
+
+    dspy.configure only works on the thread that first called it, so worker
+    threads read the shared LM via active_lm() and run under dspy.context.
+    """
+    global _active_lm
+    _active_lm = _make_lm(provider)
+    if threading.current_thread() is threading.main_thread():
+        dspy.configure(lm=_active_lm)
+
+
+def active_lm() -> dspy.LM | None:
+    """The LM currently selected by configure_dspy / failover, shared by all threads."""
+    return _active_lm
 
 
 def _keyed_providers() -> list[str]:
@@ -311,8 +338,9 @@ def failover_provider(provider: str, retry_after_s: int = DEFAULT_QUOTA_RETRY_S)
 
     Returns the new provider's name; raises ProvidersExhaustedError if none is left.
     """
-    mark_provider_exhausted(provider, retry_after_s)
-    return configure_dspy()
+    with _state_lock:
+        mark_provider_exhausted(provider, retry_after_s)
+        return configure_dspy()
 
 
 def restore_preferred_provider(current: str) -> str:
@@ -321,11 +349,12 @@ def restore_preferred_provider(current: str) -> str:
     A long run that failed over to a slow fallback would otherwise stay there
     after the preferred provider's quota resets. Returns the provider in use.
     """
-    preferred = _preferred_provider(_keyed_providers())
-    if preferred is None or preferred == current:
-        return current
-    dspy.configure(lm=_make_lm(preferred))
-    return preferred
+    with _state_lock:
+        preferred = _preferred_provider(_keyed_providers())
+        if preferred is None or preferred == current:
+            return current
+        _activate(preferred)
+        return preferred
 
 
 def get_sleep_for_provider(provider: str) -> float:
@@ -338,3 +367,22 @@ def rate_limit_sleep(provider: str) -> None:
     sleep_s = get_sleep_for_provider(provider)
     if sleep_s > 0:
         time.sleep(sleep_s)
+
+
+# Earliest monotonic time the next call to each provider may start.
+_next_call_at: dict[str, float] = {}
+
+
+def wait_for_call_slot(provider: str) -> None:
+    """Block until `provider` may start another call, spacing starts by 60/rpm.
+
+    rate_limit_sleep() paces one thread; with several workers the per-thread
+    sleeps overlap, so call starts are also spaced across all threads here.
+    """
+    interval = 60.0 / PROVIDER_CONFIG.get(provider, {}).get("rpm", 30)
+    with _state_lock:
+        now = time.monotonic()
+        start = max(now, _next_call_at.get(provider, now))
+        _next_call_at[provider] = start + interval
+    if start > now:
+        time.sleep(start - now)

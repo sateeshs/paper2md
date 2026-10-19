@@ -199,6 +199,127 @@ def _format_exc(e: Exception) -> str:
     return type(e).__name__
 
 
+def _block_for_row(
+    row: dict, type_by_paper: dict[str, str], paper_type: str | None
+) -> tuple["MathBlock", str, str]:
+    """Build the MathBlock plus paper/section titles the explainer needs."""
+    from lib.models import MathBlock
+
+    section = row.get("sections") or {}
+    paper = section.get("papers") or {}
+    block = MathBlock(
+        order_idx=row["order_idx"],
+        env_type=row["env_type"],
+        latex_expr=row["latex_expr"],
+        context_before=row.get("context_before") or "",
+        context_after=row.get("context_after") or "",
+        paper_type=type_by_paper.get(
+            paper.get("arxiv_id") or "?", paper_type or "research_paper"
+        ),
+    )
+    return block, paper.get("title") or "Unknown Paper", section.get("title") or "Unknown Section"
+
+
+def _record(row: dict, block, explained, section_title: str, client, dry_run: bool) -> bool:
+    """Validate one explanation and write it. Returns True if it was (or would be) written."""
+    if not explained.explanation:
+        return False  # explain_block failed silently
+
+    # Weak or overloaded models return placeholders and repetition loops
+    # that parse as valid JSON. Writing those is worse than writing
+    # nothing: the block looks explained and never gets retried.
+    defect = find_defect(explained.explanation)
+    if defect:
+        tqdm.write(f"[REJECT] block {row['id']}: {defect}")
+        return False
+
+    if dry_run:
+        # Verify the provider and the output before writing to the live DB.
+        preview = json.loads(explained.explanation)
+        tqdm.write(
+            f"\n[DRY RUN] {section_title} — {block.env_type} block {block.order_idx}\n"
+            f"  expr: {block.latex_expr.strip()[:90]}\n"
+            f"  what_it_computes: {str(preview.get('what_it_computes'))[:220]}\n"
+            f"  model: {explained.explanation_model}"
+        )
+        return True
+
+    # UPDATE in-place — never touch sections or papers rows
+    try:
+        client.table("math_blocks").update({
+            "explanation":       explained.explanation,
+            "explanation_model": explained.explanation_model,
+        }).eq("id", row["id"]).execute()
+        return True
+    except Exception as e:
+        tqdm.write(f"[ERROR] update failed for block {row['id']}: {_format_exc(e)}")
+        return False
+
+
+def _explain_rows(
+    rows: list[dict],
+    explainer,
+    client,
+    type_by_paper: dict[str, str],
+    paper_type: str | None,
+    min_expr_len: int,
+    dry_run: bool,
+    workers: int,
+) -> dict:
+    """Explain rows on `workers` threads; validate and write on this thread.
+
+    At most `workers` blocks are in flight, so when every provider is spent
+    the run stops after the calls already started — those are still written.
+    """
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    from lib.dspy_config import ProvidersExhaustedError
+
+    counts = {"updated": 0, "skipped": 0, "failed": 0, "exhausted": False}
+    pending = iter(rows)
+    in_flight: dict = {}
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool, \
+            tqdm(total=len(rows), desc="Explaining math", unit="block") as bar:
+
+        def submit_next() -> bool:
+            for row in pending:
+                block, paper_title, section_title = _block_for_row(row, type_by_paper, paper_type)
+                # Skip trivially short inline expressions
+                if block.env_type == "inline" and len(block.latex_expr.strip()) < min_expr_len:
+                    counts["skipped"] += 1
+                    bar.update()
+                    continue
+                future = pool.submit(explainer.explain_block, block, paper_title, section_title)
+                in_flight[future] = (row, block, section_title)
+                return True
+            return False
+
+        for _ in range(max(1, workers)):
+            if not submit_next():
+                break
+
+        while in_flight:
+            done, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            for future in done:
+                row, block, section_title = in_flight.pop(future)
+                bar.update()
+                try:
+                    explained = future.result()
+                except ProvidersExhaustedError as e:
+                    # Every remaining block would fail the same way; stop so a rerun
+                    # after the quota resets picks up exactly where this left off.
+                    if not counts["exhausted"]:
+                        tqdm.write(f"[STOP] {e} — retry after the quotas reset")
+                    counts["exhausted"] = True
+                    continue
+                written = _record(row, block, explained, section_title, client, dry_run)
+                counts["updated" if written else "failed"] += 1
+                if not counts["exhausted"]:
+                    submit_next()
+    return counts
+
+
 def run(
     arxiv_id: str | None,
     max_blocks: int,
@@ -208,9 +329,9 @@ def run(
     max_blocks_per_section: int | None = None,
     section_id: str | None = None,
     dry_run: bool = False,
+    workers: int = 1,
 ) -> int:
     from lib.dspy_modules import MathExplainer
-    from lib.models import MathBlock
 
     from lib.dspy_config import ProvidersExhaustedError
 
@@ -261,78 +382,11 @@ def run(
         }
         tqdm.write(f"[INFO] paper types (inferred): {type_by_paper}")
 
-    updated = skipped = failed = 0
-    exhausted = False
-
-    for row in tqdm(rows, desc="Explaining math", unit="block"):
-        section = row.get("sections") or {}
-        paper = section.get("papers") or {}
-
-        paper_title = paper.get("title") or "Unknown Paper"
-        section_title = section.get("title") or "Unknown Section"
-
-        # Build a MathBlock for the explainer
-        block = MathBlock(
-            order_idx=row["order_idx"],
-            env_type=row["env_type"],
-            latex_expr=row["latex_expr"],
-            context_before=row.get("context_before") or "",
-            context_after=row.get("context_after") or "",
-            paper_type=type_by_paper.get(
-                paper.get("arxiv_id") or "?", paper_type or "research_paper"
-            ),
-        )
-
-        # Skip trivially short inline expressions
-        if block.env_type == "inline" and len(block.latex_expr.strip()) < min_expr_len:
-            skipped += 1
-            continue
-
-        try:
-            explained = explainer.explain_block(block, paper_title, section_title)
-        except ProvidersExhaustedError as e:
-            # Every remaining block would fail the same way; stop so a rerun
-            # after the quota resets picks up exactly where this left off.
-            tqdm.write(f"[STOP] {e} — retry after the quotas reset")
-            exhausted = True
-            break
-
-        if not explained.explanation:
-            # explain_block failed silently
-            failed += 1
-            continue
-
-        # Weak or overloaded models return placeholders and repetition loops
-        # that parse as valid JSON. Writing those is worse than writing
-        # nothing: the block looks explained and never gets retried.
-        defect = find_defect(explained.explanation)
-        if defect:
-            failed += 1
-            tqdm.write(f"[REJECT] block {row['id']}: {defect}")
-            continue
-
-        if dry_run:
-            # Verify the provider and the output before writing to the live DB.
-            preview = json.loads(explained.explanation)
-            tqdm.write(
-                f"\n[DRY RUN] {section_title} — {block.env_type} block {block.order_idx}\n"
-                f"  expr: {block.latex_expr.strip()[:90]}\n"
-                f"  what_it_computes: {str(preview.get('what_it_computes'))[:220]}\n"
-                f"  model: {explained.explanation_model}"
-            )
-            updated += 1
-            continue
-
-        # UPDATE in-place — never touch sections or papers rows
-        try:
-            client.table("math_blocks").update({
-                "explanation":       explained.explanation,
-                "explanation_model": explained.explanation_model,
-            }).eq("id", row["id"]).execute()
-            updated += 1
-        except Exception as e:
-            failed += 1
-            tqdm.write(f"[ERROR] update failed for block {row['id']}: {_format_exc(e)}")
+    counts = _explain_rows(
+        rows, explainer, client, type_by_paper, paper_type, min_expr_len, dry_run, workers
+    )
+    updated, skipped, failed = counts["updated"], counts["skipped"], counts["failed"]
+    exhausted = counts["exhausted"]
 
     verb = "would update" if dry_run else "updated"
     tqdm.write(
@@ -356,6 +410,9 @@ def main() -> int:
                     help="Max blocks per section before global cap; ensures all sections covered")
     ap.add_argument("--force", action="store_true",
                     help="Re-explain blocks that already have explanations")
+    ap.add_argument("--workers", type=int, default=1, metavar="N",
+                    help="Explain N blocks concurrently (default 1). Calls stay "
+                         "spaced to each provider's rpm across all workers.")
     ap.add_argument("--min-expr-len", type=int, default=6,
                     help="Skip inline exprs shorter than this (default: 6)")
     ap.add_argument("--dry-run", action="store_true",
@@ -403,6 +460,7 @@ def main() -> int:
         max_blocks_per_section=args.max_blocks_per_section,
         section_id=args.section_id,
         dry_run=args.dry_run,
+        workers=args.workers,
     )
 
 

@@ -34,6 +34,10 @@ def providers(tmp_path, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "g-key")
     monkeypatch.setenv("OPENROUTER_API_KEY", "or-key")
     monkeypatch.setattr(dspy_config.dspy, "configure", lambda **kw: None)
+    # Call-start spacing (6s for OpenRouter) is covered in test_parallel_explain.
+    monkeypatch.setattr(dspy_config, "wait_for_call_slot", lambda p: None)
+    from lib import dspy_modules
+    monkeypatch.setattr(dspy_modules, "wait_for_call_slot", lambda p: None)
 
 
 @pytest.mark.parametrize("message", [GEMINI_DAILY, OPENROUTER_DAILY,
