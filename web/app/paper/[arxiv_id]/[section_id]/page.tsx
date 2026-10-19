@@ -53,7 +53,7 @@ export default async function SectionPage({ params }: PageProps) {
   const prerequisites = aggregatePrerequisites(mathBlocks);
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 dark:bg-zinc-950 dark:text-zinc-100">
       {/* Left pane — section content */}
       <div className="flex-1 min-w-0 overflow-y-auto px-6 py-8">
         {/* Breadcrumb */}

@@ -274,7 +274,7 @@ export function MathBlock({ block }: MathBlockProps) {
   return (
     <div className="my-4 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
       {/* Rendered math */}
-      <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-900">
+      <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
         {renderError ? (
           <code className="text-sm text-zinc-600 dark:text-zinc-400 break-all">
             {block.latex_expr}
