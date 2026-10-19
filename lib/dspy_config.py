@@ -4,7 +4,8 @@ Provider priority:
   1. Gemini Flash  — 1,500 req/day, 15 RPM  (primary)
   2. Groq          — 1,000 req/day, 30 RPM  (fallback)
   3. Ollama Cloud  — 5h session + weekly GPU-time limits
-  4. OpenRouter    — 50 free req/day, or 1,000 once $10+ credits bought
+  4. NVIDIA NIM    — no daily cap, ~40 RPM
+  5. OpenRouter    — 50 free req/day, or 1,000 once $10+ credits bought
 
 Usage:
     from lib.dspy_config import configure_dspy
@@ -57,6 +58,14 @@ _OLLAMA_MODEL = os.environ.get(
 ).strip() or _OLLAMA_DEFAULT_MODEL
 _OLLAMA_API_BASE = "https://ollama.com"
 
+# NVIDIA NIM (build.nvidia.com) free tier: no daily cap, only ~40 RPM per key,
+# so daily_limit is None — it keeps the runner going once the capped providers
+# are spent. LiteLLM supplies the integrate.api.nvidia.com base URL.
+_NVIDIA_DEFAULT_MODEL = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+_NVIDIA_MODEL = os.environ.get(
+    "PAPER2MD_NVIDIA_MODEL", _NVIDIA_DEFAULT_MODEL
+).strip() or _NVIDIA_DEFAULT_MODEL
+
 _OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
 _OPENROUTER_MODEL = os.environ.get(
     "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
@@ -102,6 +111,13 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         "daily_limit": None,
         "rpm":      30,
         "sleep_s":  1.0,
+    },
+    "nvidia": {
+        "model":    _NVIDIA_MODEL,
+        "env_key":  "NVIDIA_NIM_API_KEY",
+        "daily_limit": None,
+        "rpm":      40,
+        "sleep_s":  1.5,
     },
     "openrouter": {
         # Free routing by default. Set PAPER2MD_OPENROUTER_MODEL to a paid slug
@@ -269,7 +285,7 @@ def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RE
 
 def _provider_order() -> list[str]:
     explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
-    default = ["gemini", "groq", "ollama", "openrouter", "openai"]
+    default = ["gemini", "groq", "ollama", "nvidia", "openrouter", "openai"]
     if explicit not in PROVIDER_CONFIG:
         return default
     return [explicit] + [p for p in default if p != explicit]
@@ -294,7 +310,8 @@ def configure_dspy() -> str:
     if not keyed:
         raise RuntimeError(
             "No LLM provider API key found. Set at least one of: "
-            "GEMINI_API_KEY, GROQ_API_KEY, OLLAMA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY"
+            "GEMINI_API_KEY, GROQ_API_KEY, OLLAMA_API_KEY, NVIDIA_NIM_API_KEY, "
+            "OPENROUTER_API_KEY, OPENAI_API_KEY"
         )
 
     with _state_lock:

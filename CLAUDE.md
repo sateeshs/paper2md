@@ -214,11 +214,16 @@ MathBlock(order_idx, env_type, latex_expr, context_before, context_after,
 1. Gemini 2.0 Flash      GEMINI_API_KEY         1,500 req/day free
 2. Groq gpt-oss-120b     GROQ_API_KEY           1,000 req/day free
 3. Ollama Cloud (free)   OLLAMA_API_KEY         5h session + weekly limits
-4. OpenRouter (free)     OPENROUTER_API_KEY       200/day cap (50 or 1,000 real; resets 00:00 UTC)
-5. OpenAI gpt-4o-mini    OPENAI_API_KEY           paid fallback
+4. NVIDIA NIM (free)     NVIDIA_NIM_API_KEY       no daily cap, ~40 RPM (Nemotron-3 Super)
+5. OpenRouter (free)     OPENROUTER_API_KEY       200/day cap (50 or 1,000 real; resets 00:00 UTC)
+6. OpenAI gpt-4o-mini    OPENAI_API_KEY           paid fallback
 ```
 
-Force a provider: `PAPER2MD_LLM_PROVIDER=gemini` (or `groq`, `ollama`, `openrouter`, `openai`).
+Force a provider: `PAPER2MD_LLM_PROVIDER=gemini` (or `groq`, `ollama`, `nvidia`, `openrouter`, `openai`).
+
+NVIDIA NIM: free key from build.nvidia.com (NVIDIA Developer Program). Change
+the model with `PAPER2MD_NVIDIA_MODEL=nvidia_nim/<model id>` — the ids are
+listed by `GET https://integrate.api.nvidia.com/v1/models`.
 
 OpenRouter free tier: keys that never bought credits get 50 free requests/day,
 keys with $10+ purchased get 1,000. Raise the runner's cap with
@@ -470,6 +475,7 @@ The deploy registers two Modal functions:
 PAPER2MD_LLM_PROVIDER=gemini       # primary provider
 GEMINI_API_KEY=
 GROQ_API_KEY=
+NVIDIA_NIM_API_KEY=                 # build.nvidia.com — no daily cap
 OPENROUTER_API_KEY=
 OPENAI_API_KEY=                     # paid fallback
 SUPABASE_URL=
