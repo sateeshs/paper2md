@@ -3,7 +3,8 @@
 Provider priority:
   1. Gemini Flash  — 1,500 req/day, 15 RPM  (primary)
   2. Groq          — 1,000 req/day, 30 RPM  (fallback)
-  3. OpenRouter    —    50 req/day, 20 RPM  (emergency fallback)
+  3. Ollama Cloud  — 5h session + weekly GPU-time limits
+  4. OpenRouter    — 50 free req/day, or 1,000 once $10+ credits bought
 
 Usage:
     from lib.dspy_config import configure_dspy
@@ -16,7 +17,7 @@ import json
 import os
 import re
 import time
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,24 @@ _OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
 _OPENROUTER_MODEL = os.environ.get(
     "PAPER2MD_OPENROUTER_MODEL", _OPENROUTER_FREE_MODEL
 ).strip() or _OPENROUTER_FREE_MODEL
-_OPENROUTER_IS_PAID = _OPENROUTER_MODEL != _OPENROUTER_FREE_MODEL
+# A pinned ":free" model (e.g. "openrouter/google/gemma-4-31b-it:free") draws
+# on the same free-model allowance as the router, so it keeps the throttles.
+_OPENROUTER_IS_PAID = (
+    _OPENROUTER_MODEL != _OPENROUTER_FREE_MODEL
+    and not _OPENROUTER_MODEL.endswith(":free")
+)
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Read a positive integer from the environment, or fall back to default."""
+    raw = os.environ.get(name, "").strip()
+    return int(raw) if raw.isdigit() and int(raw) > 0 else default
+
+
+# Free-model requests per day: 50 for keys that never bought credits, 1,000
+# once the account has bought $10+. 200 is a safe middle; raise it with
+# PAPER2MD_OPENROUTER_DAILY_LIMIT when the key has the larger allowance.
+_OPENROUTER_FREE_DAILY_LIMIT = _positive_int_env("PAPER2MD_OPENROUTER_DAILY_LIMIT", 200)
 
 
 PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
@@ -90,9 +108,11 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         # queue; the throttles below are lifted when that is set.
         "model":    _OPENROUTER_MODEL,
         "env_key":  "OPENROUTER_API_KEY",
-        "daily_limit": None if _OPENROUTER_IS_PAID else 200,
+        "daily_limit": None if _OPENROUTER_IS_PAID else _OPENROUTER_FREE_DAILY_LIMIT,
         "rpm":      500 if _OPENROUTER_IS_PAID else 10,
         "sleep_s":  0.1 if _OPENROUTER_IS_PAID else 6.0,
+        # OpenRouter resets free-model allowances at 00:00 UTC.
+        "utc_day":  True,
     },
     # Legacy: keep working if user only has OPENAI_API_KEY
     "openai": {
@@ -123,11 +143,17 @@ def _save_counts(counts: dict[str, Any]) -> None:
     _COUNTS_FILE.write_text(json.dumps(counts, indent=2))
 
 
+def quota_day(provider: str, now: float | None = None) -> str:
+    """The date a provider's daily count is filed under: UTC or local, per provider."""
+    ts = time.time() if now is None else now
+    utc = PROVIDER_CONFIG.get(provider, {}).get("utc_day", False)
+    return str(datetime.fromtimestamp(ts, timezone.utc if utc else None).date())
+
+
 def increment_provider_count(provider: str) -> int:
     """Increment daily call count for provider. Returns new count."""
-    today = str(date.today())
     counts = _load_counts()
-    key = f"{provider}:{today}"
+    key = f"{provider}:{quota_day(provider)}"
     counts[key] = counts.get(key, 0) + 1
     _save_counts(counts)
     return counts[key]
@@ -135,9 +161,8 @@ def increment_provider_count(provider: str) -> int:
 
 def get_provider_count(provider: str) -> int:
     """Return today's call count for provider."""
-    today = str(date.today())
     counts = _load_counts()
-    return counts.get(f"{provider}:{today}", 0)
+    return counts.get(f"{provider}:{quota_day(provider)}", 0)
 
 
 def is_provider_exhausted(provider: str) -> bool:
