@@ -223,6 +223,10 @@ def _active_provider() -> str:
     if lm is None:
         return "unknown"
     model: str = getattr(lm, "model", "") or ""
+    # Exact model first: nvidia and nvidia_ultra share the "nvidia_nim/" prefix.
+    for name, cfg in PROVIDER_CONFIG.items():
+        if model == cfg["model"]:
+            return name
     for name, cfg in PROVIDER_CONFIG.items():
         if model.lower().startswith(cfg["model"].split("/", 1)[0] + "/"):
             return name

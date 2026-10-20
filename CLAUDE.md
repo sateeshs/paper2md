@@ -227,6 +227,9 @@ Force a provider: `PAPER2MD_LLM_PROVIDER=gemini` (or `groq`, `ollama`, `nvidia`,
 NVIDIA NIM: free key from build.nvidia.com (NVIDIA Developer Program). Change
 the model with `PAPER2MD_NVIDIA_MODEL=nvidia_nim/<model id>` — the ids are
 listed by `GET https://integrate.api.nvidia.com/v1/models`.
+NIM rate-limits each model separately, so Nemotron-3 Ultra runs as a second
+provider, `nvidia_ultra` (same key; model via `PAPER2MD_NVIDIA_ULTRA_MODEL`),
+which gets its own lane under `--one-per-provider`.
 
 OpenRouter free tier: keys that never bought credits get 50 free requests/day,
 keys with $10+ purchased get 1,000. Raise the runner's cap with

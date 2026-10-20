@@ -65,6 +65,13 @@ _NVIDIA_DEFAULT_MODEL = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
 _NVIDIA_MODEL = os.environ.get(
     "PAPER2MD_NVIDIA_MODEL", _NVIDIA_DEFAULT_MODEL
 ).strip() or _NVIDIA_DEFAULT_MODEL
+# NIM rate-limits each model separately (Super returned 429s for an hour while
+# Ultra answered, then the reverse), so a second model is a second provider:
+# in --one-per-provider mode each gets its own lane on the same key.
+_NVIDIA_ULTRA_DEFAULT_MODEL = "nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b"
+_NVIDIA_ULTRA_MODEL = os.environ.get(
+    "PAPER2MD_NVIDIA_ULTRA_MODEL", _NVIDIA_ULTRA_DEFAULT_MODEL
+).strip() or _NVIDIA_ULTRA_DEFAULT_MODEL
 
 _OPENROUTER_FREE_MODEL = "openrouter/openrouter/free"
 _OPENROUTER_MODEL = os.environ.get(
@@ -114,6 +121,13 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     },
     "nvidia": {
         "model":    _NVIDIA_MODEL,
+        "env_key":  "NVIDIA_NIM_API_KEY",
+        "daily_limit": None,
+        "rpm":      40,
+        "sleep_s":  1.5,
+    },
+    "nvidia_ultra": {
+        "model":    _NVIDIA_ULTRA_MODEL,
         "env_key":  "NVIDIA_NIM_API_KEY",
         "daily_limit": None,
         "rpm":      40,
@@ -328,7 +342,7 @@ def mark_provider_exhausted(provider: str, retry_after_s: int = DEFAULT_QUOTA_RE
 
 def _provider_order() -> list[str]:
     explicit = os.environ.get("PAPER2MD_LLM_PROVIDER", "").strip().lower()
-    default = ["gemini", "groq", "ollama", "nvidia", "openrouter", "openai"]
+    default = ["gemini", "groq", "ollama", "nvidia", "nvidia_ultra", "openrouter", "openai"]
     if explicit not in PROVIDER_CONFIG:
         return default
     return [explicit] + [p for p in default if p != explicit]

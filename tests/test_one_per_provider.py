@@ -19,7 +19,7 @@ from tests.test_parallel_explain import _FakeClient, _load_explain_script, _rows
 
 @pytest.fixture
 def keyed(tmp_path, monkeypatch):
-    """Isolate the usage file and key gemini, groq, nvidia and openai.
+    """Isolate the usage file and key gemini, groq, nvidia (both models) and openai.
 
     Returns the loaded script — loading it runs load_dotenv, so it must
     happen before the real keys are cleared.
@@ -37,7 +37,7 @@ def keyed(tmp_path, monkeypatch):
 def test_live_providers_are_keyed_unexhausted_and_free(keyed):
     dspy_config.mark_provider_exhausted("groq")
     # openai is paid, so it never takes a share of the blocks.
-    assert dspy_config.live_providers() == ["gemini", "nvidia"]
+    assert dspy_config.live_providers() == ["gemini", "nvidia", "nvidia_ultra"]
 
 
 def test_pinned_daily_quota_error_marks_only_that_provider(keyed, monkeypatch):
@@ -52,7 +52,7 @@ def test_pinned_daily_quota_error_marks_only_that_provider(keyed, monkeypatch):
             dspy_modules._call_with_tracking(quota_spent)
 
     assert err.value.provider == "groq"
-    assert dspy_config.live_providers() == ["gemini", "nvidia"]
+    assert dspy_config.live_providers() == ["gemini", "nvidia", "nvidia_ultra"]
 
 
 def _run(emo, monkeypatch, explainer_cls, rows: int, client=None):
@@ -94,7 +94,7 @@ def test_each_live_provider_explains_one_block_at_a_time(keyed, monkeypatch):
 
     assert code == 0
     assert sorted(client.updated) == sorted(f"b{i}" for i in range(9))
-    assert peak == {"gemini": 1, "groq": 1, "nvidia": 1}
+    assert peak == {"gemini": 1, "groq": 1, "nvidia": 1, "nvidia_ultra": 1}
 
 
 def test_spent_provider_hands_its_block_to_another(keyed, monkeypatch):
@@ -130,7 +130,7 @@ def test_stops_with_quota_exit_when_every_provider_is_spent(keyed, monkeypatch):
     code = _run(emo, monkeypatch, AllRunOut, rows=10)
 
     assert code == emo.EXIT_QUOTA_EXHAUSTED
-    assert sorted(calls) == ["gemini", "groq", "nvidia"]
+    assert sorted(calls) == ["gemini", "groq", "nvidia", "nvidia_ultra"]
 
 
 def test_lm_calls_have_a_timeout(keyed):
