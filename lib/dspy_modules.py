@@ -30,6 +30,7 @@ from lib.content_analysis import chunk_text_for_llm
 from lib.dspy_config import (
     PROVIDER_CONFIG,
     ProviderQuotaError,
+    DEFAULT_QUOTA_RETRY_S,
     ProvidersExhaustedError,
     active_lm,
     failover_provider,
@@ -233,6 +234,12 @@ def _active_provider() -> str:
     return "unknown"
 
 
+def _is_model_gone(error: Exception) -> bool:
+    """A 404 for the model itself — e.g. NVIDIA retiring a model's backend."""
+    msg = str(error).lower()
+    return "notfounderror" in msg or "error code: 404" in msg
+
+
 def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
     """Call a DSPy module, track usage count, and sleep for rate limiting.
     Retries up to 4 times on rate limit errors with exponential backoff.
@@ -264,6 +271,12 @@ def _call_with_tracking(module: dspy.Module, **kwargs) -> dspy.Prediction:
             if is_daily_quota_error(e) and pinned:
                 # The caller hands this block to another provider.
                 mark_provider_exhausted(provider, quota_retry_after(e))
+                raise ProviderQuotaError(provider) from e
+            if _is_model_gone(e) and pinned:
+                # A retired model fails every block instantly; take the lane
+                # out for an hour instead of burning the queue on it.
+                tqdm.write(f"[WARN] {provider} model not found — pausing its lane for 1h")
+                mark_provider_exhausted(provider, DEFAULT_QUOTA_RETRY_S)
                 raise ProviderQuotaError(provider) from e
             if is_daily_quota_error(e):
                 tqdm.write(f"[WARN] {provider} daily quota exhausted — switching provider…")

@@ -179,3 +179,16 @@ def test_overloaded_provider_is_retried_with_backoff(keyed, monkeypatch):
     with dspy_modules.pinned_provider("nvidia"):
         assert dspy_modules._call_with_tracking(overloaded_once) == "ok"
     assert len(calls) == 2
+
+
+def test_model_not_found_pauses_the_lane_instead_of_failing_the_block(keyed, monkeypatch):
+    monkeypatch.setattr(dspy_modules, "wait_for_call_slot", lambda _p: None)
+
+    def gone(**_kw):
+        raise RuntimeError("litellm.NotFoundError: Error code: 404 - Function not found")
+
+    with dspy_modules.pinned_provider("nvidia"):
+        with pytest.raises(dspy_modules.ProviderQuotaError):
+            dspy_modules._call_with_tracking(gone)
+
+    assert "nvidia" not in dspy_config.live_providers()
