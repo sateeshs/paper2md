@@ -262,11 +262,23 @@ export async function queuePaper(
   client: Client,
   arxivId: string,
   title?: string
-): Promise<{ queued: boolean; existing: boolean }> {
+): Promise<{ queued: boolean; existing: boolean; requeued: boolean }> {
   // Check if already exists
   const existing = await getPaperByArxivId(client, arxivId);
+  if (existing?.status === "error") {
+    // A failed paper goes back to pending so the batch retries it. The status
+    // guard keeps a concurrent run's row from being reset. Needs a client that
+    // bypasses RLS — the anon key may only insert.
+    const { error } = await client
+      .from("papers")
+      .update({ status: "pending", error_msg: null, updated_at: new Date().toISOString() })
+      .eq("arxiv_id", arxivId)
+      .eq("status", "error");
+    if (error) throw new Error(`queuePaper: ${error.message}`);
+    return { queued: true, existing: false, requeued: true };
+  }
   if (existing) {
-    return { queued: false, existing: true };
+    return { queued: false, existing: true, requeued: false };
   }
 
   const { error } = await client.from("papers").insert({
@@ -277,5 +289,5 @@ export async function queuePaper(
   });
 
   if (error) throw new Error(`queuePaper: ${error.message}`);
-  return { queued: true, existing: false };
+  return { queued: true, existing: false, requeued: false };
 }
