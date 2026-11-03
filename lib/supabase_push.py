@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,19 @@ from lib.models import MathBlock, Paper, Section, Citation
 
 # Lazy import — only needed when --push-supabase is used
 _supabase_client = None
+
+# A run killed mid-paper (CI timeout, OOM, lost runner) never resets its row.
+# Hosted runs are capped at 20 min, so a paper still "processing" this long
+# after it was claimed has no live run behind it.
+STALE_PROCESSING_AFTER = timedelta(hours=2)
+
+# Written when a stale paper is requeued; a second interruption marks it
+# "error" so a paper too big for the run limit can't burn quota every batch.
+INTERRUPTED_MSG = "Processing was interrupted (run timed out or was killed); retrying once."
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _s(value: str | None) -> str | None:
@@ -90,7 +104,12 @@ def get_paper_status(arxiv_id: str) -> str | None:
 def mark_processing(arxiv_id: str, title: str = "") -> None:
     """Update existing paper row status to 'processing'. Preserves existing title."""
     client = _get_client()
-    update: dict = {"status": "processing", "source_type": "arxiv_latex"}
+    # papers.updated_at has no trigger — stamp the claim so stale runs are detectable
+    update: dict = {
+        "status": "processing",
+        "source_type": "arxiv_latex",
+        "updated_at": _utcnow().isoformat(),
+    }
     # Only set title if explicitly provided — don't overwrite a real title with arxiv_id
     if title and title != arxiv_id:
         update["title"] = title
@@ -108,9 +127,41 @@ def mark_error(arxiv_id: str, error_msg: str) -> None:
         pass  # Best-effort
 
 
+def reclaim_stale_processing() -> list[str]:
+    """Requeue papers stuck in 'processing' past STALE_PROCESSING_AFTER.
+
+    Each paper gets one automatic retry; one that is interrupted again is
+    marked 'error'. Returns the arxiv_ids that were requeued.
+    """
+    client = _get_client()
+    now = _utcnow()
+    cutoff = (now - STALE_PROCESSING_AFTER).isoformat()
+    resp = (
+        client.table("papers")
+        .select("arxiv_id,error_msg")
+        .eq("status", "processing")
+        .lt("updated_at", cutoff)
+        .execute()
+    )
+    requeued: list[str] = []
+    for row in resp.data or []:
+        arxiv_id = row.get("arxiv_id")
+        if not arxiv_id:
+            continue
+        if row.get("error_msg") == INTERRUPTED_MSG:
+            mark_error(arxiv_id, "Processing was interrupted twice (likely exceeds the run time limit).")
+            continue
+        client.table("papers").update(
+            {"status": "pending", "error_msg": INTERRUPTED_MSG, "updated_at": now.isoformat()}
+        ).eq("arxiv_id", arxiv_id).eq("status", "processing").execute()
+        requeued.append(arxiv_id)
+    return requeued
+
+
 def fetch_pending_arxiv_ids() -> list[str]:
-    """Return all arxiv_ids with status='pending' from Supabase."""
+    """Return all arxiv_ids with status='pending', after requeueing stale runs."""
     try:
+        reclaim_stale_processing()
         client = _get_client()
         resp = (
             client.table("papers")
