@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { queuePaper } from "@/lib/supabase/queries";
 import { extractArxivId } from "@/lib/arxiv-id";
 import { triggerProcessing } from "@/lib/github-dispatch";
@@ -37,7 +37,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const client = await createClient();
+  // Service role: requeueing a failed paper is an UPDATE, which RLS denies to
+  // the anon key. queuePaper only inserts pending rows or flips error → pending.
+  const client = createServiceClient();
   const result = await queuePaper(client, arxivId, title);
 
   let dispatch: Record<string, unknown>;
