@@ -45,19 +45,19 @@ export function ProcessButton({ arxivId }: ProcessButtonProps) {
     );
   }
 
-  if (state === "error") {
-    return (
-      <span className="text-xs text-red-500 font-medium shrink-0">Failed — retry?</span>
-    );
-  }
+  const failed = state === "error";
 
   return (
     <button
       onClick={handleClick}
       disabled={state === "loading"}
-      className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-md border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-50 transition-colors"
+      className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-md border disabled:opacity-50 transition-colors ${
+        failed
+          ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+      }`}
     >
-      {state === "loading" ? "Requesting…" : "Request processing"}
+      {state === "loading" ? "Requesting…" : failed ? "Failed — retry" : "Request processing"}
     </button>
   );
 }
