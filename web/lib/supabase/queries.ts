@@ -19,6 +19,8 @@ import type {
 
 type Client = SupabaseClient<Database>;
 
+const SEARCH_PAPERS_LIMIT = 20;
+
 // ── Papers ────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20;
@@ -197,15 +199,18 @@ export async function searchPapers(
   client: Client,
   query: string
 ): Promise<Paper[]> {
-  const { data, error } = await client
-    .from("papers")
-    .select("*")
-    .or(`title.ilike.%${query}%,arxiv_id.ilike.%${query}%`)
-    .order("updated_at", { ascending: false })
-    .limit(20);
+  // Matches title, arxiv_id, authors and affiliations (migration 009). It is
+  // an RPC because PostgREST cannot substring-match inside array columns.
+  // search_papers is left out of Database["Functions"]: typing any function
+  // there makes postgrest-js re-resolve every embedded select, and these
+  // hand-written tables declare no Relationships.
+  const { data, error } = await (client as unknown as SupabaseClient).rpc("search_papers", {
+    q: query,
+    max_results: SEARCH_PAPERS_LIMIT,
+  });
 
   if (error) throw new Error(`searchPapers: ${error.message}`);
-  return data ?? [];
+  return (data ?? []) as Paper[];
 }
 
 /** Return all complete paper ArXiv IDs for static generation. */

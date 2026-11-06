@@ -32,7 +32,10 @@ export function PapersList({ papers, total, isSearch, searchQuery }: PapersListP
       const title = p.title?.toLowerCase() ?? "";
       const arxiv = p.arxiv_id?.toLowerCase() ?? "";
       const authors = p.authors?.join(" ").toLowerCase() ?? "";
-      return title.includes(lower) || arxiv.includes(lower) || authors.includes(lower);
+      // Newline-joined so a query cannot match across two organisations.
+      const affiliations = p.affiliations?.join("\n").toLowerCase() ?? "";
+      return title.includes(lower) || arxiv.includes(lower) || authors.includes(lower)
+        || affiliations.includes(lower);
     });
   }, [papers, filter]);
 
@@ -94,7 +97,7 @@ export function PapersList({ papers, total, isSearch, searchQuery }: PapersListP
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by title, arXiv ID, or author…"
+            placeholder="Filter by title, arXiv ID, author, or organization…"
             className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg bg-zinc-50 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 focus:bg-white transition-colors"
           />
         </div>

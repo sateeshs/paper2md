@@ -46,6 +46,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
 
+from lib.arxiv_metadata import ArxivMetadata, fetch_arxiv_metadata
+from lib.latex_affiliations import extract_affiliations, merge_affiliations
 from lib.latex_outline import strip_comments
 from lib.models import Paper
 from lib.pdf_extract import extract_paper_from_pdf
@@ -353,6 +355,10 @@ def process_arxiv_id(
             tqdm.write(f"[WARN] {label}: LaTeX source yielded 0 sections — falling back to PDF")
             _needs_pdf_fallback = True
 
+    meta = _arxiv_api_metadata(arxiv_id)
+    authors = meta.authors if meta else ()
+    api_affiliations = meta.affiliations if meta else ()
+
     if not latex or _needs_pdf_fallback:
         # Fall back to direct PDF download (no API call — avoids rate limits).
         # The temp dir lives until vision-math is done; cleaned in `finally` below.
@@ -394,6 +400,8 @@ def process_arxiv_id(
                 arxiv_id=arxiv_id,
                 source_type=source_type,
                 sections=pdf_sections,
+                authors=authors,
+                affiliations=merge_affiliations(api_affiliations),
             )
         except Exception as e:
             _report_error("pdf_fallback", label, e)
@@ -407,7 +415,7 @@ def process_arxiv_id(
         # Build Paper object from LaTeX path.
         # For arXiv papers prefer the API title (authoritative, avoids template placeholders).
         # Fall back to LaTeX \title{} extraction if the API call fails.
-        title = _arxiv_api_title(arxiv_id) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
+        title = (meta and meta.title) or _title_from_latex(latex, arxiv_id, full_source=full_latex_source)
         full_text = "\n\n".join(s.plain_text for s in sections)
         paper = Paper(
             title=title,
@@ -416,6 +424,10 @@ def process_arxiv_id(
             source_type=source_type,
             sections=sections,
             citations=citations,
+            authors=authors,
+            affiliations=merge_affiliations(
+                extract_affiliations(full_latex_source or latex), api_affiliations
+            ),
         )
 
     # Summarise
@@ -460,23 +472,12 @@ def process_arxiv_id(
     return ProcessResult("processed")
 
 
-def _arxiv_api_title(arxiv_id: str) -> str | None:
-    """Fetch the canonical title from the ArXiv Atom API. Returns None on failure."""
+def _arxiv_api_metadata(arxiv_id: str) -> ArxivMetadata | None:
+    """Canonical title + authors from the ArXiv Atom API. Returns None on failure."""
     try:
-        import urllib.request
-        import xml.etree.ElementTree as ET
-        url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
-        req = urllib.request.Request(url, headers={"User-Agent": "paper2md/1.0"})
-        with urllib.request.urlopen(req, timeout=10) as r:
-            root = ET.fromstring(r.read().decode())
-        ns = {"a": "http://www.w3.org/2005/Atom"}
-        entry = root.find("a:entry", ns)
-        if entry is not None:
-            t = entry.find("a:title", ns)
-            if t is not None and t.text:
-                return re.sub(r"\s+", " ", t.text.strip()).strip()
+        return fetch_arxiv_metadata([arxiv_id]).get(arxiv_id)
     except Exception as e:
-        tqdm.write(f"[WARN] arXiv API title lookup failed: {_format_exc(e)}")
+        tqdm.write(f"[WARN] arXiv API metadata lookup failed: {_format_exc(e)}")
     return None
 
 

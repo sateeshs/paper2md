@@ -36,6 +36,9 @@ export function PaperRow({ paper }: PaperRowProps) {
           {paper.authors && paper.authors.length > 0 && (
             <span className="truncate max-w-xs">{paper.authors.slice(0, 3).join(", ")}</span>
           )}
+          {paper.affiliations?.[0] && (
+            <span className="truncate max-w-xs text-zinc-500">{paper.affiliations[0]}</span>
+          )}
           <span>{new Date(paper.updated_at).toLocaleDateString()}</span>
         </div>
       </div>
