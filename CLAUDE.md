@@ -191,6 +191,8 @@ supabase_push.py       UPSERT papers, DELETE+INSERT sections+math_blocks
 | `arxiv_source.py` | ArXiv LaTeX download | `fetch_arxiv_latex_full(arxiv_id) → (body, full_src)`, `split_preamble(full_src)` |
 | `latex_macros.py` | Custom macro expansion | `expand_custom_macros(body, *extra_sources)` |
 | `latex_parse.py` | Section + math extraction | `parse_latex_sections(body, preamble) → tuple[Section]` |
+| `latex_affiliations.py` | Author organisations for search | `extract_affiliations(full_src) → tuple[str]` |
+| `arxiv_metadata.py` | Title + authors (arXiv API, 50 ids/call) | `fetch_arxiv_metadata(ids) → dict[id, ArxivMetadata]` |
 | `dspy_config.py` | Provider setup + fallback | `configure_dspy() → str` |
 | `dspy_signatures.py` | Typed LLM contracts | `ExplainMathBlock`, `SummarizeChunk`, `ReduceToFinalSummary` |
 | `dspy_modules.py` | DSPy CoT modules | `MathExplainer.forward(paper)`, `PaperSummarizer.forward(paper)` |

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { searchPapers } from "@/lib/supabase/queries";
+import { pickMatches } from "@/lib/search-match";
 
 export async function GET(request: Request): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
@@ -25,7 +26,10 @@ export async function GET(request: Request): Promise<NextResponse> {
       id: p.id,
       arxiv_id: p.arxiv_id,
       title: p.title,
-      authors: p.authors?.slice(0, 2) ?? [],
+      // The entries the query matched come first, so an author or
+      // organisation search shows why the paper is in the list.
+      authors: pickMatches(p.authors, q, 2),
+      affiliation: pickMatches(p.affiliations, q, 1)[0] ?? null,
     }))
   );
 }

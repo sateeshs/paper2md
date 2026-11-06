@@ -72,6 +72,8 @@ class Paper:
     summary_md: str | None = None
     sections: tuple[Section, ...] = field(default_factory=tuple)
     citations: tuple[Citation, ...] = field(default_factory=tuple)
+    authors: tuple[str, ...] = ()        # from the arXiv API
+    affiliations: tuple[str, ...] = ()   # from the LaTeX source — searchable
 
 
 @dataclass(frozen=True)

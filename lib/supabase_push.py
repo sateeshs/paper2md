@@ -178,6 +178,28 @@ def fetch_pending_arxiv_ids() -> list[str]:
 # Main push
 # ---------------------------------------------------------------------------
 
+def _paper_row(paper: Paper) -> dict[str, Any]:
+    """The `papers` columns written for `paper`.
+
+    Authors and affiliations are only written when known, so a re-run whose
+    arXiv API lookup failed does not wipe the ones already stored.
+    """
+    row: dict[str, Any] = {
+        "title":       _s(paper.title),
+        "source_type": paper.source_type,
+        "status":      "processing",
+    }
+    if paper.arxiv_id:
+        row["arxiv_id"] = paper.arxiv_id
+    if paper.pdf_path:
+        row["pdf_filename"] = paper.pdf_path.name
+    if paper.authors:
+        row["authors"] = [_s(a) for a in paper.authors]
+    if paper.affiliations:
+        row["affiliations"] = [_s(a) for a in paper.affiliations]
+    return row
+
+
 def push_paper(paper: Paper) -> None:
     """
     Upsert a fully-processed Paper (with sections + math_blocks) to Supabase.
@@ -194,19 +216,9 @@ def push_paper(paper: Paper) -> None:
     client = _get_client()
 
     # ── 1. Upsert paper ────────────────────────────────────────────────────
-    paper_row: dict[str, Any] = {
-        "title":       _s(paper.title),
-        "source_type": paper.source_type,
-        "status":      "processing",
-    }
-    if paper.arxiv_id:
-        paper_row["arxiv_id"] = paper.arxiv_id
-    if paper.pdf_path:
-        paper_row["pdf_filename"] = paper.pdf_path.name
-
     upsert_resp = (
         client.table("papers")
-        .upsert(paper_row, on_conflict="arxiv_id")
+        .upsert(_paper_row(paper), on_conflict="arxiv_id")
         .execute()
     )
     paper_id: str = upsert_resp.data[0]["id"]

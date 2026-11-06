@@ -8,6 +8,7 @@ interface Suggestion {
   arxiv_id: string | null;
   title: string;
   authors: string[];
+  affiliation: string | null;
 }
 
 export function SearchBar() {
@@ -102,7 +103,7 @@ export function SearchBar() {
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
-          placeholder="Search papers by title…"
+          placeholder="Search by title, author, or organization…"
           autoComplete="off"
           className="flex-1 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           aria-autocomplete="list"
@@ -141,8 +142,11 @@ export function SearchBar() {
                 </p>
                 <div className="flex items-center gap-2 mt-0.5 text-xs text-zinc-400">
                   {s.arxiv_id && <span>arXiv:{s.arxiv_id}</span>}
-                  {s.authors.length > 0 && <span>{s.authors.join(", ")}</span>}
+                  {s.authors.length > 0 && <span className="truncate">{s.authors.join(", ")}</span>}
                 </div>
+                {s.affiliation && (
+                  <p className="mt-0.5 text-xs text-zinc-500 truncate">{s.affiliation}</p>
+                )}
               </div>
             </li>
           ))}

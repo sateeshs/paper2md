@@ -16,6 +16,7 @@ export interface Paper {
   title: string;
   abstract: string | null;
   authors: string[] | null;
+  affiliations: string[];
   source_type: string;
   pdf_filename: string | null;
   status: "pending" | "processing" | "explaining" | "complete" | "error";
@@ -142,6 +143,7 @@ export type Database = {
           title: string;
           abstract?: string | null;
           authors?: string[] | null;
+          affiliations?: string[];
           source_type: string;
           pdf_filename?: string | null;
           status?: "pending" | "processing" | "explaining" | "complete" | "error";
